@@ -340,29 +340,29 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                         ? 'bg-red-500/15 text-white'
                         : 'text-slate-300 hover:bg-white/5'}`}
                     >
-                      <td className="px-3 py-1 font-mono">
+                      <td className="px-3 py-1 font-mono whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           <CategoryIcon category={categorizeAircraft(f.aircraftType)} isPolice={f.isPolice} />
                           {f.callsign ?? f.icao24}
                         </span>
                       </td>
-                      {!militaryMode && <td className="px-3 py-1">
+                      {!militaryMode && <td className="px-3 py-1 max-w-0 truncate">
                         {f.route
                           ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
                           : <span className="text-slate-600">—</span>}
                       </td>}
-                      {militaryMode && <td className="px-3 py-1 font-mono">
+                      {militaryMode && <td className="px-3 py-1 font-mono whitespace-nowrap">
                         {f.aircraftType
                           ? <span className="text-slate-300">{f.aircraftType.toUpperCase()}</span>
                           : <span className="text-slate-600">—</span>}
                       </td>}
-                      {militaryMode && <td className="px-3 py-1">
+                      {militaryMode && <td className="px-3 py-1 max-w-0 truncate">
                         {f.aircraftType && aircraftTypeName(f.aircraftType)
                           ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">{aircraftTypeName(f.aircraftType)}</span>
                           : <span className="text-slate-600">—</span>}
                       </td>}
-                      <td className="px-3 py-1 text-right">{f.distanceMiles.toFixed(1)} mi</td>
-                      <td className="px-3 py-1 text-right">
+                      <td className="px-3 py-1 text-right whitespace-nowrap">{f.distanceMiles.toFixed(1)} mi</td>
+                      <td className="px-3 py-1 text-right whitespace-nowrap">
                         {f.baroAltitude != null ? `${Math.round(f.baroAltitude * 3.28084 / 100) * 100}` : '—'}
                       </td>
                     </tr>
