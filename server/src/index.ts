@@ -4,6 +4,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
+import { exec } from 'child_process';
 import { subscribe } from './poller';
 import { fetchPlanePhoto } from './opensky';
 
@@ -70,6 +71,19 @@ app.get('/api/flights/stream', (req, res) => {
   req.on('close', () => {
     unsubscribe();
     res.end();
+  });
+});
+
+app.post('/api/shutdown', (req, res) => {
+  const addr = req.socket.remoteAddress ?? '';
+  const isLocal = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+  if (!isLocal) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  res.json({ ok: true, message: 'Shutting down' });
+  exec('sudo shutdown -h now', (err) => {
+    if (err) console.error('[shutdown] failed:', err.message);
   });
 });
 

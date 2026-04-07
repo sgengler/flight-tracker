@@ -4,6 +4,7 @@ import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft } from './components/FlightMap';
 import { aircraftTypeName } from './utils';
+import { ShutdownButton } from './components/ShutdownButton';
 
 
 // Default fallback location (Chesterbrook, PA)
@@ -172,7 +173,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const info = useFlightInfo(selectedFlight?.icao24 ?? null);
 
   return (
-    <div className="h-full flex flex-col bg-slate-900">
+    <div className="h-full flex flex-col bg-slate-900 relative">
       <div className="flex-1 flex flex-col md:flex-row gap-2 p-2 overflow-hidden min-h-0">
         {/* Map + flight list — hidden when card is fullscreen */}
         {fullscreenPanel !== 'card' && (
@@ -403,6 +404,9 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           )}
         </div>
         )}
+      </div>
+      <div className="absolute bottom-3 right-3 z-[1001]">
+        <ShutdownButton />
       </div>
     </div>
   );
