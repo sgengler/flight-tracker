@@ -27,10 +27,10 @@ function useGeolocation(): GeoState {
 
 
 type FilterCategory = 'jet' | 'prop' | 'small' | 'heli' | 'military' | 'police'
-  | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav';
+  | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli';
 
 const NORMAL_CATEGORIES = new Set<FilterCategory>(['jet', 'prop', 'small', 'heli', 'military', 'police']);
-const MILITARY_CATEGORIES = new Set<FilterCategory>(['fighter', 'bomber', 'transport', 'attack', 'uav']);
+const MILITARY_CATEGORIES = new Set<FilterCategory>(['fighter', 'bomber', 'transport', 'attack', 'uav', 'mil-heli']);
 
 const LEGEND_ENTRIES: { category: FilterCategory; label: string; desc: string; svg: string }[] = [
   {
@@ -103,6 +103,12 @@ const MILITARY_LEGEND_ENTRIES: { category: FilterCategory; label: string; desc: 
     label: 'UAV / Recon',
     desc: 'MQ-9, RQ-4, U-2, SR-71…',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-10 L1,-5 L2,-1 L25,3 L25,6 L2,2 L1.5,11 L4,12 L4,14 L0,13 L-4,14 L-4,12 L-1.5,11 L-2,2 L-25,6 L-25,3 L-2,-1 L-1,-5 Z" fill="${MIL_COLOR}" ${MIL_STROKE}/></svg>`,
+  },
+  {
+    category: 'mil-heli',
+    label: 'Helicopter',
+    desc: 'UH-60 Black Hawk, CH-47 Chinook, AH-64 Apache…',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><rect x="-20" y="-2" width="40" height="4" rx="2" fill="${MIL_COLOR}" stroke="rgba(0,0,0,0.7)" stroke-width="0.8"/><rect x="-2" y="-20" width="4" height="40" rx="2" fill="${MIL_COLOR}" stroke="rgba(0,0,0,0.7)" stroke-width="0.8"/><circle cx="0" cy="0" r="3" fill="${MIL_COLOR}" stroke="rgba(0,0,0,0.85)" stroke-width="1"/><path d="M0,-11 C5,-11 8,-5 8,1 C8,7 5,11 0,13 C-5,11 -8,7 -8,1 C-8,-5 -5,-11 0,-11 Z" fill="${MIL_COLOR}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5"/><rect x="-1.5" y="12" width="3" height="10" rx="1" fill="${MIL_COLOR}" stroke="rgba(0,0,0,0.7)" stroke-width="0.8"/><rect x="-8" y="19" width="16" height="3" rx="1.5" fill="${MIL_COLOR}" stroke="rgba(0,0,0,0.7)" stroke-width="0.8"/></svg>`,
   },
 ];
 

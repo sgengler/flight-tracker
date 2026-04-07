@@ -40,16 +40,19 @@ function heliInnerSvg(color: string, filterAttr: string): string {
   );
 }
 
-export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav';
+export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli';
 
 /** Military sub-categories used to pick icon shapes */
-export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 'bomber', 'transport', 'attack', 'uav']);
+export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 'bomber', 'transport', 'attack', 'uav', 'mil-heli']);
 
-function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' {
+function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' {
   if (['B52','B1B','B2'].includes(t)) return 'bomber';
   if (['C130','C17','C5A','C5M','KC10','KC135','KC46','E3','E8','E6','P3','P8'].includes(t)) return 'transport';
   if (['A10','AC13','AC130'].includes(t)) return 'attack';
   if (['U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180'].includes(t)) return 'uav';
+  // Military helicopters — H60 must be checked here before the civilian 'H*' prefix catches it
+  if (['H60','S70','UH60','HH60','MH60','SH60','CH47','AH64','UH1','UH1Y','AH1',
+       'CH53','OH58','HH65','HH1'].includes(t)) return 'mil-heli';
   return 'fighter'; // F-14, F-15, F-16, F-22, F-35, T-38, T-45, V-22, etc.
 }
 
@@ -57,10 +60,8 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
   if (!typeCode) return 'jet';
   const t = typeCode.toUpperCase();
 
-  if (t.startsWith('H') || ['EC35','EC45','EC55','EC75','AS50','AS32','AS35','S76','S92',
-    'B06','B07','R22','R44','R66','B505','AW13','AW16','AW17','AW18','AW19'].includes(t)) return 'heli';
-
-  // Military — checked before civilian prefixes so e.g. C17 (Globemaster) beats C17x (Cessna 172)
+  // Military checked first so known military types (C17, H60, etc.) aren't
+  // misidentified as civilian Cessna 172 / generic H* helicopter prefixes.
   const militaryCodes = new Set([
     'F14','F15','F16','F18','FA18','F22','F35','F117', // fighters / strike
     'B52','B1B','B2',                                   // bombers
@@ -72,8 +73,20 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
     'P3','P8',                                          // maritime patrol
     'V22',                                              // tiltrotor
     'T38','T6','T45',                                   // trainers
+    // Military helicopters
+    'H60','S70','UH60','HH60','MH60','SH60',            // Black Hawk / Seahawk family
+    'CH47',                                             // Chinook
+    'AH64',                                             // Apache
+    'UH1','UH1Y','HH1',                                 // Huey family
+    'AH1',                                              // Cobra / Viper
+    'CH53',                                             // Sea Stallion / Super Stallion
+    'OH58',                                             // Kiowa Warrior
+    'HH65',                                             // Dolphin (Coast Guard)
   ]);
   if (militaryCodes.has(t)) return categorizeMilitary(t);
+
+  if (t.startsWith('H') || ['EC35','EC45','EC55','EC75','AS50','AS32','AS35','S76','S92',
+    'B06','B07','R22','R44','R66','B505','AW13','AW16','AW17','AW18','AW19'].includes(t)) return 'heli';
 
   const smallPrefixes = [
     // Piston GA
@@ -123,7 +136,7 @@ function aircraftIcon(heading: number, selected: boolean, aircraftType: string |
   const filterAttr = (selected || isPolice || isMil) ? 'filter="url(#glow)"' : '';
 
   let body: string;
-  if (cat === 'heli') {
+  if (cat === 'heli' || cat === 'mil-heli') {
     body = heliInnerSvg(color, filterAttr);
   } else {
     const planePath =
