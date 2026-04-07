@@ -198,8 +198,8 @@ function saveRouteCache() {
 // Load on startup, save every 5 minutes and on process exit
 loadRouteCache();
 setInterval(saveRouteCache, 5 * 60 * 1000);
-process.on('SIGTERM', saveRouteCache);
-process.on('SIGINT', saveRouteCache);
+process.on('SIGTERM', () => { saveRouteCache(); process.exit(0); });
+process.on('SIGINT',  () => { saveRouteCache(); process.exit(0); });
 
 type FAFlight = {
   origin?: { code?: string; code_icao?: string; code_iata?: string; city?: string };
