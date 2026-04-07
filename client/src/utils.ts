@@ -89,6 +89,110 @@ export const AIRPORT_COORDS: Record<string, [number, number]> = {
   MMMX: [19.4363, -99.0721], SBGR: [-23.4356, -46.4731], FAOR: [-26.1392, 28.2460],
 };
 
+// ICAO aircraft type code → human-readable name
+export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
+  // Narrow-body airliners
+  A19N: 'Airbus A319neo', A20N: 'Airbus A320neo', A21N: 'Airbus A321neo',
+  A318: 'Airbus A318', A319: 'Airbus A319', A320: 'Airbus A320', A321: 'Airbus A321',
+  A124: 'Antonov An-124 Ruslan', A148: 'Antonov An-148',
+  B712: 'Boeing 717-200',
+  B731: 'Boeing 737-100', B732: 'Boeing 737-200', B733: 'Boeing 737-300',
+  B734: 'Boeing 737-400', B735: 'Boeing 737-500', B736: 'Boeing 737-600',
+  B737: 'Boeing 737-700', B738: 'Boeing 737-800', B739: 'Boeing 737-900',
+  B37M: 'Boeing 737 MAX 7', B38M: 'Boeing 737 MAX 8', B39M: 'Boeing 737 MAX 9',
+  B3XM: 'Boeing 737 MAX 10',
+  // Wide-body airliners
+  A306: 'Airbus A300-600', A310: 'Airbus A310',
+  A332: 'Airbus A330-200', A333: 'Airbus A330-300',
+  A338: 'Airbus A330-800neo', A339: 'Airbus A330-900neo',
+  A342: 'Airbus A340-200', A343: 'Airbus A340-300', A345: 'Airbus A340-500', A346: 'Airbus A340-600',
+  A359: 'Airbus A350-900', A35K: 'Airbus A350-1000',
+  A388: 'Airbus A380-800',
+  B741: 'Boeing 747-100', B742: 'Boeing 747-200', B743: 'Boeing 747-300',
+  B744: 'Boeing 747-400', B748: 'Boeing 747-8',
+  B752: 'Boeing 757-200', B753: 'Boeing 757-300',
+  B762: 'Boeing 767-200', B763: 'Boeing 767-300', B764: 'Boeing 767-400',
+  B772: 'Boeing 777-200', B773: 'Boeing 777-300',
+  B77L: 'Boeing 777-200LR', B77W: 'Boeing 777-300ER',
+  B778: 'Boeing 777X-8', B779: 'Boeing 777X-9',
+  B788: 'Boeing 787-8 Dreamliner', B789: 'Boeing 787-9 Dreamliner', B78X: 'Boeing 787-10 Dreamliner',
+  // Regional jets
+  CRJ1: 'Bombardier CRJ-100', CRJ2: 'Bombardier CRJ-200',
+  CRJ7: 'Bombardier CRJ-700', CRJ9: 'Bombardier CRJ-900', CRJX: 'Bombardier CRJ-1000',
+  E135: 'Embraer ERJ-135', E145: 'Embraer ERJ-145',
+  E170: 'Embraer E170', E175: 'Embraer E175', E190: 'Embraer E190', E195: 'Embraer E195',
+  E75L: 'Embraer E175-E2', E290: 'Embraer E190-E2', E295: 'Embraer E195-E2',
+  // Turboprops
+  AT43: 'ATR 42-300', AT45: 'ATR 42-500', AT46: 'ATR 42-600',
+  AT72: 'ATR 72-200', AT73: 'ATR 72-300', AT75: 'ATR 72-500', AT76: 'ATR 72-600',
+  DH8A: 'Dash 8-100', DH8B: 'Dash 8-200', DH8C: 'Dash 8-300', DH8D: 'Dash 8-400',
+  SF34: 'Saab 340', SB20: 'Saab 2000',
+  // Business jets
+  C25A: 'Cessna Citation CJ2', C25B: 'Cessna Citation CJ3', C25C: 'Cessna Citation CJ4',
+  C500: 'Cessna Citation I', C501: 'Cessna Citation II', C510: 'Cessna Citation Mustang',
+  C525: 'Cessna CitationJet', C550: 'Cessna Citation II', C560: 'Cessna Citation V',
+  C56X: 'Cessna Citation Excel', C680: 'Cessna Citation Sovereign',
+  C700: 'Cessna Citation Longitude', C750: 'Cessna Citation X',
+  LJ35: 'Learjet 35', LJ45: 'Learjet 45', LJ60: 'Learjet 60', LJ75: 'Learjet 75',
+  GL5T: 'Bombardier Global 5000', GL7T: 'Bombardier Global 7500',
+  GLEX: 'Bombardier Global Express',
+  CL30: 'Bombardier Challenger 300', CL35: 'Bombardier Challenger 350',
+  CL60: 'Bombardier Challenger 600',
+  F2TH: 'Dassault Falcon 2000', F900: 'Dassault Falcon 900', FA7X: 'Dassault Falcon 7X',
+  FA8X: 'Dassault Falcon 8X',
+  G150: 'Gulfstream G150', G280: 'Gulfstream G280',
+  G450: 'Gulfstream G450', G500: 'Gulfstream G500', G550: 'Gulfstream G550',
+  G600: 'Gulfstream G600', G650: 'Gulfstream G650',
+  GALX: 'IAI Galaxy / Gulfstream G200',
+  HDJT: 'Honda HA-420 HondaJet',
+  PC24: 'Pilatus PC-24',
+  // General aviation (piston / light)
+  C172: 'Cessna 172 Skyhawk', C182: 'Cessna 182 Skylane', C208: 'Cessna 208 Caravan',
+  C210: 'Cessna 210 Centurion',
+  P28A: 'Piper PA-28 Cherokee', P28B: 'Piper PA-28 Arrow',
+  P46T: 'Piper M600', PA44: 'Piper Seminole', PA46: 'Piper Malibu',
+  BE20: 'Beechcraft King Air 200', BE35: 'Beechcraft Bonanza', BE36: 'Beechcraft Bonanza 36',
+  BE58: 'Beechcraft Baron', BE9L: 'Beechcraft King Air 90',
+  SR20: 'Cirrus SR20', SR22: 'Cirrus SR22',
+  DA40: 'Diamond DA40', DA42: 'Diamond DA42 Twin Star', DA62: 'Diamond DA62',
+  TBM7: 'Daher TBM 700', TBM8: 'Daher TBM 850', TBM9: 'Daher TBM 900',
+  // Helicopters
+  AS32: 'Eurocopter AS332 Super Puma', AS3B: 'Eurocopter AS350 B3',
+  EC35: 'Eurocopter EC135', EC45: 'Eurocopter EC145',
+  H60: 'Sikorsky H-60 Black Hawk',
+  R44: 'Robinson R44', R66: 'Robinson R66',
+  S76: 'Sikorsky S-76',
+  // Military fighters / strike
+  F14: 'F-14 Tomcat', F15: 'F-15 Eagle', F16: 'F-16 Fighting Falcon',
+  F18: 'F/A-18 Hornet', FA18: 'F/A-18 Hornet',
+  F22: 'F-22 Raptor', F35: 'F-35 Lightning II', F117: 'F-117 Nighthawk',
+  // Military bombers
+  B52: 'B-52 Stratofortress', B1B: 'B-1B Lancer', B2: 'B-2 Spirit',
+  // Military attack
+  A10: 'A-10 Thunderbolt II', AC13: 'AC-130 Gunship',
+  // Military transports
+  C130: 'C-130 Hercules', C17: 'C-17 Globemaster III',
+  C5A: 'C-5A Galaxy', C5M: 'C-5M Super Galaxy',
+  // Military tankers
+  KC10: 'KC-10 Extender', KC135: 'KC-135 Stratotanker', KC46: 'KC-46 Pegasus',
+  // Military surveillance / command
+  E3: 'E-3 Sentry (AWACS)', E8: 'E-8 Joint STARS', E6: 'E-6 Mercury',
+  P3: 'P-3 Orion', P8: 'P-8 Poseidon',
+  RC135: 'RC-135 Rivet Joint', U2: 'U-2 Dragon Lady',
+  // Military helicopters
+  AH64: 'AH-64 Apache', CH47: 'CH-47 Chinook', UH60: 'UH-60 Black Hawk',
+  MH60: 'MH-60 Sea Hawk', V22: 'V-22 Osprey',
+  // Military trainers
+  T38: 'T-38 Talon', T6: 'T-6 Texan II', T45: 'T-45 Goshawk',
+  // Cargo
+  MD11: 'McDonnell Douglas MD-11',
+};
+
+export function aircraftTypeName(typeCode: string | null | undefined): string | null {
+  if (!typeCode) return null;
+  return AIRCRAFT_TYPE_NAMES[typeCode.toUpperCase()] ?? null;
+}
+
 export function formatSecondsAgo(timestamp: number): string {
   const secs = Math.floor((Date.now() - timestamp) / 1000);
   if (secs < 5) return 'just now';

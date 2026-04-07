@@ -1,5 +1,5 @@
 import { FlightState } from '../types';
-import { metersToFeet, msToKnots, bearingToCardinal, headingToCardinal } from '../utils';
+import { metersToFeet, msToKnots, bearingToCardinal, headingToCardinal, aircraftTypeName } from '../utils';
 
 interface Props {
   flight: FlightState;
@@ -74,7 +74,9 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
             <div className="flex items-center gap-1.5 mb-3">
               <span className="text-xs text-slate-400 font-mono">{flight.icao24.toUpperCase()}</span>
               {flight.aircraftType && (
-                <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono">{flight.aircraftType}</span>
+                <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
+                  {aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}
+                </span>
               )}
               {flight.isPolice && (
                 <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">Police</span>
