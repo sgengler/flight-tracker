@@ -3,6 +3,26 @@ import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedR
 
 const POLL_INTERVAL_MS = 10_000;
 
+// Military-only type codes — FlightAware has no commercial routes for these
+const MILITARY_TYPE_CODES = new Set([
+  'F14','F15','F16','F18','FA18','F22','F35','F117','F5',
+  'B52','B1B','B2',
+  'A10','AC13','AC130','TUCA',
+  'C130','C30J','C17','C5A','C5M','SW4','CN35','A400','M28',
+  'KC10','KC135','KC46','K35R',
+  'E3','E3TF','E8','E6','E2','W135','R135',
+  'U2','SR71','RQ4','Q4','MQ9','MQ1','X47B','RQ180','BTB2',
+  'P3','P8','V22',
+  'T38','T6','T45','TEX2','HAWK','G120','G12T','PC7',
+  'H60','S70','UH60','HH60','MH60','SH60','CH47','H47','AH64',
+  'UH1','UH1Y','HH1','AH1','CH53','H53S','OH58','HH65',
+  'AS65','B212','B412','A119','A139','A169','H500','AS55',
+]);
+
+function isMilitaryType(typeCode: string | null): boolean {
+  return typeCode != null && MILITARY_TYPE_CODES.has(typeCode.toUpperCase());
+}
+
 interface Session {
   lat: number;
   lon: number;
@@ -35,11 +55,14 @@ async function poll(session: Session) {
     await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
       while (queue.length > 0) {
         const f = queue.shift()!;
-        if (f.callsign) f.route = await getCachedRoute(f.callsign, f.icao24);
-        // aircraftType comes from adsb.fi; use hexdb.io as fallback and for police detection
+        // Get police status and type fallback first so we can skip route for military/police
         const { typeCode, isPolice } = await getCachedAircraftType(f.icao24);
         f.isPolice = isPolice;
         if (!f.aircraftType && typeCode) f.aircraftType = typeCode;
+        // Skip FlightAware route lookup for military and police — they don't have commercial routes
+        if (f.callsign && !isPolice && !isMilitaryType(f.aircraftType)) {
+          f.route = await getCachedRoute(f.callsign, f.icao24);
+        }
       }
     }));
 
