@@ -5,6 +5,7 @@ import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft } from './components/FlightMap';
 import { aircraftTypeName } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
+import { useAutoReload } from './hooks/useAutoReload';
 
 
 // Default fallback location (Chesterbrook, PA)
@@ -414,6 +415,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 
 export default function App() {
   const geo = useGeolocation();
+  useAutoReload();
 
   return <Dashboard lat={geo.lat} lon={geo.lon} />;
 }

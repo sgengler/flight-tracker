@@ -10,6 +10,7 @@ import { fetchPlanePhoto } from './opensky';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
+const SERVER_START = Date.now();
 const CLIENT_DIST = path.resolve(__dirname, '../../client/dist');
 
 app.use(compression({
@@ -43,6 +44,10 @@ if (ACCESS_TOKEN) {
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
+});
+
+app.get('/api/version', (_req, res) => {
+  res.json({ startedAt: SERVER_START });
 });
 
 app.get('/api/flight-info', async (req, res) => {
