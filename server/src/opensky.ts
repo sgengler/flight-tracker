@@ -266,7 +266,11 @@ export async function getCachedRoute(callsign: string, icao24: string): Promise<
   const ttl = ROUTE_CACHE_TTL_MS;
   if (cached && Date.now() - cached.fetchedAt < ttl) {
     const r = cached.route;
-    if (!r.departure || !r.arrival) return null;
+    if (!r.departure || !r.arrival) {
+      console.log(`[route] cache hit (no route): ${callsign ?? icao24}`);
+      return null;
+    }
+    console.log(`[route] cache hit: ${callsign ?? icao24} → ${r.departure}→${r.arrival}`);
     return {
       origin: r.departure, originCity: r.departureCity ?? airportCity(r.departure),
       destination: r.arrival, destinationCity: r.arrivalCity ?? airportCity(r.arrival),
