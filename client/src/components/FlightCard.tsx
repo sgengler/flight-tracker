@@ -170,7 +170,10 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
             )}
             <div className="ml-auto text-xs font-semibold text-sky-300">{flight.distanceMiles.toFixed(1)} mi {direction}</div>
           </div>
-          <div className="text-xs text-slate-400 font-mono">{flight.icao24.toUpperCase()} · {flight.originCountry}</div>
+          <div className="text-xs text-slate-400 font-mono">
+            {flight.icao24.toUpperCase()}
+            {flight.aircraftType && <span className="ml-1 not-italic font-sans text-slate-300"> · {aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
+          </div>
         </div>
         {flight.trueTrack != null && (
           <div className="absolute top-2 right-2 text-base select-none text-sky-300 drop-shadow" style={{ transform: `rotate(${flight.trueTrack - 90}deg)` }}>✈</div>
