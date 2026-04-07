@@ -47,12 +47,12 @@ export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 
 
 function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' {
   if (['B52','B1B','B2'].includes(t)) return 'bomber';
-  if (['C130','C17','C5A','C5M','KC10','KC135','KC46','E3','E8','E6','P3','P8'].includes(t)) return 'transport';
+  if (['C130','C30J','C17','C5A','C5M','KC10','KC135','KC46','E3','E8','E6','P3','P8'].includes(t)) return 'transport';
   if (['A10','AC13','AC130'].includes(t)) return 'attack';
   if (['U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180'].includes(t)) return 'uav';
   // Military helicopters — H60 must be checked here before the civilian 'H*' prefix catches it
   if (['H60','S70','UH60','HH60','MH60','SH60','CH47','AH64','UH1','UH1Y','AH1',
-       'CH53','OH58','HH65','HH1','AS65'].includes(t)) return 'mil-heli';
+       'CH53','OH58','HH65','HH1','AS65','B212'].includes(t)) return 'mil-heli';
   return 'fighter'; // F-14, F-15, F-16, F-22, F-35, T-38, T-45, V-22, etc.
 }
 
@@ -66,7 +66,7 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
     'F14','F15','F16','F18','FA18','F22','F35','F117', // fighters / strike
     'B52','B1B','B2',                                   // bombers
     'A10','AC13','AC130',                               // attack / gunship
-    'C130','C17','C5A','C5M',                           // military transports
+    'C130','C30J','C17','C5A','C5M',                    // military transports
     'KC10','KC135','KC46',                              // tankers
     'E3','E8','E6',                                     // AWACS / recon
     'U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180',       // recon / UAV
@@ -83,6 +83,7 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
     'OH58',                                             // Kiowa Warrior
     'HH65',                                             // Dolphin (Coast Guard)
     'AS65',                                             // AS-565 Panther (Dauphin military)
+    'B212',                                             // Bell 212 / UH-1N Twin Huey
   ]);
   if (militaryCodes.has(t)) return categorizeMilitary(t);
 

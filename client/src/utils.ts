@@ -171,7 +171,7 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   // Military attack
   A10: 'A-10 Thunderbolt II', AC13: 'AC-130 Gunship',
   // Military transports
-  C130: 'C-130 Hercules', C17: 'C-17 Globemaster III',
+  C130: 'C-130 Hercules', C30J: 'C-130J Super Hercules', C17: 'C-17 Globemaster III',
   C5A: 'C-5A Galaxy', C5M: 'C-5M Super Galaxy',
   // Military tankers
   KC10: 'KC-10 Extender', KC135: 'KC-135 Stratotanker', KC46: 'KC-46 Pegasus',
@@ -182,7 +182,7 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   // Military helicopters
   AH64: 'AH-64 Apache', CH47: 'CH-47 Chinook', UH60: 'UH-60 Black Hawk',
   MH60: 'MH-60 Sea Hawk', V22: 'V-22 Osprey',
-  AS65: 'AS-565 Panther',
+  AS65: 'AS-565 Panther', B212: 'Bell 212 Twin Huey',
   // Military trainers
   T38: 'T-38 Talon', T6: 'T-6 Texan II', T45: 'T-45 Goshawk',
   // Cargo
