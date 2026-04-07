@@ -411,7 +411,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
   return (
     <MapContainer
       center={[userLat, userLon]}
-      zoom={10}
+      zoom={8}
       className="h-full w-full rounded-2xl overflow-hidden"
       zoomControl={true}
     >
