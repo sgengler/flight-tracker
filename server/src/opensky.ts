@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 // adsb.fi — free, no auth required, includes military traffic (no FAA LADD filter)
 const ADSBFI_BASE = 'https://opendata.adsb.fi/api';
 const MILES_TO_NM = 0.868976; // statute miles → nautical miles
@@ -163,6 +166,42 @@ const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
 const ROUTE_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const ROUTE_CACHE_MISS_TTL_MS = 5 * 60 * 1000;
 
+// Persist route cache to disk so FlightAware calls survive server restarts
+const CACHE_FILE = path.resolve(__dirname, '../../cache/routes.json');
+
+function loadRouteCache() {
+  try {
+    const raw = fs.readFileSync(CACHE_FILE, 'utf8');
+    const entries = JSON.parse(raw) as [string, { route: RouteResult; fetchedAt: number }][];
+    const now = Date.now();
+    for (const [key, value] of entries) {
+      // Skip expired entries so stale data doesn't carry over
+      const ttl = (value.route.departure && value.route.arrival) ? ROUTE_CACHE_TTL_MS : ROUTE_CACHE_MISS_TTL_MS;
+      if (now - value.fetchedAt < ttl) {
+        routeCache.set(key, value);
+      }
+    }
+    console.log(`[route cache] Loaded ${routeCache.size} entries from disk`);
+  } catch {
+    // File doesn't exist yet or is corrupt — start fresh
+  }
+}
+
+function saveRouteCache() {
+  try {
+    fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
+    fs.writeFileSync(CACHE_FILE, JSON.stringify([...routeCache.entries()]));
+  } catch (err) {
+    console.error('[route cache] Failed to save:', err);
+  }
+}
+
+// Load on startup, save every 5 minutes and on process exit
+loadRouteCache();
+setInterval(saveRouteCache, 5 * 60 * 1000);
+process.on('SIGTERM', saveRouteCache);
+process.on('SIGINT', saveRouteCache);
+
 type FAFlight = {
   origin?: { code?: string; code_icao?: string; code_iata?: string; city?: string };
   destination?: { code?: string; code_icao?: string; code_iata?: string; city?: string };
@@ -241,6 +280,7 @@ export async function getCachedRoute(callsign: string, icao24: string): Promise<
     : { departure: null, departureCity: null, arrival: null, arrivalCity: null, airline: null };
 
   routeCache.set(key, { route, fetchedAt: Date.now() });
+  saveRouteCache();
   if (!route.departure || !route.arrival) return null;
 
   return {
