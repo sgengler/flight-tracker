@@ -166,26 +166,45 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   F14: 'F-14 Tomcat', F15: 'F-15 Eagle', F16: 'F-16 Fighting Falcon',
   F18: 'F/A-18 Hornet', FA18: 'F/A-18 Hornet',
   F22: 'F-22 Raptor', F35: 'F-35 Lightning II', F117: 'F-117 Nighthawk',
+  F5: 'F-5 Tiger II',
   // Military bombers
   B52: 'B-52 Stratofortress', B1B: 'B-1B Lancer', B2: 'B-2 Spirit',
-  // Military attack
-  A10: 'A-10 Thunderbolt II', AC13: 'AC-130 Gunship',
+  // Military attack / light attack
+  A10: 'A-10 Thunderbolt II', AC13: 'AC-130 Gunship', TUCA: 'Embraer Tucano',
   // Military transports
   C130: 'C-130 Hercules', C30J: 'C-130J Super Hercules', C17: 'C-17 Globemaster III',
-  SW4: 'Fairchild C-26 Metro',
+  SW4: 'Fairchild C-26 Metro', CN35: 'CASA CN-235', A400: 'Airbus A400M Atlas',
   C5A: 'C-5A Galaxy', C5M: 'C-5M Super Galaxy',
-  // Military tankers
+  DHC6: 'De Havilland DHC-6 Twin Otter', M28: 'PZL M28 Skytruck',
+  IL76: 'Ilyushin Il-76',
+  // Military tankers / VIP / recon
   KC10: 'KC-10 Extender', KC135: 'KC-135 Stratotanker', KC46: 'KC-46 Pegasus',
+  K35R: 'KC-135R Stratotanker',
+  W135: 'WC-135 Constant Phoenix', R135: 'RC-135 Rivet Joint',
+  GLF3: 'Gulfstream III (C-20)', GLF5: 'Gulfstream V (C-37)',
   // Military surveillance / command
-  E3: 'E-3 Sentry (AWACS)', E8: 'E-8 Joint STARS', E6: 'E-6 Mercury',
+  E2: 'E-2 Hawkeye', E3: 'E-3 Sentry (AWACS)', E3TF: 'E-3 Sentry (AWACS)',
+  E8: 'E-8 Joint STARS', E6: 'E-6 Mercury',
   P3: 'P-3 Orion', P8: 'P-8 Poseidon',
   RC135: 'RC-135 Rivet Joint', U2: 'U-2 Dragon Lady',
-  // Military helicopters
-  AH64: 'AH-64 Apache', CH47: 'CH-47 Chinook', H47: 'CH-47 Chinook', UH60: 'UH-60 Black Hawk',
-  MH60: 'MH-60 Sea Hawk', V22: 'V-22 Osprey',
-  AS65: 'AS-565 Panther', B212: 'Bell 212 Twin Huey',
+  // Military UAVs
+  RQ4: 'RQ-4 Global Hawk', Q4: 'RQ-4 Global Hawk',
+  MQ9: 'MQ-9 Reaper', MQ1: 'MQ-1 Predator', BTB2: 'Bayraktar TB2',
   // Military trainers
   T38: 'T-38 Talon', T6: 'T-6 Texan II', T45: 'T-45 Goshawk',
+  TEX2: 'T-6A Texan II', HAWK: 'BAE CT-155 Hawk',
+  G120: 'Grob G-120', G12T: 'Grob G-120TP', PC7: 'Pilatus PC-7',
+  // Military helicopters
+  AH64: 'AH-64 Apache', CH47: 'CH-47 Chinook', H47: 'CH-47 Chinook',
+  UH60: 'UH-60 Black Hawk', MH60: 'MH-60 Sea Hawk', H53S: 'CH-53E Super Stallion',
+  V22: 'V-22 Osprey', B412: 'Bell 412',
+  AS65: 'AS-565 Panther', B212: 'Bell 212 Twin Huey', AS55: 'Eurocopter AS355 Twin Squirrel',
+  A119: 'AgustaWestland AW119 Koala', A139: 'AgustaWestland AW139', A169: 'AgustaWestland AW169',
+  H500: 'Hughes MD 500',
+  // Utility / multi-role (military & civilian)
+  PC12: 'Pilatus PC-12', B350: 'Beechcraft King Air 350',
+  B06: 'Bell 206 JetRanger', BE55: 'Beechcraft Baron 55', BE95: 'Beechcraft Travel Air',
+  D328: 'Dornier 328',
   // Cargo
   MD11: 'McDonnell Douglas MD-11',
 };

@@ -47,13 +47,16 @@ export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 
 
 function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' {
   if (['B52','B1B','B2'].includes(t)) return 'bomber';
-  if (['C130','C30J','C17','C5A','C5M','SW4','KC10','KC135','KC46','E3','E8','E6','P3','P8'].includes(t)) return 'transport';
-  if (['A10','AC13','AC130'].includes(t)) return 'attack';
-  if (['U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180'].includes(t)) return 'uav';
-  // Military helicopters — H60 must be checked here before the civilian 'H*' prefix catches it
+  if (['C130','C30J','C17','C5A','C5M','SW4','CN35','A400','DHC6','M28','IL76',
+       'KC10','KC135','KC46','K35R',
+       'E3','E3TF','E8','E6','E2','P3','P8','W135','R135','GLF3','GLF5'].includes(t)) return 'transport';
+  if (['A10','AC13','AC130','TUCA'].includes(t)) return 'attack';
+  if (['U2','SR71','RQ4','Q4','MQ9','MQ1','X47B','RQ180','BTB2'].includes(t)) return 'uav';
+  // Military helicopters — H60/H53S must be checked here before 'H*' prefix catches them
   if (['H60','S70','UH60','HH60','MH60','SH60','CH47','H47','AH64','UH1','UH1Y','AH1',
-       'CH53','OH58','HH65','HH1','AS65','B212'].includes(t)) return 'mil-heli';
-  return 'fighter'; // F-14, F-15, F-16, F-22, F-35, T-38, T-45, V-22, etc.
+       'CH53','H53S','OH58','HH65','HH1','AS65','B212','B412','A119','A139','A169',
+       'H500','AS55'].includes(t)) return 'mil-heli';
+  return 'fighter'; // F-14, F-15, F-16, F-22, F-35, F-5, T-38, T-45, HAWK, TEX2, G120, etc.
 }
 
 export function categorizeAircraft(typeCode: string | null): AircraftCategory {
@@ -63,28 +66,31 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
   // Military checked first so known military types (C17, H60, etc.) aren't
   // misidentified as civilian Cessna 172 / generic H* helicopter prefixes.
   const militaryCodes = new Set([
-    'F14','F15','F16','F18','FA18','F22','F35','F117', // fighters / strike
+    'F14','F15','F16','F18','FA18','F22','F35','F117','F5', // fighters / strike
     'B52','B1B','B2',                                   // bombers
-    'A10','AC13','AC130',                               // attack / gunship
+    'A10','AC13','AC130','TUCA',                        // attack / gunship / light attack
     'C130','C30J','C17','C5A','C5M','SW4',              // military transports
-    'KC10','KC135','KC46',                              // tankers
-    'E3','E8','E6',                                     // AWACS / recon
-    'U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180',       // recon / UAV
+    'CN35','A400','DHC6','M28','IL76',                  // more transports
+    'KC10','KC135','KC46','K35R',                       // tankers
+    'E3','E3TF','E8','E6','E2',                         // AWACS / surveillance
+    'U2','SR71','RQ4','Q4','MQ9','MQ1','X47B','RQ180','BTB2', // recon / UAV
     'P3','P8',                                          // maritime patrol
+    'W135','R135','GLF3','GLF5',                        // special mission / VIP
     'V22',                                              // tiltrotor
-    'T38','T6','T45',                                   // trainers
+    'T38','T6','T45','TEX2','HAWK','G120','G12T','PC7', // trainers
     // Military helicopters
     'H60','S70','UH60','HH60','MH60','SH60',            // Black Hawk / Seahawk family
-    'CH47',                                             // Chinook
+    'CH47','H47',                                       // Chinook (both ICAO codes)
     'AH64',                                             // Apache
     'UH1','UH1Y','HH1',                                 // Huey family
     'AH1',                                              // Cobra / Viper
-    'CH53',                                             // Sea Stallion / Super Stallion
+    'CH53','H53S',                                      // Sea Stallion / Super Stallion
     'OH58',                                             // Kiowa Warrior
     'HH65',                                             // Dolphin (Coast Guard)
     'AS65',                                             // AS-565 Panther (Dauphin military)
-    'B212',                                             // Bell 212 / UH-1N Twin Huey
-    'H47',                                              // CH-47 Chinook (alternate ICAO code)
+    'B212','B412',                                      // Bell 212 / Bell 412
+    'A119','A139','A169',                               // AgustaWestland military helos
+    'H500','AS55',                                      // Hughes 500 / AS355
   ]);
   if (militaryCodes.has(t)) return categorizeMilitary(t);
 
