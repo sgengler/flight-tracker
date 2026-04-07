@@ -16,9 +16,9 @@ if [ ! -d "$NVM_DIR" ]; then
 fi
 # Load nvm into this shell session
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm install 20
-nvm use 20
-nvm alias default 20
+nvm install --lts
+nvm use --lts
+nvm alias default node
 
 echo "==> Installing pm2..."
 sudo npm install -g pm2
