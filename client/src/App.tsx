@@ -126,11 +126,13 @@ const ICON_PATHS: Partial<Record<AircraftCategory, string>> = {
   uav:       'M0,-10 L1,-5 L2,-1 L25,3 L25,6 L2,2 L1.5,11 L4,12 L4,14 L0,13 L-4,14 L-4,12 L-1.5,11 L-2,2 L-25,6 L-25,3 L-2,-1 L-1,-5 Z',
 };
 
-function CategoryIcon({ category }: { category: AircraftCategory }) {
+function CategoryIcon({ category, isPolice }: { category: AircraftCategory; isPolice: boolean }) {
+  const isMil = MILITARY_CATS.has(category);
+  const color = isPolice ? '#60a5fa' : isMil ? '#4ade80' : 'currentColor';
   const isHeli = category === 'heli' || category === 'mil-heli';
   const path = ICON_PATHS[category] ?? ICON_PATHS.jet!;
   return (
-    <svg width="14" height="14" viewBox="-26 -26 52 52" fill="currentColor" className="flex-shrink-0 opacity-60">
+    <svg width="14" height="14" viewBox="-26 -26 52 52" fill={color} className="flex-shrink-0 opacity-80">
       {isHeli ? (
         <>
           <rect x="-20" y="-2" width="40" height="4" rx="2" />
@@ -335,7 +337,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     >
                       <td className="px-3 py-1 font-mono">
                         <span className="inline-flex items-center gap-1.5">
-                          <CategoryIcon category={categorizeAircraft(f.aircraftType)} />
+                          <CategoryIcon category={categorizeAircraft(f.aircraftType)} isPolice={f.isPolice} />
                           {f.callsign ?? f.icao24}
                         </span>
                       </td>
