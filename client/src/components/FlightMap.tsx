@@ -13,11 +13,19 @@ L.Icon.Default.mergeOptions({
 });
 
 // Top-down aircraft SVG paths, pointing UP (north) at heading=0, centered at (0,0)
-const JET_PATH      = 'M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z';
-const PROP_PATH     = 'M0,-18 L3,-8 L3,-4 L16,0 L16,4 L3,3 L3,14 L7,15 L7,18 L0,16 L-7,18 L-7,15 L-3,14 L-3,3 L-16,4 L-16,0 L-3,-4 L-3,-8 Z';
-const SMALL_PATH    = 'M0,-17 L2.5,-13 L2.5,-4 L14,0 L14,3.5 L2.5,1.5 L2.5,12 L5.5,13 L5.5,16 L0,17 L-5.5,16 L-5.5,13 L-2.5,12 L-2.5,1.5 L-14,3.5 L-14,0 L-2.5,-4 L-2.5,-13 Z';
+const JET_PATH       = 'M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z';
+const PROP_PATH      = 'M0,-18 L3,-8 L3,-4 L16,0 L16,4 L3,3 L3,14 L7,15 L7,18 L0,16 L-7,18 L-7,15 L-3,14 L-3,3 L-16,4 L-16,0 L-3,-4 L-3,-8 Z';
+const SMALL_PATH     = 'M0,-17 L2.5,-13 L2.5,-4 L14,0 L14,3.5 L2.5,1.5 L2.5,12 L5.5,13 L5.5,16 L0,17 L-5.5,16 L-5.5,13 L-2.5,12 L-2.5,1.5 L-14,3.5 L-14,0 L-2.5,-4 L-2.5,-13 Z';
 // Swept delta-wing fighter silhouette (F-16 / F-22 style)
-const MILITARY_PATH = 'M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z';
+const FIGHTER_PATH   = 'M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z';
+// Wide swept wings, shorter body — B-52 / B-1B style
+const BOMBER_PATH    = 'M0,-13 L2,-7 L3,-1 L22,6 L21,10 L3,5 L2.5,13 L5.5,14 L5.5,17 L0,15 L-5.5,17 L-5.5,14 L-2.5,13 L-3,5 L-21,10 L-22,6 L-3,-1 L-2,-7 Z';
+// Wide body with engine-nacelle bumps on wing — C-17 / C-130 / KC-135 style
+const TRANSPORT_PATH = 'M0,-17 L3,-9 L5,-6 L20,2 L20,7 L5,2 L4,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-4,14 L-5,2 L-20,7 L-20,2 L-5,-6 L-3,-9 Z';
+// Nearly straight wings, twin-engine rear — A-10 Warthog style
+const ATTACK_PATH    = 'M0,-18 L2,-12 L3,-1 L19,2 L19,6 L3,1 L4.5,13 L8,14 L7,17 L0,16 L-7,17 L-8,14 L-4.5,13 L-3,1 L-19,6 L-19,2 L-3,-1 L-2,-12 Z';
+// Extremely high aspect-ratio wings, tiny body — MQ-9 / RQ-4 style
+const UAV_PATH       = 'M0,-10 L1,-5 L2,-1 L25,3 L25,6 L2,2 L1.5,11 L4,12 L4,14 L0,13 L-4,14 L-4,12 L-1.5,11 L-2,2 L-25,6 L-25,3 L-2,-1 L-1,-5 Z';
 
 function heliInnerSvg(color: string, filterAttr: string): string {
   const s = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
@@ -32,7 +40,18 @@ function heliInnerSvg(color: string, filterAttr: string): string {
   );
 }
 
-export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'military';
+export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav';
+
+/** Military sub-categories used to pick icon shapes */
+export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 'bomber', 'transport', 'attack', 'uav']);
+
+function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' {
+  if (['B52','B1B','B2'].includes(t)) return 'bomber';
+  if (['C130','C17','C5A','C5M','KC10','KC135','KC46','E3','E8','E6','P3','P8'].includes(t)) return 'transport';
+  if (['A10','AC13','AC130'].includes(t)) return 'attack';
+  if (['U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180'].includes(t)) return 'uav';
+  return 'fighter'; // F-14, F-15, F-16, F-22, F-35, T-38, T-45, V-22, etc.
+}
 
 export function categorizeAircraft(typeCode: string | null): AircraftCategory {
   if (!typeCode) return 'jet';
@@ -45,16 +64,16 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
   const militaryCodes = new Set([
     'F14','F15','F16','F18','FA18','F22','F35','F117', // fighters / strike
     'B52','B1B','B2',                                   // bombers
-    'A10','AC13',                                       // attack / gunship
+    'A10','AC13','AC130',                               // attack / gunship
     'C130','C17','C5A','C5M',                           // military transports
     'KC10','KC135','KC46',                              // tankers
     'E3','E8','E6',                                     // AWACS / recon
-    'U2','SR71','RQ4','MQ9','MQ1',                      // recon / UAV
+    'U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180',       // recon / UAV
     'P3','P8',                                          // maritime patrol
     'V22',                                              // tiltrotor
     'T38','T6','T45',                                   // trainers
   ]);
-  if (militaryCodes.has(t)) return 'military';
+  if (militaryCodes.has(t)) return categorizeMilitary(t);
 
   const smallPrefixes = [
     // Piston GA
@@ -89,27 +108,32 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
 
 function aircraftIcon(heading: number, selected: boolean, aircraftType: string | null, isPolice: boolean): L.DivIcon {
   const cat = categorizeAircraft(aircraftType);
+  const isMil = MILITARY_CATS.has(cat);
   const color = selected ? '#ef4444'
-    : isPolice      ? '#60a5fa'   // blue-400
-    : cat === 'military' ? '#4ade80' // green-400
+    : isPolice ? '#60a5fa'   // blue-400
+    : isMil    ? '#4ade80'   // green-400
     : '#facc15';
   const glowColor = selected ? 'rgba(239,68,68,0.8)'
-    : isPolice      ? 'rgba(96,165,250,0.8)'
-    : cat === 'military' ? 'rgba(74,222,128,0.8)'
+    : isPolice ? 'rgba(96,165,250,0.8)'
+    : isMil    ? 'rgba(74,222,128,0.8)'
     : 'rgba(0,0,0,0)';
-  const glow = (selected || isPolice || cat === 'military')
+  const glow = (selected || isPolice || isMil)
     ? `<filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${glowColor}"/></filter>`
     : '';
-  const filterAttr = (selected || isPolice || cat === 'military') ? 'filter="url(#glow)"' : '';
+  const filterAttr = (selected || isPolice || isMil) ? 'filter="url(#glow)"' : '';
 
   let body: string;
   if (cat === 'heli') {
     body = heliInnerSvg(color, filterAttr);
   } else {
     const planePath =
-      cat === 'prop'     ? PROP_PATH :
-      cat === 'small'    ? SMALL_PATH :
-      cat === 'military' ? MILITARY_PATH :
+      cat === 'prop'      ? PROP_PATH :
+      cat === 'small'     ? SMALL_PATH :
+      cat === 'bomber'    ? BOMBER_PATH :
+      cat === 'transport' ? TRANSPORT_PATH :
+      cat === 'attack'    ? ATTACK_PATH :
+      cat === 'uav'       ? UAV_PATH :
+      cat === 'fighter'   ? FIGHTER_PATH :
       JET_PATH;
     body = `<g transform="rotate(${heading})"><path d="${planePath}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round" ${filterAttr}/></g>`;
   }

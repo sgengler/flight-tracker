@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
-import { FlightMap, categorizeAircraft } from './components/FlightMap';
+import { FlightMap, categorizeAircraft, MILITARY_CATS } from './components/FlightMap';
 import { aircraftTypeName } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
@@ -69,6 +69,31 @@ const LEGEND_ENTRIES: { category: FilterCategory; label: string; desc: string; s
   },
 ];
 
+const MIL_COLOR = '#4ade80';
+const MIL_STROKE = 'stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round"';
+const MILITARY_LEGEND_ENTRIES: { label: string; svg: string }[] = [
+  {
+    label: 'Fighter',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="${MIL_COLOR}" ${MIL_STROKE}/></svg>`,
+  },
+  {
+    label: 'Bomber',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-13 L2,-7 L3,-1 L22,6 L21,10 L3,5 L2.5,13 L5.5,14 L5.5,17 L0,15 L-5.5,17 L-5.5,14 L-2.5,13 L-3,5 L-21,10 L-22,6 L-3,-1 L-2,-7 Z" fill="${MIL_COLOR}" ${MIL_STROKE}/></svg>`,
+  },
+  {
+    label: 'Transport / Tanker',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-17 L3,-9 L5,-6 L20,2 L20,7 L5,2 L4,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-4,14 L-5,2 L-20,7 L-20,2 L-5,-6 L-3,-9 Z" fill="${MIL_COLOR}" ${MIL_STROKE}/></svg>`,
+  },
+  {
+    label: 'Attack / Gunship',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-18 L2,-12 L3,-1 L19,2 L19,6 L3,1 L4.5,13 L8,14 L7,17 L0,16 L-7,17 L-8,14 L-4.5,13 L-3,1 L-19,6 L-19,2 L-3,-1 L-2,-12 Z" fill="${MIL_COLOR}" ${MIL_STROKE}/></svg>`,
+  },
+  {
+    label: 'UAV / Recon',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-10 L1,-5 L2,-1 L25,3 L25,6 L2,2 L1.5,11 L4,12 L4,14 L0,13 L-4,14 L-4,12 L-1.5,11 L-2,2 L-25,6 L-25,3 L-2,-1 L-1,-5 Z" fill="${MIL_COLOR}" ${MIL_STROKE}/></svg>`,
+  },
+];
+
 const MAX_HISTORY = 300; // ~50 minutes at 10s poll
 
 type FullscreenPanel = 'map' | 'flights' | 'card' | null;
@@ -123,7 +148,8 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const categoryCounts = useMemo(() => {
     const counts = new Map<FilterCategory, number>();
     for (const f of flights) {
-      const cat: FilterCategory = f.isPolice ? 'police' : categorizeAircraft(f.aircraftType) as FilterCategory;
+      const raw = categorizeAircraft(f.aircraftType);
+      const cat: FilterCategory = f.isPolice ? 'police' : MILITARY_CATS.has(raw) ? 'military' : raw as FilterCategory;
       counts.set(cat, (counts.get(cat) ?? 0) + 1);
     }
     return counts;
@@ -131,7 +157,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 
   // Military aircraft present in the full (unfiltered) flight list
   const militaryFlights = useMemo(() =>
-    flights.filter(f => !f.isPolice && categorizeAircraft(f.aircraftType) === 'military'),
+    flights.filter(f => !f.isPolice && MILITARY_CATS.has(categorizeAircraft(f.aircraftType))),
     [flights]
   );
 
@@ -146,7 +172,9 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     if (activeCategories.size === ALL_CATEGORIES.size) return flights;
     return flights.filter(f => {
       if (f.isPolice) return activeCategories.has('police');
-      return activeCategories.has(categorizeAircraft(f.aircraftType) as FilterCategory);
+      const raw = categorizeAircraft(f.aircraftType);
+      const cat: FilterCategory = MILITARY_CATS.has(raw) ? 'military' : raw as FilterCategory;
+      return activeCategories.has(cat);
     });
   }, [flights, activeCategories]);
 
@@ -227,6 +255,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   <tr className="text-slate-500 uppercase tracking-wider">
                     <th className="px-3 py-1 text-left font-medium">Callsign</th>
                     {!militaryMode && <th className="px-3 py-1 text-left font-medium">Route</th>}
+                    {militaryMode && <th className="px-3 py-1 text-left font-medium">Type</th>}
                     <th className="px-3 py-1 text-right font-medium">Dist</th>
                     <th className="px-3 py-1 text-right font-medium">Alt</th>
                   </tr>
@@ -244,6 +273,11 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                       {!militaryMode && <td className="px-3 py-1">
                         {f.route
                           ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
+                          : <span className="text-slate-600">—</span>}
+                      </td>}
+                      {militaryMode && <td className="px-3 py-1">
+                        {f.aircraftType
+                          ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">{aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>
                           : <span className="text-slate-600">—</span>}
                       </td>}
                       <td className="px-3 py-1 text-right">{f.distanceMiles.toFixed(1)} mi</td>
@@ -417,6 +451,20 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                 <div className="text-xs font-medium text-slate-200 truncate">Selected</div>
               </div>
             </div>
+            {/* Military sub-type key — shown only in military mode */}
+            {militaryMode && (
+              <div className="mt-2 pt-2 border-t border-white/10">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Aircraft Types</div>
+                <div className="grid grid-cols-2 gap-1">
+                  {MILITARY_LEGEND_ENTRIES.map(({ label, svg }) => (
+                    <div key={label} className="flex items-center gap-1.5 px-1.5 py-1">
+                      <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5" dangerouslySetInnerHTML={{ __html: svg }} />
+                      <div className="text-xs font-medium text-slate-300 truncate">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           )}
         </div>
