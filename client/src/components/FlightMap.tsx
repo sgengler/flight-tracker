@@ -395,6 +395,7 @@ function MilitaryAutoBounds({ flights }: { flights: FlightState[] }) {
     fittedRef.current = true;
     const bounds = L.latLngBounds(flights.map(f => [f.latitude, f.longitude]));
     map.fitBounds(bounds, { padding: [40, 40] });
+    if (map.getZoom() < 7) map.setZoom(7);
   }, [map, flights.length]);
 
   return null;
