@@ -459,7 +459,9 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-1">
-              {(militaryMode ? MILITARY_LEGEND_ENTRIES : LEGEND_ENTRIES).map(({ category, label, svg }) => {
+              {[...(militaryMode ? MILITARY_LEGEND_ENTRIES : LEGEND_ENTRIES)]
+                .sort((a, b) => (categoryCounts.get(b.category) ?? 0) - (categoryCounts.get(a.category) ?? 0))
+                .map(({ category, label, svg }) => {
                 const active = activeCategories.has(category);
                 const count = categoryCounts.get(category) ?? 0;
                 return (
