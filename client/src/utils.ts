@@ -220,3 +220,118 @@ export function formatSecondsAgo(timestamp: number): string {
   if (secs < 60) return `${secs}s ago`;
   return `${Math.floor(secs / 60)}m ago`;
 }
+
+// --- Hotspot clustering ---
+
+export interface Hotspot {
+  id: number;
+  lat: number;    // centroid
+  lon: number;    // centroid
+  regionName: string;
+  distanceMiles: number;  // from user
+  flights: { icao24: string; callsign: string | null; aircraftType: string | null; distanceMiles: number }[];
+}
+
+function haversineClient(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3958.8;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const REGIONS: { name: string; latMin: number; latMax: number; lonMin: number; lonMax: number }[] = [
+  { name: 'Northeast US',   latMin: 38,  latMax: 48,  lonMin: -80,  lonMax: -65  },
+  { name: 'Southeast US',   latMin: 25,  latMax: 38,  lonMin: -92,  lonMax: -75  },
+  { name: 'Midwest US',     latMin: 36,  latMax: 49,  lonMin: -100, lonMax: -80  },
+  { name: 'Southern US',    latMin: 25,  latMax: 36,  lonMin: -106, lonMax: -92  },
+  { name: 'Western US',     latMin: 32,  latMax: 49,  lonMin: -125, lonMax: -106 },
+  { name: 'Alaska',         latMin: 54,  latMax: 72,  lonMin: -170, lonMax: -130 },
+  { name: 'Hawaii',         latMin: 18,  latMax: 23,  lonMin: -161, lonMax: -154 },
+  { name: 'Canada',         latMin: 48,  latMax: 70,  lonMin: -140, lonMax: -52  },
+  { name: 'Caribbean',      latMin: 14,  latMax: 28,  lonMin: -90,  lonMax: -58  },
+  { name: 'Mexico',         latMin: 14,  latMax: 33,  lonMin: -120, lonMax: -86  },
+  { name: 'UK & Ireland',   latMin: 49,  latMax: 61,  lonMin: -11,  lonMax: 2    },
+  { name: 'Western Europe', latMin: 43,  latMax: 56,  lonMin: 2,    lonMax: 18   },
+  { name: 'Eastern Europe', latMin: 44,  latMax: 60,  lonMin: 18,   lonMax: 40   },
+  { name: 'Scandinavia',    latMin: 56,  latMax: 72,  lonMin: 4,    lonMax: 32   },
+  { name: 'Mediterranean',  latMin: 30,  latMax: 45,  lonMin: -10,  lonMax: 40   },
+  { name: 'Middle East',    latMin: 20,  latMax: 40,  lonMin: 35,   lonMax: 62   },
+  { name: 'North Africa',   latMin: 15,  latMax: 37,  lonMin: -18,  lonMax: 40   },
+  { name: 'East Africa',    latMin: -5,  latMax: 22,  lonMin: 28,   lonMax: 52   },
+  { name: 'Central Asia',   latMin: 35,  latMax: 56,  lonMin: 50,   lonMax: 88   },
+  { name: 'South Asia',     latMin: 8,   latMax: 38,  lonMin: 60,   lonMax: 100  },
+  { name: 'East Asia',      latMin: 20,  latMax: 54,  lonMin: 100,  lonMax: 148  },
+  { name: 'Southeast Asia', latMin: -10, latMax: 25,  lonMin: 95,   lonMax: 140  },
+  { name: 'Pacific',        latMin: 5,   latMax: 35,  lonMin: 130,  lonMax: 180  },
+  { name: 'Australia',      latMin: -45, latMax: -10, lonMin: 112,  lonMax: 155  },
+  { name: 'South America',  latMin: -56, latMax: 15,  lonMin: -82,  lonMax: -34  },
+];
+
+function getRegionName(lat: number, lon: number): string {
+  for (const r of REGIONS) {
+    if (lat >= r.latMin && lat <= r.latMax && lon >= r.lonMin && lon <= r.lonMax) return r.name;
+  }
+  return `${lat.toFixed(1)}°, ${lon.toFixed(1)}°`;
+}
+
+export function clusterFlights(
+  flights: { icao24: string; callsign: string | null; aircraftType: string | null; latitude: number; longitude: number; distanceMiles: number }[],
+  userLat: number,
+  userLon: number,
+  radiusMiles = 150,
+): Hotspot[] {
+  if (flights.length === 0) return [];
+
+  // Build neighbor index: for each flight, which other flights are within radius?
+  const neighbors: number[][] = flights.map((a, i) =>
+    flights.reduce<number[]>((acc, b, j) => {
+      if (i !== j && haversineClient(a.latitude, a.longitude, b.latitude, b.longitude) <= radiusMiles) acc.push(j);
+      return acc;
+    }, [])
+  );
+
+  const assigned = new Set<number>();
+  const hotspots: Hotspot[] = [];
+
+  while (assigned.size < flights.length) {
+    // Find the unassigned flight with the most unassigned neighbors (densest point)
+    let best = -1;
+    let bestCount = -1;
+    for (let i = 0; i < flights.length; i++) {
+      if (assigned.has(i)) continue;
+      const count = neighbors[i].filter(j => !assigned.has(j)).length;
+      if (count > bestCount) { bestCount = count; best = i; }
+    }
+    if (best === -1) break;
+
+    // Collect: seed + all unassigned neighbors
+    const memberIdxs = [best, ...neighbors[best].filter(j => !assigned.has(j))];
+    for (const idx of memberIdxs) assigned.add(idx);
+
+    // Centroid
+    const members = memberIdxs.map(i => flights[i]);
+    const lat = members.reduce((s, f) => s + f.latitude, 0) / members.length;
+    const lon = members.reduce((s, f) => s + f.longitude, 0) / members.length;
+
+    hotspots.push({
+      id: hotspots.length + 1,
+      lat,
+      lon,
+      regionName: getRegionName(lat, lon),
+      distanceMiles: haversineClient(userLat, userLon, lat, lon),
+      flights: members.map(f => ({
+        icao24: f.icao24,
+        callsign: f.callsign,
+        aircraftType: f.aircraftType,
+        distanceMiles: f.distanceMiles,
+      })),
+    });
+  }
+
+  // Sort by cluster size descending; skip singletons (isolated aircraft)
+  return hotspots
+    .filter(h => h.flights.length >= 2)
+    .sort((a, b) => b.flights.length - a.flights.length);
+}

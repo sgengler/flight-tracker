@@ -3,7 +3,7 @@ import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from './components/FlightMap';
-import { aircraftTypeName } from './utils';
+import { aircraftTypeName, clusterFlights, Hotspot } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
 
@@ -179,12 +179,16 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
+  const [milTab, setMilTab] = useState<'nearby' | 'hotspots'>('nearby');
+  const [focusPoint, setFocusPoint] = useState<[number, number] | null>(null);
   const flightHistoryRef = useRef<Map<string, [number, number][]>>(new Map());
   const [selectedTrail, setSelectedTrail] = useState<[number, number][]>([]);
 
-  // Reset active categories whenever mode changes
+  // Reset active categories, tab, and focus whenever mode changes
   useEffect(() => {
     setActiveCategories(militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES);
+    setMilTab('nearby');
+    setFocusPoint(null);
   }, [militaryMode]);
 
   const toggleCategory = (cat: FilterCategory) => {
@@ -243,6 +247,11 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     });
   }, [flights, activeCategories, allCategories, militaryMode]);
 
+  const hotspots = useMemo<Hotspot[]>(() => {
+    if (!militaryMode) return [];
+    return clusterFlights(flights, lat, lon);
+  }, [flights, militaryMode, lat, lon]);
+
   // Accumulate position history for every flight on each poll
   useEffect(() => {
     const activeIcaos = new Set(flights.map(f => f.icao24));
@@ -282,7 +291,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           {/* Map — hidden when flights is fullscreen */}
           {fullscreenPanel !== 'flights' && (
           <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
-            <FlightMap userLat={lat} userLon={lon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
+            <FlightMap userLat={lat} userLon={lon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} />
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'
                 ? (
@@ -307,68 +316,117 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           {fullscreenPanel !== 'map' && (
           <div className="flex-1 min-h-0 rounded-2xl bg-slate-800/60 border border-white/10 overflow-y-auto">
             <div className="px-3 py-1.5 border-b border-white/10 flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                {militaryMode ? 'Military Aircraft' : 'Nearby Flights'}
+              {militaryMode ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setMilTab('nearby')}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >Nearby</button>
+                  <button
+                    onClick={() => setMilTab('hotspots')}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'hotspots' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >Hotspots</button>
+                </div>
+              ) : (
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nearby Flights</span>
+              )}
+              <span className="text-xs text-slate-500">
+                {militaryMode && milTab === 'hotspots'
+                  ? `(${hotspots.length})`
+                  : `(${displayFlights.length}${displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})`}
               </span>
-              <span className="text-xs text-slate-500">({displayFlights.length}{displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})</span>
               <div className="ml-auto">
                 {fullscreenPanel === 'flights'
                   ? <CollapseBtn onClick={() => setFullscreenPanel(null)} />
                   : <ExpandBtn onClick={() => setFullscreenPanel('flights')} />}
               </div>
             </div>
-            {displayFlights.length === 0 ? (
-              <div className="px-3 py-3 text-xs text-slate-500">No data yet…</div>
-            ) : (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-slate-500 uppercase tracking-wider">
-                    <th className="px-3 py-1 text-left font-medium">Callsign</th>
-                    {!militaryMode && <th className="px-3 py-1 text-left font-medium">Route</th>}
-                    {militaryMode && <th className="px-3 py-1 text-left font-medium">Type</th>}
-                    {militaryMode && <th className="px-3 py-1 text-left font-medium">Model</th>}
-                    <th className="px-3 py-1 text-right font-medium">Dist</th>
-                    <th className="px-3 py-1 text-right font-medium">Alt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayFlights.map((f) => (
-                    <tr
-                      key={f.icao24}
-                      onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
-                      className={`cursor-pointer ${f.icao24 === selectedFlight?.icao24
-                        ? 'bg-red-500/15 text-white'
-                        : 'text-slate-300 hover:bg-white/5'}`}
+
+            {/* Hotspots tab */}
+            {militaryMode && milTab === 'hotspots' && (
+              hotspots.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-slate-500">No clusters yet…</div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {hotspots.map((h, i) => (
+                    <button
+                      key={h.id}
+                      onClick={() => setFocusPoint([h.lat, h.lon])}
+                      className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors"
                     >
-                      <td className="px-3 py-1 font-mono whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5">
-                          <CategoryIcon category={categorizeAircraft(f.aircraftType)} isPolice={f.isPolice} />
-                          {f.callsign ?? f.icao24}
-                        </span>
-                      </td>
-                      {!militaryMode && <td className="px-3 py-1 max-w-0 truncate">
-                        {f.route
-                          ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
-                          : <span className="text-slate-600">—</span>}
-                      </td>}
-                      {militaryMode && <td className="px-3 py-1 font-mono whitespace-nowrap">
-                        {f.aircraftType
-                          ? <span className="text-slate-300">{f.aircraftType.toUpperCase()}</span>
-                          : <span className="text-slate-600">—</span>}
-                      </td>}
-                      {militaryMode && <td className="px-3 py-1 max-w-0 truncate">
-                        {f.aircraftType && aircraftTypeName(f.aircraftType)
-                          ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">{aircraftTypeName(f.aircraftType)}</span>
-                          : <span className="text-slate-600">—</span>}
-                      </td>}
-                      <td className="px-3 py-1 text-right whitespace-nowrap">{f.distanceMiles.toFixed(1)} mi</td>
-                      <td className="px-3 py-1 text-right whitespace-nowrap">
-                        {f.baroAltitude != null ? `${Math.round(f.baroAltitude * 3.28084 / 100) * 100}` : '—'}
-                      </td>
-                    </tr>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-slate-500 text-xs font-mono w-4">#{i + 1}</span>
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">{h.flights.length} aircraft</span>
+                        <span className="text-xs font-medium text-slate-200 flex-1 min-w-0 truncate">{h.regionName}</span>
+                        <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">{h.distanceMiles < 1000 ? `${Math.round(h.distanceMiles)} mi` : `${(h.distanceMiles / 1000).toFixed(1)}k mi`}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 pl-6">
+                        {h.flights.slice(0, 6).map(f => (
+                          <span key={f.icao24} className="text-xs font-mono text-green-400/70">{f.callsign ?? f.icao24.toUpperCase()}</span>
+                        ))}
+                        {h.flights.length > 6 && <span className="text-xs text-slate-500">+{h.flights.length - 6} more</span>}
+                      </div>
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )
+            )}
+
+            {/* Nearby aircraft tab (normal mode always, military mode when nearby tab active) */}
+            {(!militaryMode || milTab === 'nearby') && (
+              displayFlights.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-slate-500">No data yet…</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-500 uppercase tracking-wider">
+                      <th className="px-3 py-1 text-left font-medium">Callsign</th>
+                      {!militaryMode && <th className="px-3 py-1 text-left font-medium">Route</th>}
+                      {militaryMode && <th className="px-3 py-1 text-left font-medium">Type</th>}
+                      {militaryMode && <th className="px-3 py-1 text-left font-medium">Model</th>}
+                      <th className="px-3 py-1 text-right font-medium">Dist</th>
+                      <th className="px-3 py-1 text-right font-medium">Alt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayFlights.map((f) => (
+                      <tr
+                        key={f.icao24}
+                        onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                        className={`cursor-pointer ${f.icao24 === selectedFlight?.icao24
+                          ? 'bg-red-500/15 text-white'
+                          : 'text-slate-300 hover:bg-white/5'}`}
+                      >
+                        <td className="px-3 py-1 font-mono whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CategoryIcon category={categorizeAircraft(f.aircraftType)} isPolice={f.isPolice} />
+                            {f.callsign ?? f.icao24}
+                          </span>
+                        </td>
+                        {!militaryMode && <td className="px-3 py-1 max-w-0 truncate">
+                          {f.route
+                            ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
+                            : <span className="text-slate-600">—</span>}
+                        </td>}
+                        {militaryMode && <td className="px-3 py-1 font-mono whitespace-nowrap">
+                          {f.aircraftType
+                            ? <span className="text-slate-300">{f.aircraftType.toUpperCase()}</span>
+                            : <span className="text-slate-600">—</span>}
+                        </td>}
+                        {militaryMode && <td className="px-3 py-1 max-w-0 truncate">
+                          {f.aircraftType && aircraftTypeName(f.aircraftType)
+                            ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">{aircraftTypeName(f.aircraftType)}</span>
+                            : <span className="text-slate-600">—</span>}
+                        </td>}
+                        <td className="px-3 py-1 text-right whitespace-nowrap">{f.distanceMiles.toFixed(1)} mi</td>
+                        <td className="px-3 py-1 text-right whitespace-nowrap">
+                          {f.baroAltitude != null ? `${Math.round(f.baroAltitude * 3.28084 / 100) * 100}` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
             )}
           </div>
           )}

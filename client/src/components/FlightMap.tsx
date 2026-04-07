@@ -431,6 +431,15 @@ function FlyToFlight({ flight }: { flight: FlightState | null }) {
   return null;
 }
 
+function FlyToPoint({ point }: { point: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!point) return;
+    map.flyTo(point, Math.max(map.getZoom(), 7), { animate: true, duration: 1 });
+  }, [map, point?.[0], point?.[1]]);
+  return null;
+}
+
 function InvalidateSizeOnResize() {
   const map = useMap();
   useEffect(() => {
@@ -450,9 +459,10 @@ interface Props {
   trail: [number, number][];
   onSelectFlight: (icao24: string) => void;
   militaryMode?: boolean;
+  focusPoint?: [number, number] | null;
 }
 
-export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode }: Props) {
+export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode, focusPoint }: Props) {
   const displayFlights = flights.length > 0 ? flights : (flight ? [flight] : []);
 
   return (
@@ -473,6 +483,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
         : <AutoBounds userLat={userLat} userLon={userLon} flights={flights} />
       }
       <FlyToFlight flight={flight} />
+      <FlyToPoint point={focusPoint ?? null} />
 
       {/* User location pin — hidden in military mode */}
       {!militaryMode && <Marker position={[userLat, userLon]} icon={locationIcon} />}
