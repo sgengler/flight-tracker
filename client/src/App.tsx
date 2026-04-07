@@ -6,67 +6,22 @@ import { FlightMap, categorizeAircraft } from './components/FlightMap';
 
 
 // Default fallback location (Chesterbrook, PA)
-const DEFAULT_LAT = 40.0835;
-const DEFAULT_LON = -75.4579;
+const DEFAULT_LAT = 40.074845;
+const DEFAULT_LON = -75.457016;
 
 type GeoState =
-  | { phase: 'requesting' }
-  | { phase: 'granted'; lat: number; lon: number }
-  | { phase: 'denied'; message: string };
-
-async function ipGeolocation(): Promise<{ lat: number; lon: number }> {
-  const res = await fetch('https://ipapi.co/json/');
-  if (!res.ok) throw new Error('IP geolocation request failed');
-  const data = await res.json() as { latitude?: number; longitude?: number };
-  if (typeof data.latitude !== 'number' || typeof data.longitude !== 'number') {
-    throw new Error('Invalid IP geolocation response');
-  }
-  return { lat: data.latitude, lon: data.longitude };
-}
+  | { phase: 'granted'; lat: number; lon: number };
 
 function useGeolocation(): GeoState {
-  const [state, setState] = useState<GeoState>({ phase: 'requesting' });
-
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setState({ phase: 'granted', lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => {
-          // Browser geolocation failed — try IP-based fallback
-          ipGeolocation()
-            .then(({ lat, lon }) => setState({ phase: 'granted', lat, lon }))
-            .catch(() => setState({ phase: 'granted', lat: DEFAULT_LAT, lon: DEFAULT_LON }));
-        },
-        { timeout: 8000 }
-      );
-    } else {
-      // No geolocation API — try IP fallback then default
-      ipGeolocation()
-        .then(({ lat, lon }) => setState({ phase: 'granted', lat, lon }))
-        .catch(() => setState({ phase: 'granted', lat: DEFAULT_LAT, lon: DEFAULT_LON }));
-    }
-  }, []);
-
-  return state;
+  const params = new URLSearchParams(window.location.search);
+  const lat = parseFloat(params.get('lat') ?? '');
+  const lon = parseFloat(params.get('lon') ?? '');
+  if (!isNaN(lat) && !isNaN(lon)) {
+    return { phase: 'granted', lat, lon };
+  }
+  return { phase: 'granted', lat: DEFAULT_LAT, lon: DEFAULT_LON };
 }
 
-function LoadingScreen({ message }: { message: string }) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
-      <div className="text-5xl animate-bounce">✈</div>
-      <p className="text-slate-400 text-sm max-w-xs text-center">{message}</p>
-    </div>
-  );
-}
-
-function ErrorScreen({ message }: { message: string }) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
-      <div className="text-5xl">⚠️</div>
-      <p className="text-red-400 text-sm max-w-xs text-center">{message}</p>
-    </div>
-  );
-}
 
 type FilterCategory = 'jet' | 'prop' | 'small' | 'heli' | 'military' | 'police';
 
@@ -414,11 +369,5 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 export default function App() {
   const geo = useGeolocation();
 
-  if (geo.phase === 'requesting') {
-    return <LoadingScreen message="Requesting location access… please allow when prompted." />;
-  }
-  if (geo.phase === 'denied') {
-    return <ErrorScreen message={`Location access denied: ${geo.message}`} />;
-  }
   return <Dashboard lat={geo.lat} lon={geo.lon} />;
 }
