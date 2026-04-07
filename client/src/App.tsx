@@ -286,6 +286,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     <th className="px-3 py-1 text-left font-medium">Callsign</th>
                     {!militaryMode && <th className="px-3 py-1 text-left font-medium">Route</th>}
                     {militaryMode && <th className="px-3 py-1 text-left font-medium">Type</th>}
+                    {militaryMode && <th className="px-3 py-1 text-left font-medium">Model</th>}
                     <th className="px-3 py-1 text-right font-medium">Dist</th>
                     <th className="px-3 py-1 text-right font-medium">Alt</th>
                   </tr>
@@ -305,9 +306,14 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                           ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
                           : <span className="text-slate-600">—</span>}
                       </td>}
-                      {militaryMode && <td className="px-3 py-1">
+                      {militaryMode && <td className="px-3 py-1 font-mono">
                         {f.aircraftType
-                          ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">{aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>
+                          ? <span className="text-slate-300">{f.aircraftType.toUpperCase()}</span>
+                          : <span className="text-slate-600">—</span>}
+                      </td>}
+                      {militaryMode && <td className="px-3 py-1">
+                        {f.aircraftType && aircraftTypeName(f.aircraftType)
+                          ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">{aircraftTypeName(f.aircraftType)}</span>
                           : <span className="text-slate-600">—</span>}
                       </td>}
                       <td className="px-3 py-1 text-right">{f.distanceMiles.toFixed(1)} mi</td>
