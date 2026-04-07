@@ -36,9 +36,19 @@ CRON_CMD="0 3 * * * $REPO_DIR/scripts/update.sh >> $REPO_DIR/logs/update.log 2>&
 mkdir -p "$REPO_DIR/logs"
 
 echo ""
+echo "==> Configuring pm2 to start on boot..."
+# pm2 startup prints a command that must be run as root — capture and execute it
+PM2_STARTUP_CMD=$(pm2 startup systemd 2>&1 | grep "sudo env" | tr -d '\n')
+if [ -n "$PM2_STARTUP_CMD" ]; then
+  eval "$PM2_STARTUP_CMD"
+  echo "    pm2 startup configured."
+else
+  echo "    Could not auto-configure pm2 startup — run 'pm2 startup' manually."
+fi
+
+echo ""
 echo "==> Setup complete."
 echo "    1. Edit .env and set FLIGHTAWARE_API_KEY"
 echo "    2. Start the server:  pm2 start npm --name flight-tracker -- start"
-echo "    3. Save pm2 state:    pm2 save"
-echo "    4. Enable on boot:    pm2 startup  (then run the printed command)"
-echo "    5. Set FullPageOS URL to: http://localhost:3001"
+echo "    3. Run:               pm2 save"
+echo "    4. Set FullPageOS URL to: http://localhost:3001"
