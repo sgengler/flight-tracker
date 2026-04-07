@@ -35,9 +35,10 @@ async function poll(session: Session) {
       while (queue.length > 0) {
         const f = queue.shift()!;
         if (f.callsign) f.route = await getCachedRoute(f.callsign, f.icao24);
-        // aircraftType already set from adsb.fi; only need hexdb.io for police detection
-        const { isPolice } = await getCachedAircraftType(f.icao24);
+        // aircraftType comes from adsb.fi; use hexdb.io as fallback and for police detection
+        const { typeCode, isPolice } = await getCachedAircraftType(f.icao24);
         f.isPolice = isPolice;
+        if (!f.aircraftType && typeCode) f.aircraftType = typeCode;
       }
     }));
 
