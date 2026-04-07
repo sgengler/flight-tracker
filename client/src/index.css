@@ -3,6 +3,14 @@
 html, body, #root {
   height: 100%;
   margin: 0;
+  overflow: hidden;
+}
+
+* {
+  scrollbar-width: none; /* Firefox */
+}
+*::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Chromium */
 }
 
 .leaflet-container {
