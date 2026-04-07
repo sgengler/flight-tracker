@@ -245,6 +245,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 
   // Accumulate position history for every flight on each poll
   useEffect(() => {
+    const activeIcaos = new Set(flights.map(f => f.icao24));
     for (const f of flights) {
       const prev = flightHistoryRef.current.get(f.icao24) ?? [];
       const last = prev[prev.length - 1];
@@ -252,6 +253,10 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
         const next = [...prev, [f.latitude, f.longitude] as [number, number]];
         flightHistoryRef.current.set(f.icao24, next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next);
       }
+    }
+    // Evict history for flights no longer in the current response
+    for (const icao of flightHistoryRef.current.keys()) {
+      if (!activeIcaos.has(icao)) flightHistoryRef.current.delete(icao);
     }
     const icao = (selectedIcao ?? flight?.icao24) ?? null;
     if (icao) setSelectedTrail(flightHistoryRef.current.get(icao) ?? []);
