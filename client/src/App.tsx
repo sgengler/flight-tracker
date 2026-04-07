@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
-import { FlightMap, categorizeAircraft, MILITARY_CATS } from './components/FlightMap';
+import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from './components/FlightMap';
 import { aircraftTypeName } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
@@ -113,6 +113,36 @@ const MILITARY_LEGEND_ENTRIES: { category: FilterCategory; label: string; desc: 
 ];
 
 const MAX_HISTORY = 300; // ~50 minutes at 10s poll
+
+// SVG paths (same as map icons, pointing up at heading=0)
+const ICON_PATHS: Partial<Record<AircraftCategory, string>> = {
+  jet:       'M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z',
+  prop:      'M0,-18 L3,-8 L3,-4 L16,0 L16,4 L3,3 L3,14 L7,15 L7,18 L0,16 L-7,18 L-7,15 L-3,14 L-3,3 L-16,4 L-16,0 L-3,-4 L-3,-8 Z',
+  small:     'M0,-17 L2.5,-13 L2.5,-4 L14,0 L14,3.5 L2.5,1.5 L2.5,12 L5.5,13 L5.5,16 L0,17 L-5.5,16 L-5.5,13 L-2.5,12 L-2.5,1.5 L-14,3.5 L-14,0 L-2.5,-4 L-2.5,-13 Z',
+  fighter:   'M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z',
+  bomber:    'M0,-13 L2,-7 L3,-1 L22,6 L21,10 L3,5 L2.5,13 L5.5,14 L5.5,17 L0,15 L-5.5,17 L-5.5,14 L-2.5,13 L-3,5 L-21,10 L-22,6 L-3,-1 L-2,-7 Z',
+  transport: 'M0,-17 L3,-9 L5,-6 L20,2 L20,7 L5,2 L4,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-4,14 L-5,2 L-20,7 L-20,2 L-5,-6 L-3,-9 Z',
+  attack:    'M0,-18 L2,-12 L3,-1 L19,2 L19,6 L3,1 L4.5,13 L8,14 L7,17 L0,16 L-7,17 L-8,14 L-4.5,13 L-3,1 L-19,6 L-19,2 L-3,-1 L-2,-12 Z',
+  uav:       'M0,-10 L1,-5 L2,-1 L25,3 L25,6 L2,2 L1.5,11 L4,12 L4,14 L0,13 L-4,14 L-4,12 L-1.5,11 L-2,2 L-25,6 L-25,3 L-2,-1 L-1,-5 Z',
+};
+
+function CategoryIcon({ category }: { category: AircraftCategory }) {
+  const isHeli = category === 'heli' || category === 'mil-heli';
+  const path = ICON_PATHS[category] ?? ICON_PATHS.jet!;
+  return (
+    <svg width="14" height="14" viewBox="-26 -26 52 52" fill="currentColor" className="flex-shrink-0 opacity-60">
+      {isHeli ? (
+        <>
+          <rect x="-20" y="-2" width="40" height="4" rx="2" />
+          <rect x="-2" y="-20" width="4" height="40" rx="2" />
+          <circle cx="0" cy="0" r="3.5" />
+        </>
+      ) : (
+        <path d={path} />
+      )}
+    </svg>
+  );
+}
 
 type FullscreenPanel = 'map' | 'flights' | 'card' | null;
 
@@ -300,7 +330,12 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                         ? 'bg-red-500/15 text-white'
                         : 'text-slate-300 hover:bg-white/5'}`}
                     >
-                      <td className="px-3 py-1 font-mono">{f.callsign ?? f.icao24}</td>
+                      <td className="px-3 py-1 font-mono">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CategoryIcon category={categorizeAircraft(f.aircraftType)} />
+                          {f.callsign ?? f.icao24}
+                        </span>
+                      </td>
                       {!militaryMode && <td className="px-3 py-1">
                         {f.route
                           ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
