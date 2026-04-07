@@ -164,7 +164,6 @@ interface RouteResult {
 }
 const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
 const ROUTE_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-const ROUTE_CACHE_MISS_TTL_MS = 5 * 60 * 1000;
 
 // Persist route cache to disk so FlightAware calls survive server restarts
 const CACHE_FILE = path.resolve(__dirname, '../../cache/routes.json');
@@ -176,7 +175,7 @@ function loadRouteCache() {
     const now = Date.now();
     for (const [key, value] of entries) {
       // Skip expired entries so stale data doesn't carry over
-      const ttl = (value.route.departure && value.route.arrival) ? ROUTE_CACHE_TTL_MS : ROUTE_CACHE_MISS_TTL_MS;
+      const ttl = ROUTE_CACHE_TTL_MS;
       if (now - value.fetchedAt < ttl) {
         routeCache.set(key, value);
       }
@@ -264,7 +263,7 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
 export async function getCachedRoute(callsign: string, icao24: string): Promise<RouteInfo | null> {
   const key = icao24.toLowerCase();
   const cached = routeCache.get(key);
-  const ttl = cached && (cached.route.departure && cached.route.arrival) ? ROUTE_CACHE_TTL_MS : ROUTE_CACHE_MISS_TTL_MS;
+  const ttl = ROUTE_CACHE_TTL_MS;
   if (cached && Date.now() - cached.fetchedAt < ttl) {
     const r = cached.route;
     if (!r.departure || !r.arrival) return null;
