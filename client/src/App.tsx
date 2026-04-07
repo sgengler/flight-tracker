@@ -5,23 +5,46 @@ import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft } from './components/FlightMap';
 
 
+// Default fallback location (Chesterbrook, PA)
+const DEFAULT_LAT = 40.0835;
+const DEFAULT_LON = -75.4579;
+
 type GeoState =
   | { phase: 'requesting' }
   | { phase: 'granted'; lat: number; lon: number }
   | { phase: 'denied'; message: string };
 
+async function ipGeolocation(): Promise<{ lat: number; lon: number }> {
+  const res = await fetch('https://ipapi.co/json/');
+  if (!res.ok) throw new Error('IP geolocation request failed');
+  const data = await res.json() as { latitude?: number; longitude?: number };
+  if (typeof data.latitude !== 'number' || typeof data.longitude !== 'number') {
+    throw new Error('Invalid IP geolocation response');
+  }
+  return { lat: data.latitude, lon: data.longitude };
+}
+
 function useGeolocation(): GeoState {
   const [state, setState] = useState<GeoState>({ phase: 'requesting' });
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setState({ phase: 'denied', message: 'Geolocation is not supported by this browser.' });
-      return;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setState({ phase: 'granted', lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => {
+          // Browser geolocation failed — try IP-based fallback
+          ipGeolocation()
+            .then(({ lat, lon }) => setState({ phase: 'granted', lat, lon }))
+            .catch(() => setState({ phase: 'granted', lat: DEFAULT_LAT, lon: DEFAULT_LON }));
+        },
+        { timeout: 8000 }
+      );
+    } else {
+      // No geolocation API — try IP fallback then default
+      ipGeolocation()
+        .then(({ lat, lon }) => setState({ phase: 'granted', lat, lon }))
+        .catch(() => setState({ phase: 'granted', lat: DEFAULT_LAT, lon: DEFAULT_LON }));
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setState({ phase: 'granted', lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      (err) => setState({ phase: 'denied', message: err.message })
-    );
   }, []);
 
   return state;
