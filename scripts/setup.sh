@@ -8,9 +8,6 @@ set -e
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
-echo "==> Ensuring git is installed..."
-sudo apt-get install -y git
-
 echo "==> Installing Node.js (via NodeSource)..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
