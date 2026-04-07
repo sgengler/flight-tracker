@@ -431,6 +431,24 @@ function FlyToFlight({ flight }: { flight: FlightState | null }) {
   return null;
 }
 
+// Recenters the map when the selected flight is about to leave the visible area.
+// Uses a 25% inner margin — if the plane is outside the inner 50% of the viewport,
+// pan to bring it back to center.
+function KeepFlightInView({ flight }: { flight: FlightState | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!flight) return;
+    const pos = L.latLng(flight.latitude, flight.longitude);
+    const inner = map.getBounds().pad(-0.25);
+    if (!inner.contains(pos)) {
+      map.panTo(pos, { animate: true, duration: 1.2 });
+    }
+  }, [map, flight?.latitude, flight?.longitude]);
+
+  return null;
+}
+
 // point: [lat, lon, zoom?] — zoom defaults to max(current, 7)
 function FlyToPoint({ point }: { point: [number, number, number?] | null }) {
   const map = useMap();
@@ -485,6 +503,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
         : <AutoBounds userLat={userLat} userLon={userLon} flights={flights} />
       }
       <FlyToFlight flight={flight} />
+      <KeepFlightInView flight={flight} />
       <FlyToPoint point={focusPoint ?? null} />
 
       {/* User location pin — hidden in military mode */}
