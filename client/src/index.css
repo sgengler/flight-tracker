@@ -4,7 +4,11 @@ html, body, #root {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  cursor: none;
+}
+
+/* Hide cursor on touch/coarse-pointer devices (e.g. Pi touchscreen) */
+@media (pointer: coarse) {
+  * { cursor: none !important; }
 }
 
 * {
