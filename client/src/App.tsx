@@ -132,6 +132,12 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     [flights]
   );
 
+  // Police aircraft present in the full (unfiltered) flight list
+  const policeFlights = useMemo(() =>
+    flights.filter(f => f.isPolice),
+    [flights]
+  );
+
   // Filter flights by active categories
   const displayFlights = useMemo(() => {
     if (activeCategories.size === ALL_CATEGORIES.size) return flights;
@@ -254,6 +260,41 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
         {/* Sidebar — hidden when map or flights is fullscreen */}
         {(fullscreenPanel === null || fullscreenPanel === 'card') && (
         <div className={`${fullscreenPanel === 'card' ? 'flex-1' : 'flex-[2]'} flex flex-col gap-1.5 min-w-0 ${fullscreenPanel === 'card' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+
+          {/* Police alert — hidden in card fullscreen */}
+          {fullscreenPanel === null && policeFlights.length > 0 && (
+            <div className="flex-shrink-0 rounded-xl border border-blue-400/40 bg-blue-500/10 px-3 py-2">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="-26 -26 52 52" className="flex-shrink-0">
+                  <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="#60a5fa" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinejoin="round"/>
+                </svg>
+                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                  Police {policeFlights.length > 1 ? `(${policeFlights.length})` : 'Aircraft Detected'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                {policeFlights.map(f => (
+                  <div key={f.icao24} className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-blue-300 font-medium flex-1 min-w-0 truncate">
+                      {f.callsign ?? f.icao24.toUpperCase()}
+                      {f.aircraftType && <span className="text-blue-600 ml-1">· {aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>}
+                    </span>
+                    <span className="text-xs text-blue-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
+                    <button
+                      onClick={() => setSelectedIcao(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                      className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-md border transition-colors ${
+                        f.icao24 === selectedFlight?.icao24
+                          ? 'bg-blue-500/30 border-blue-400/50 text-blue-300'
+                          : 'bg-blue-500/15 border-blue-400/30 text-blue-400 hover:bg-blue-500/25'
+                      }`}
+                    >
+                      {f.icao24 === selectedFlight?.icao24 ? 'Tracking' : 'Track'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Military alert — hidden in card fullscreen */}
           {fullscreenPanel === null && militaryFlights.length > 0 && (
