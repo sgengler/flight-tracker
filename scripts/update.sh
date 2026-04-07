@@ -4,6 +4,10 @@
 
 set -e
 
+# Load nvm so we use the correct Node version (cron doesn't source .bashrc)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
@@ -26,8 +30,8 @@ git pull origin main
 echo "[$(date)] Installing dependencies..."
 npm install
 
-echo "[$(date)] Building client..."
-cd client && npm install && npm run build && cd ..
+echo "[$(date)] Building server and client..."
+npm run build
 
 echo "[$(date)] Restarting server..."
 pm2 restart flight-tracker

@@ -8,7 +8,7 @@ set -e
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
-echo "==> Installing Node.js 20 via nvm..."
+echo "==> Installing Node.js LTS via nvm..."
 # nvm works on all architectures including armhf (32-bit Pi OS)
 export NVM_DIR="$HOME/.nvm"
 if [ ! -d "$NVM_DIR" ]; then
@@ -21,13 +21,15 @@ nvm use --lts
 nvm alias default node
 
 echo "==> Installing pm2..."
-sudo npm install -g pm2
+# Install without sudo so pm2 uses nvm's node (avoids system Node mismatch at boot)
+npm install -g pm2
 
 echo "==> Installing dependencies..."
 npm install
 
-echo "==> Building client..."
-cd client && npm install && npm run build && cd ..
+echo "==> Building server and client..."
+# Root-level build compiles TypeScript server (-> server/dist/) and Vite client (-> client/dist/)
+npm run build
 
 echo "==> Copying .env template (edit this before starting)..."
 if [ ! -f .env ]; then
