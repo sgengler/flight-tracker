@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* Rotate aircraft icon to match heading */
+.aircraft-icon {
+  transform-origin: center center;
+}
+
+/* Darken map tiles so aircraft icons stand out.
+   Applied to .leaflet-layer (the tile container) rather than individual tiles
+   to avoid sub-pixel seams between tiles when a filter is active. */
+.leaflet-container .leaflet-tile-pane {
+  filter: brightness(0.75) saturate(0.8);
+}
