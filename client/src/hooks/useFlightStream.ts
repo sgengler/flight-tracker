@@ -29,6 +29,11 @@ export function useFlightStream(lat: number | null, lon: number | null, mode: 'n
   useEffect(() => {
     if (lat == null || lon == null) return;
 
+    // Reset stale data immediately so old flights don't linger while new stream connects
+    setFlight(null);
+    setFlights([]);
+    setStatus('connecting');
+
     let timeoutId: ReturnType<typeof setTimeout>;
     backoffRef.current = 1000;
 
