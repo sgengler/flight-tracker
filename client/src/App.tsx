@@ -257,11 +257,11 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     if (icao) setSelectedTrail(flightHistoryRef.current.get(icao) ?? []);
   }, [flights]);
 
-  // When the selected flight changes, load its accumulated history
-  useEffect(() => {
-    const icao = (selectedIcao ?? flight?.icao24) ?? null;
-    setSelectedTrail(icao ? (flightHistoryRef.current.get(icao) ?? []) : []);
-  }, [selectedIcao, flight?.icao24]);
+  // Select a flight and immediately swap the trail in the same render (no flash of old trail)
+  const selectFlight = (icao24: string | null) => {
+    setSelectedIcao(icao24);
+    setSelectedTrail(icao24 ? (flightHistoryRef.current.get(icao24) ?? []) : []);
+  };
 
   // Use manually selected flight if still visible, otherwise fall back to closest visible
   const selectedFlight = (selectedIcao ? displayFlights.find(f => f.icao24 === selectedIcao) : null) ?? displayFlights[0] ?? null;
@@ -277,7 +277,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           {/* Map — hidden when flights is fullscreen */}
           {fullscreenPanel !== 'flights' && (
           <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
-            <FlightMap userLat={lat} userLon={lon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => setSelectedIcao(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
+            <FlightMap userLat={lat} userLon={lon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'
                 ? (
@@ -330,7 +330,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   {displayFlights.map((f) => (
                     <tr
                       key={f.icao24}
-                      onClick={() => setSelectedIcao(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                      onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
                       className={`cursor-pointer ${f.icao24 === selectedFlight?.icao24
                         ? 'bg-red-500/15 text-white'
                         : 'text-slate-300 hover:bg-white/5'}`}
@@ -394,7 +394,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     </span>
                     <span className="text-xs text-blue-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
                     <button
-                      onClick={() => setSelectedIcao(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                      onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
                       className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-md border transition-colors ${
                         f.icao24 === selectedFlight?.icao24
                           ? 'bg-blue-500/30 border-blue-400/50 text-blue-300'
@@ -429,7 +429,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     </span>
                     <span className="text-xs text-green-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
                     <button
-                      onClick={() => setSelectedIcao(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                      onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
                       className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-md border transition-colors ${
                         f.icao24 === selectedFlight?.icao24
                           ? 'bg-green-500/30 border-green-400/50 text-green-300'
@@ -447,7 +447,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0'}>
             {selectedIcao && (
               <button
-                onClick={() => setSelectedIcao(null)}
+                onClick={() => selectFlight(null)}
                 className="w-full flex items-center justify-center gap-2 px-3 py-1.5 mb-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-400 text-xs font-medium hover:bg-sky-500/25 transition-colors"
               >
                 <span>⟳</span> Return to closest plane
