@@ -8,9 +8,15 @@ set -e
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
-echo "==> Installing Node.js (via NodeSource)..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
+echo "==> Installing Node.js..."
+# NodeSource doesn't support armhf (32-bit Pi OS), use apt instead
+ARCH=$(dpkg --print-architecture)
+if [ "$ARCH" = "armhf" ]; then
+  sudo apt-get install -y nodejs npm
+else
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+fi
 
 echo "==> Installing pm2..."
 sudo npm install -g pm2
