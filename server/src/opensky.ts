@@ -60,12 +60,22 @@ export function bearingTo(lat1: number, lon1: number, lat2: number, lon2: number
 }
 
 let adsbFiBackoffUntil = 0;
+let adsbFiLastRequestAt = 0;
+const ADSBFI_MIN_INTERVAL_MS = 1100; // stay safely under 1 req/sec limit
+
+async function adsbFiThrottle() {
+  const wait = ADSBFI_MIN_INTERVAL_MS - (Date.now() - adsbFiLastRequestAt);
+  if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+  adsbFiLastRequestAt = Date.now();
+}
 
 export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 75): Promise<FlightState[]> {
   if (Date.now() < adsbFiBackoffUntil) {
     const remainingSec = Math.ceil((adsbFiBackoffUntil - Date.now()) / 1000);
     throw new Error(`adsb.fi rate limited — backing off for ${remainingSec}s`);
   }
+
+  await adsbFiThrottle();
 
   const radiusNm = Math.round(radiusMiles * MILES_TO_NM);
   const res = await fetch(`${ADSBFI_BASE}/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`);
