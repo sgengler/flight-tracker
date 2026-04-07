@@ -182,6 +182,7 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   // Military helicopters
   AH64: 'AH-64 Apache', CH47: 'CH-47 Chinook', UH60: 'UH-60 Black Hawk',
   MH60: 'MH-60 Sea Hawk', V22: 'V-22 Osprey',
+  AS65: 'AS-565 Panther',
   // Military trainers
   T38: 'T-38 Talon', T6: 'T-6 Texan II', T45: 'T-45 Goshawk',
   // Cargo

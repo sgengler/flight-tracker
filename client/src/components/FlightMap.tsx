@@ -52,7 +52,7 @@ function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'at
   if (['U2','SR71','RQ4','MQ9','MQ1','X47B','RQ180'].includes(t)) return 'uav';
   // Military helicopters — H60 must be checked here before the civilian 'H*' prefix catches it
   if (['H60','S70','UH60','HH60','MH60','SH60','CH47','AH64','UH1','UH1Y','AH1',
-       'CH53','OH58','HH65','HH1'].includes(t)) return 'mil-heli';
+       'CH53','OH58','HH65','HH1','AS65'].includes(t)) return 'mil-heli';
   return 'fighter'; // F-14, F-15, F-16, F-22, F-35, T-38, T-45, V-22, etc.
 }
 
@@ -82,6 +82,7 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
     'CH53',                                             // Sea Stallion / Super Stallion
     'OH58',                                             // Kiowa Warrior
     'HH65',                                             // Dolphin (Coast Guard)
+    'AS65',                                             // AS-565 Panther (Dauphin military)
   ]);
   if (militaryCodes.has(t)) return categorizeMilitary(t);
 
