@@ -221,6 +221,59 @@ export function formatSecondsAgo(timestamp: number): string {
   return `${Math.floor(secs / 60)}m ago`;
 }
 
+// --- Broad region grouping ---
+
+export interface BroadRegionGroup {
+  name: string;
+  centerLat: number;
+  centerLon: number;
+  zoom: number;
+  count: number;
+  flights: { icao24: string; callsign: string | null; aircraftType: string | null }[];
+}
+
+const BROAD_REGION_DEFS: {
+  name: string; centerLat: number; centerLon: number; zoom: number;
+  latMin: number; latMax: number; lonMin: number; lonMax: number;
+}[] = [
+  { name: 'North America',        centerLat: 42,  centerLon: -95,  zoom: 4, latMin: 14,  latMax: 72,  lonMin: -170, lonMax: -50  },
+  { name: 'Europe',               centerLat: 51,  centerLon: 12,   zoom: 4, latMin: 35,  latMax: 72,  lonMin: -12,  lonMax: 45   },
+  { name: 'Middle East',          centerLat: 28,  centerLon: 45,   zoom: 5, latMin: 12,  latMax: 42,  lonMin: 30,   lonMax: 65   },
+  { name: 'Africa',               centerLat: 5,   centerLon: 20,   zoom: 3, latMin: -38, latMax: 38,  lonMin: -20,  lonMax: 55   },
+  { name: 'Central Asia',         centerLat: 45,  centerLon: 65,   zoom: 4, latMin: 30,  latMax: 56,  lonMin: 50,   lonMax: 90   },
+  { name: 'South Asia',           centerLat: 22,  centerLon: 80,   zoom: 4, latMin: 5,   latMax: 38,  lonMin: 60,   lonMax: 100  },
+  { name: 'East Asia',            centerLat: 35,  centerLon: 118,  zoom: 4, latMin: 15,  latMax: 55,  lonMin: 95,   lonMax: 148  },
+  { name: 'Southeast Asia',       centerLat: 8,   centerLon: 115,  zoom: 4, latMin: -10, latMax: 25,  lonMin: 90,   lonMax: 145  },
+  { name: 'Australia & Oceania',  centerLat: -25, centerLon: 135,  zoom: 4, latMin: -50, latMax: -5,  lonMin: 110,  lonMax: 180  },
+  { name: 'South America',        centerLat: -15, centerLon: -60,  zoom: 3, latMin: -56, latMax: 15,  lonMin: -85,  lonMax: -30  },
+  { name: 'Caribbean',            centerLat: 20,  centerLon: -75,  zoom: 5, latMin: 14,  latMax: 28,  lonMin: -90,  lonMax: -58  },
+];
+
+export function groupByBroadRegion(
+  flights: { icao24: string; callsign: string | null; aircraftType: string | null; latitude: number; longitude: number }[]
+): BroadRegionGroup[] {
+  const groups = new Map<string, BroadRegionGroup>();
+
+  for (const def of BROAD_REGION_DEFS) {
+    groups.set(def.name, { name: def.name, centerLat: def.centerLat, centerLon: def.centerLon, zoom: def.zoom, count: 0, flights: [] });
+  }
+
+  for (const f of flights) {
+    for (const def of BROAD_REGION_DEFS) {
+      if (f.latitude >= def.latMin && f.latitude <= def.latMax && f.longitude >= def.lonMin && f.longitude <= def.lonMax) {
+        const g = groups.get(def.name)!;
+        g.count++;
+        g.flights.push({ icao24: f.icao24, callsign: f.callsign, aircraftType: f.aircraftType });
+        break;
+      }
+    }
+  }
+
+  return [...groups.values()]
+    .filter(g => g.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
+
 // --- Hotspot clustering ---
 
 export interface Hotspot {

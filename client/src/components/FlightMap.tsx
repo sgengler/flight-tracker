@@ -431,12 +431,14 @@ function FlyToFlight({ flight }: { flight: FlightState | null }) {
   return null;
 }
 
-function FlyToPoint({ point }: { point: [number, number] | null }) {
+// point: [lat, lon, zoom?] — zoom defaults to max(current, 7)
+function FlyToPoint({ point }: { point: [number, number, number?] | null }) {
   const map = useMap();
   useEffect(() => {
     if (!point) return;
-    map.flyTo(point, Math.max(map.getZoom(), 7), { animate: true, duration: 1 });
-  }, [map, point?.[0], point?.[1]]);
+    const zoom = point[2] ?? Math.max(map.getZoom(), 7);
+    map.flyTo([point[0], point[1]], zoom, { animate: true, duration: 1 });
+  }, [map, point?.[0], point?.[1], point?.[2]]);
   return null;
 }
 
@@ -459,7 +461,7 @@ interface Props {
   trail: [number, number][];
   onSelectFlight: (icao24: string) => void;
   militaryMode?: boolean;
-  focusPoint?: [number, number] | null;
+  focusPoint?: [number, number, number?] | null;
 }
 
 export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode, focusPoint }: Props) {

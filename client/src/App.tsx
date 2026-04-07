@@ -3,7 +3,7 @@ import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from './components/FlightMap';
-import { aircraftTypeName, clusterFlights, Hotspot } from './utils';
+import { aircraftTypeName, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
 
@@ -179,8 +179,8 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
-  const [milTab, setMilTab] = useState<'nearby' | 'hotspots'>('nearby');
-  const [focusPoint, setFocusPoint] = useState<[number, number] | null>(null);
+  const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
+  const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
   const flightHistoryRef = useRef<Map<string, [number, number][]>>(new Map());
   const [selectedTrail, setSelectedTrail] = useState<[number, number][]>([]);
 
@@ -251,6 +251,11 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     if (!militaryMode) return [];
     return clusterFlights(flights, lat, lon);
   }, [flights, militaryMode, lat, lon]);
+
+  const regionGroups = useMemo<BroadRegionGroup[]>(() => {
+    if (!militaryMode) return [];
+    return groupByBroadRegion(flights);
+  }, [flights, militaryMode]);
 
   // Accumulate position history for every flight on each poll
   useEffect(() => {
@@ -326,6 +331,10 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     onClick={() => setMilTab('hotspots')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'hotspots' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Hotspots</button>
+                  <button
+                    onClick={() => setMilTab('regions')}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'regions' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >Regions</button>
                 </div>
               ) : (
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nearby Flights</span>
@@ -333,7 +342,9 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
               <span className="text-xs text-slate-500">
                 {militaryMode && milTab === 'hotspots'
                   ? `(${hotspots.length})`
-                  : `(${displayFlights.length}${displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})`}
+                  : militaryMode && milTab === 'regions'
+                    ? `(${regionGroups.length})`
+                    : `(${displayFlights.length}${displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})`}
               </span>
               <div className="ml-auto">
                 {fullscreenPanel === 'flights'
@@ -365,6 +376,37 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                           <span key={f.icao24} className="text-xs font-mono text-green-400/70">{f.callsign ?? f.icao24.toUpperCase()}</span>
                         ))}
                         {h.flights.length > 6 && <span className="text-xs text-slate-500">+{h.flights.length - 6} more</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+
+            {/* Regions tab */}
+            {militaryMode && milTab === 'regions' && (
+              regionGroups.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-slate-500">No data yet…</div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {regionGroups.map(r => (
+                    <button
+                      key={r.name}
+                      onClick={() => setFocusPoint([r.centerLat, r.centerLon, r.zoom])}
+                      className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 flex-shrink-0">{r.count}</span>
+                        <span className="text-xs font-medium text-slate-200 flex-1 min-w-0">{r.name}</span>
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="text-slate-600 flex-shrink-0">
+                          <path d="M3.5 1.5L7 5l-3.5 3.5L2 7.5 5 5 2 2.5z"/>
+                        </svg>
+                      </div>
+                      <div className="flex flex-wrap gap-1 pl-7">
+                        {r.flights.slice(0, 5).map(f => (
+                          <span key={f.icao24} className="text-xs font-mono text-green-400/70">{f.callsign ?? f.icao24.toUpperCase()}</span>
+                        ))}
+                        {r.count > 5 && <span className="text-xs text-slate-500">+{r.count - 5} more</span>}
                       </div>
                     </button>
                   ))}
