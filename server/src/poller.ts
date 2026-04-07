@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { fetchNearbyFlights, findClosestFlight, getCachedRoute, getCachedAircraftType, FlightState } from './opensky';
+import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getCachedAircraftType, FlightState } from './opensky';
 
 const POLL_INTERVAL_MS = 10_000;
 
@@ -14,6 +14,7 @@ interface Session {
 
 // Key: "lat,lon" rounded to 4 decimal places (~11m precision — good enough to share sessions)
 const sessions = new Map<string, Session>();
+const militarySessions = new Map<string, Session>();
 
 function sessionKey(lat: number, lon: number): string {
   return `${lat.toFixed(4)},${lon.toFixed(4)}`;
@@ -89,6 +90,70 @@ export function subscribe(lat: number, lon: number, res: Response): () => void {
     if (session!.clients.size === 0) {
       clearInterval(session!.interval);
       sessions.delete(key);
+    }
+  };
+}
+
+async function pollMilitary(session: Session) {
+  try {
+    const flights = await fetchMilitaryFlights(session.lat, session.lon);
+    console.log(`[military] ${flights.length} military aircraft globally`);
+    // Enrich top 20 with aircraft type from hexdb (no route lookups in military mode)
+    const CONCURRENCY = 3;
+    const queue = [...flights.slice(0, 20)];
+    await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+      while (queue.length > 0) {
+        const f = queue.shift()!;
+        const { typeCode, isPolice } = await getCachedAircraftType(f.icao24);
+        f.isPolice = isPolice;
+        if (!f.aircraftType && typeCode) f.aircraftType = typeCode;
+      }
+    }));
+
+    const flight = findClosestFlight(flights);
+    session.lastFlight = flight;
+    session.lastFlights = flights;
+
+    const payload = JSON.stringify({ flight, flights, timestamp: Date.now() });
+    for (const res of session.clients) {
+      res.write(`data: ${payload}\n\n`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[military poller] Error: ${msg}`);
+    const payload = JSON.stringify({ error: msg, timestamp: Date.now() });
+    for (const res of session.clients) {
+      res.write(`data: ${payload}\n\n`);
+    }
+  }
+}
+
+export function subscribeMilitary(lat: number, lon: number, res: Response): () => void {
+  const key = sessionKey(lat, lon);
+
+  let session = militarySessions.get(key);
+  if (!session) {
+    session = {
+      lat,
+      lon,
+      clients: new Set(),
+      interval: setInterval(() => pollMilitary(session!), POLL_INTERVAL_MS),
+      lastFlight: null,
+      lastFlights: [],
+    };
+    militarySessions.set(key, session);
+    pollMilitary(session);
+  } else if (session.lastFlights.length > 0) {
+    res.write(`data: ${JSON.stringify({ flight: session.lastFlight, flights: session.lastFlights, timestamp: Date.now() })}\n\n`);
+  }
+
+  session.clients.add(res);
+
+  return () => {
+    session!.clients.delete(res);
+    if (session!.clients.size === 0) {
+      clearInterval(session!.interval);
+      militarySessions.delete(key);
     }
   };
 }

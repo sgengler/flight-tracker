@@ -95,7 +95,8 @@ function CollapseBtn({ onClick }: { onClick: () => void }) {
 }
 
 function Dashboard({ lat, lon }: { lat: number; lon: number }) {
-  const { flight, flights, status } = useFlightStream(lat, lon);
+  const [militaryMode, setMilitaryMode] = useState(false);
+  const { flight, flights, status } = useFlightStream(lat, lon, militaryMode ? 'military' : 'normal');
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(ALL_CATEGORIES);
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
@@ -175,6 +176,22 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 
   return (
     <div className="h-full flex flex-col bg-slate-900 relative">
+      {/* Military mode toggle */}
+      <div className="flex-shrink-0 flex justify-end px-2 pt-2">
+        <button
+          onClick={() => { setMilitaryMode(m => !m); setSelectedIcao(null); }}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border transition-colors ${
+            militaryMode
+              ? 'bg-green-500/20 border-green-400/50 text-green-300'
+              : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="-26 -26 52 52">
+            <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="currentColor"/>
+          </svg>
+          {militaryMode ? 'Military Mode ON' : 'Military Mode'}
+        </button>
+      </div>
       <div className="flex-1 flex flex-col md:flex-row gap-2 p-2 overflow-hidden min-h-0">
         {/* Map + flight list — hidden when card is fullscreen */}
         {fullscreenPanel !== 'card' && (
@@ -183,7 +200,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           {/* Map — hidden when flights is fullscreen */}
           {fullscreenPanel !== 'flights' && (
           <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
-            <FlightMap userLat={lat} userLon={lon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => setSelectedIcao(icao24 === selectedFlight?.icao24 ? null : icao24)} />
+            <FlightMap userLat={lat} userLon={lon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => setSelectedIcao(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'
                 ? (
@@ -209,7 +226,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           <div className="flex-1 min-h-0 rounded-2xl bg-slate-800/60 border border-white/10 overflow-y-auto">
             <div className="px-3 py-1.5 border-b border-white/10 flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Nearby Flights
+                {militaryMode ? 'Military Aircraft' : 'Nearby Flights'}
               </span>
               <span className="text-xs text-slate-500">({displayFlights.length}{displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})</span>
               <div className="ml-auto">
@@ -225,7 +242,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                 <thead>
                   <tr className="text-slate-500 uppercase tracking-wider">
                     <th className="px-3 py-1 text-left font-medium">Callsign</th>
-                    <th className="px-3 py-1 text-left font-medium">Route</th>
+                    {!militaryMode && <th className="px-3 py-1 text-left font-medium">Route</th>}
                     <th className="px-3 py-1 text-right font-medium">Dist</th>
                     <th className="px-3 py-1 text-right font-medium">Alt</th>
                   </tr>
@@ -240,11 +257,11 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                         : 'text-slate-300 hover:bg-white/5'}`}
                     >
                       <td className="px-3 py-1 font-mono">{f.callsign ?? f.icao24}</td>
-                      <td className="px-3 py-1">
+                      {!militaryMode && <td className="px-3 py-1">
                         {f.route
                           ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
                           : <span className="text-slate-600">—</span>}
-                      </td>
+                      </td>}
                       <td className="px-3 py-1 text-right">{f.distanceMiles.toFixed(1)} mi</td>
                       <td className="px-3 py-1 text-right">
                         {f.baroAltitude != null ? `${Math.round(f.baroAltitude * 3.28084 / 100) * 100}` : '—'}
@@ -298,8 +315,8 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
             </div>
           )}
 
-          {/* Military alert — hidden in card fullscreen */}
-          {fullscreenPanel === null && militaryFlights.length > 0 && (
+          {/* Military alert — hidden in card fullscreen and in military mode */}
+          {fullscreenPanel === null && !militaryMode && militaryFlights.length > 0 && (
             <div className="flex-shrink-0 rounded-xl border border-green-400/40 bg-green-500/10 px-3 py-2">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="-26 -26 52 52" className="flex-shrink-0">

@@ -340,6 +340,20 @@ interface AutoBoundsProps {
   flights: FlightState[];
 }
 
+function MilitaryAutoBounds({ flights }: { flights: FlightState[] }) {
+  const map = useMap();
+  const fittedRef = useRef(false);
+
+  useEffect(() => {
+    if (fittedRef.current || flights.length === 0) return;
+    fittedRef.current = true;
+    const bounds = L.latLngBounds(flights.map(f => [f.latitude, f.longitude]));
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }, [map, flights.length]);
+
+  return null;
+}
+
 function AutoBounds({ userLat, userLon, flights }: AutoBoundsProps) {
   const map = useMap();
   const fittedRef = useRef(false);
@@ -388,9 +402,10 @@ interface Props {
   flights: FlightState[];
   trail: [number, number][];
   onSelectFlight: (icao24: string) => void;
+  militaryMode?: boolean;
 }
 
-export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight }: Props) {
+export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode }: Props) {
   const displayFlights = flights.length > 0 ? flights : (flight ? [flight] : []);
 
   return (
@@ -406,11 +421,14 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
       />
 
       <InvalidateSizeOnResize />
-      <AutoBounds userLat={userLat} userLon={userLon} flights={flights} />
+      {militaryMode
+        ? <MilitaryAutoBounds flights={flights} />
+        : <AutoBounds userLat={userLat} userLon={userLon} flights={flights} />
+      }
       <FlyToFlight flight={flight} />
 
-      {/* User location pin */}
-      <Marker position={[userLat, userLon]} icon={locationIcon} />
+      {/* User location pin — hidden in military mode */}
+      {!militaryMode && <Marker position={[userLat, userLon]} icon={locationIcon} />}
 
       {/* Aircraft — CSS transition carries each plane to its projected position */}
       <AnimatedFlightLayer

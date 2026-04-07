@@ -126,6 +126,58 @@ export function findClosestFlight(flights: FlightState[]): FlightState | null {
   return flights[0] ?? null;
 }
 
+export async function fetchMilitaryFlights(refLat: number, refLon: number): Promise<FlightState[]> {
+  if (Date.now() < adsbFiBackoffUntil) {
+    const remainingSec = Math.ceil((adsbFiBackoffUntil - Date.now()) / 1000);
+    throw new Error(`adsb.fi rate limited — backing off for ${remainingSec}s`);
+  }
+
+  await adsbFiThrottle();
+
+  const res = await fetch(`${ADSBFI_BASE}/v2/mil`);
+
+  if (!res.ok) {
+    if (res.status === 429) {
+      adsbFiBackoffUntil = Date.now() + 5 * 60 * 1000;
+      console.warn('[adsb.fi] 429 rate limit hit — pausing requests for 5 minutes');
+    }
+    throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
+  }
+
+  const data = await res.json() as { ac?: AdsbFiAircraft[] };
+  const aircraft = data.ac ?? [];
+
+  const flights: FlightState[] = [];
+  for (const ac of aircraft) {
+    if (ac.lat == null || ac.lon == null) continue;
+    if (ac.alt_baro === 'ground') continue;
+
+    const baroAltFt = typeof ac.alt_baro === 'number' ? ac.alt_baro : null;
+
+    flights.push({
+      icao24: ac.hex,
+      callsign: ac.flight?.trim() || null,
+      originCountry: '',
+      latitude: ac.lat,
+      longitude: ac.lon,
+      baroAltitude: baroAltFt != null ? baroAltFt * 0.3048 : null,
+      onGround: false,
+      velocity: ac.gs != null ? ac.gs * 0.514444 : null,
+      trueTrack: ac.track ?? null,
+      verticalRate: ac.baro_rate != null ? ac.baro_rate * 0.00508 : null,
+      geoAltitude: ac.alt_geom != null ? ac.alt_geom * 0.3048 : null,
+      distanceMiles: haversineDistance(refLat, refLon, ac.lat, ac.lon),
+      bearingDeg: bearingTo(refLat, refLon, ac.lat, ac.lon),
+      route: null,
+      aircraftType: ac.t?.trim() || null,
+      isPolice: false,
+    });
+  }
+
+  flights.sort((a, b) => a.distanceMiles - b.distanceMiles);
+  return flights;
+}
+
 const AIRPORT_CITIES: Record<string, string> = {
   KATL: 'Atlanta', KLAX: 'Los Angeles', KORD: "Chicago O'Hare", KDFW: 'Dallas/Ft Worth',
   KDEN: 'Denver', KJFK: 'New York JFK', KSFO: 'San Francisco', KLAS: 'Las Vegas',

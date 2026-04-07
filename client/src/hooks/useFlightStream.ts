@@ -10,7 +10,7 @@ interface UseFlightStreamResult {
 
 const MAX_BACKOFF_MS = 30_000;
 
-export function useFlightStream(lat: number | null, lon: number | null): UseFlightStreamResult {
+export function useFlightStream(lat: number | null, lon: number | null, mode: 'normal' | 'military' = 'normal'): UseFlightStreamResult {
   const [flight, setFlight] = useState<FlightState | null>(null);
   const [flights, setFlights] = useState<FlightState[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
@@ -36,7 +36,10 @@ export function useFlightStream(lat: number | null, lon: number | null): UseFlig
       esRef.current?.close();
       setStatus('connecting');
 
-      const es = new EventSource(`/api/flights/stream?lat=${lat}&lon=${lon}`);
+      const url = mode === 'military'
+        ? `/api/flights/stream/military?lat=${lat}&lon=${lon}`
+        : `/api/flights/stream?lat=${lat}&lon=${lon}`;
+      const es = new EventSource(url);
       esRef.current = es;
 
       es.onopen = () => {
@@ -82,7 +85,7 @@ export function useFlightStream(lat: number | null, lon: number | null): UseFlig
       esRef.current?.close();
       esRef.current = null;
     };
-  }, [lat, lon]);
+  }, [lat, lon, mode]);
 
   return { flight, flights, lastUpdated, status };
 }

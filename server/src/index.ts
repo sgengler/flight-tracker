@@ -5,7 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import { exec } from 'child_process';
-import { subscribe } from './poller';
+import { subscribe, subscribeMilitary } from './poller';
 import { fetchPlanePhoto } from './opensky';
 
 const app = express();
@@ -89,6 +89,29 @@ app.post('/api/shutdown', (req, res) => {
   res.json({ ok: true, message: 'Shutting down' });
   exec('sudo shutdown -h now', (err) => {
     if (err) console.error('[shutdown] failed:', err.message);
+  });
+});
+
+app.get('/api/flights/stream/military', (req, res) => {
+  const lat = parseFloat(req.query.lat as string);
+  const lon = parseFloat(req.query.lon as string);
+
+  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    res.status(400).json({ error: 'Invalid lat/lon query params' });
+    return;
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const unsubscribe = subscribeMilitary(lat, lon, res);
+
+  req.on('close', () => {
+    unsubscribe();
+    res.end();
   });
 });
 
