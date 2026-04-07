@@ -176,22 +176,6 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 
   return (
     <div className="h-full flex flex-col bg-slate-900 relative">
-      {/* Military mode toggle */}
-      <div className="flex-shrink-0 flex justify-end px-2 pt-2">
-        <button
-          onClick={() => { setMilitaryMode(m => !m); setSelectedIcao(null); }}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border transition-colors ${
-            militaryMode
-              ? 'bg-green-500/20 border-green-400/50 text-green-300'
-              : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="-26 -26 52 52">
-            <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="currentColor"/>
-          </svg>
-          {militaryMode ? 'Military Mode ON' : 'Military Mode'}
-        </button>
-      </div>
       <div className="flex-1 flex flex-col md:flex-row gap-2 p-2 overflow-hidden min-h-0">
         {/* Map + flight list — hidden when card is fullscreen */}
         {fullscreenPanel !== 'card' && (
@@ -380,14 +364,29 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           <div className="flex-shrink-0 rounded-2xl bg-slate-800/60 border border-white/10 px-3 py-2">
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Map Icon Key</div>
-              {activeCategories.size < ALL_CATEGORIES.size && (
+              <div className="flex items-center gap-2">
+                {activeCategories.size < ALL_CATEGORIES.size && (
+                  <button
+                    onClick={() => setActiveCategories(ALL_CATEGORIES)}
+                    className="text-xs text-sky-400 hover:text-sky-300 transition-colors"
+                  >
+                    Show all
+                  </button>
+                )}
                 <button
-                  onClick={() => setActiveCategories(ALL_CATEGORIES)}
-                  className="text-xs text-sky-400 hover:text-sky-300 transition-colors"
+                  onClick={() => { setMilitaryMode(m => !m); setSelectedIcao(null); }}
+                  className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                    militaryMode
+                      ? 'bg-green-500/20 border-green-400/50 text-green-300'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
+                  }`}
                 >
-                  Show all
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="-26 -26 52 52">
+                    <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="currentColor"/>
+                  </svg>
+                  {militaryMode ? 'Global Mil' : 'Global Mil'}
                 </button>
-              )}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-1">
               {LEGEND_ENTRIES.map(({ category, label, svg }) => {
