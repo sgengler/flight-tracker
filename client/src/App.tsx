@@ -135,7 +135,10 @@ function CategoryIcon({ category }: { category: AircraftCategory }) {
         <>
           <rect x="-20" y="-2" width="40" height="4" rx="2" />
           <rect x="-2" y="-20" width="4" height="40" rx="2" />
-          <circle cx="0" cy="0" r="3.5" />
+          <circle cx="0" cy="0" r="3" />
+          <path d="M0,-11 C5,-11 8,-5 8,1 C8,7 5,11 0,13 C-5,11 -8,7 -8,1 C-8,-5 -5,-11 0,-11 Z" />
+          <rect x="-1.5" y="12" width="3" height="10" rx="1" />
+          <rect x="-8" y="19" width="16" height="3" rx="1.5" />
         </>
       ) : (
         <path d={path} />
