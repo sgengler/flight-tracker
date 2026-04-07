@@ -52,7 +52,8 @@ app.get('/api/version', (_req, res) => {
 
 app.get('/api/flight-info', async (req, res) => {
   const icao24 = ((req.query.icao24 as string) ?? '').trim() || null;
-  const photoUrl = icao24 ? await fetchPlanePhoto(icao24).catch(() => null) : null;
+  const typeName = ((req.query.typeName as string) ?? '').trim() || null;
+  const photoUrl = icao24 ? await fetchPlanePhoto(icao24, typeName).catch(() => null) : null;
   res.json({ photoUrl });
 });
 

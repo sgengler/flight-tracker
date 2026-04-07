@@ -407,17 +407,32 @@ export async function getCachedAircraftType(icao24: string): Promise<{ typeCode:
   }
 }
 
-export async function fetchPlanePhoto(icao24: string): Promise<string | null> {
+export async function fetchPlanePhoto(icao24: string, typeName?: string | null): Promise<string | null> {
+  // Try planespotters.net first (specific photo of this aircraft)
   try {
     const res = await fetch(`https://api.planespotters.net/pub/photos/hex/${icao24.toLowerCase()}`);
-    if (!res.ok) return null;
-
-    const data = await res.json() as {
-      photos: Array<{ thumbnail_large: { src: string } }>;
-    };
-
-    return data.photos?.[0]?.thumbnail_large?.src ?? null;
+    if (res.ok) {
+      const data = await res.json() as { photos: Array<{ thumbnail_large: { src: string } }> };
+      const url = data.photos?.[0]?.thumbnail_large?.src ?? null;
+      if (url) return url;
+    }
   } catch {
-    return null;
+    // fall through to next source
   }
+
+  // Fall back to Wikipedia type photo when no specific photo is available
+  if (typeName) {
+    try {
+      const title = typeName.replace(/ /g, '_');
+      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+      if (res.ok) {
+        const data = await res.json() as { thumbnail?: { source: string } };
+        if (data.thumbnail?.source) return data.thumbnail.source;
+      }
+    } catch {
+      // no photo available
+    }
+  }
+
+  return null;
 }

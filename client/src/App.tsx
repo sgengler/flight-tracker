@@ -172,7 +172,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 
   // Use manually selected flight if still visible, otherwise fall back to closest visible
   const selectedFlight = (selectedIcao ? displayFlights.find(f => f.icao24 === selectedIcao) : null) ?? displayFlights[0] ?? null;
-  const info = useFlightInfo(selectedFlight?.icao24 ?? null);
+  const info = useFlightInfo(selectedFlight?.icao24 ?? null, selectedFlight?.aircraftType ? (aircraftTypeName(selectedFlight.aircraftType) ?? null) : null);
 
   return (
     <div className="h-full flex flex-col bg-slate-900 relative">
