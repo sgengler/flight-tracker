@@ -59,11 +59,22 @@ export function bearingTo(lat1: number, lon1: number, lat2: number, lon2: number
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
+let adsbFiBackoffUntil = 0;
+
 export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 75): Promise<FlightState[]> {
+  if (Date.now() < adsbFiBackoffUntil) {
+    const remainingSec = Math.ceil((adsbFiBackoffUntil - Date.now()) / 1000);
+    throw new Error(`adsb.fi rate limited — backing off for ${remainingSec}s`);
+  }
+
   const radiusNm = Math.round(radiusMiles * MILES_TO_NM);
   const res = await fetch(`${ADSBFI_BASE}/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`);
 
   if (!res.ok) {
+    if (res.status === 429) {
+      adsbFiBackoffUntil = Date.now() + 5 * 60 * 1000; // back off 5 minutes
+      console.warn('[adsb.fi] 429 rate limit hit — pausing requests for 5 minutes');
+    }
     throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
   }
 
