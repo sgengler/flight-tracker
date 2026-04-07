@@ -60,6 +60,8 @@ export function bearingTo(lat1: number, lon1: number, lat2: number, lon2: number
 }
 
 let adsbFiBackoffUntil = 0;
+let adsbFiBackoffCount = 0;
+const ADSBFI_BACKOFF_STEPS_MS = [5 * 60 * 1000, 10 * 60 * 1000, 30 * 60 * 1000];
 let adsbFiLastRequestAt = 0;
 const ADSBFI_MIN_INTERVAL_MS = 2000; // stay well under 1 req/sec limit
 
@@ -82,11 +84,14 @@ export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles =
 
   if (!res.ok) {
     if (res.status === 429) {
-      adsbFiBackoffUntil = Date.now() + 30 * 60 * 1000; // back off 30 minutes
-      console.warn('[adsb.fi] 429 rate limit hit — pausing requests for 30 minutes');
+      const stepMs = ADSBFI_BACKOFF_STEPS_MS[Math.min(adsbFiBackoffCount, ADSBFI_BACKOFF_STEPS_MS.length - 1)];
+      adsbFiBackoffCount++;
+      adsbFiBackoffUntil = Date.now() + stepMs;
+      console.warn(`[adsb.fi] 429 rate limit hit — pausing for ${stepMs / 60000} min (attempt ${adsbFiBackoffCount})`);
     }
     throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
   }
+  adsbFiBackoffCount = 0;
 
   const data = await res.json() as { ac?: AdsbFiAircraft[] };
   const aircraft = data.ac ?? [];
@@ -138,11 +143,14 @@ export async function fetchMilitaryFlights(refLat: number, refLon: number): Prom
 
   if (!res.ok) {
     if (res.status === 429) {
-      adsbFiBackoffUntil = Date.now() + 5 * 60 * 1000;
-      console.warn('[adsb.fi] 429 rate limit hit — pausing requests for 5 minutes');
+      const stepMs = ADSBFI_BACKOFF_STEPS_MS[Math.min(adsbFiBackoffCount, ADSBFI_BACKOFF_STEPS_MS.length - 1)];
+      adsbFiBackoffCount++;
+      adsbFiBackoffUntil = Date.now() + stepMs;
+      console.warn(`[adsb.fi] 429 rate limit hit — pausing for ${stepMs / 60000} min (attempt ${adsbFiBackoffCount})`);
     }
     throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
   }
+  adsbFiBackoffCount = 0;
 
   const data = await res.json() as { ac?: AdsbFiAircraft[] };
   const aircraft = data.ac ?? [];
