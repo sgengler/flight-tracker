@@ -17,6 +17,29 @@ app.use(compression({
 app.use(cors());
 app.use(express.json());
 
+// Token-based access control — set ACCESS_TOKEN in .env to restrict access.
+// Requests must include ?token=<value> or cookie token=<value>.
+// If ACCESS_TOKEN is not set, the server is open (useful for local dev).
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+if (ACCESS_TOKEN) {
+  app.use((req, res, next) => {
+    const queryToken = req.query.token as string | undefined;
+    const cookieToken = req.headers.cookie
+      ?.split(';')
+      .map(c => c.trim().split('='))
+      .find(([k]) => k === 'token')?.[1];
+
+    if (queryToken === ACCESS_TOKEN || cookieToken === ACCESS_TOKEN) {
+      // Promote query token to cookie so subsequent requests don't need it in the URL
+      if (queryToken === ACCESS_TOKEN) {
+        res.setHeader('Set-Cookie', `token=${ACCESS_TOKEN}; Path=/; HttpOnly; SameSite=Strict`);
+      }
+      return next();
+    }
+    res.status(401).send('Unauthorized');
+  });
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
