@@ -61,7 +61,7 @@ export function bearingTo(lat1: number, lon1: number, lat2: number, lon2: number
 
 let adsbFiBackoffUntil = 0;
 let adsbFiLastRequestAt = 0;
-const ADSBFI_MIN_INTERVAL_MS = 1100; // stay safely under 1 req/sec limit
+const ADSBFI_MIN_INTERVAL_MS = 2000; // stay well under 1 req/sec limit
 
 async function adsbFiThrottle() {
   const wait = ADSBFI_MIN_INTERVAL_MS - (Date.now() - adsbFiLastRequestAt);
@@ -82,8 +82,8 @@ export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles =
 
   if (!res.ok) {
     if (res.status === 429) {
-      adsbFiBackoffUntil = Date.now() + 5 * 60 * 1000; // back off 5 minutes
-      console.warn('[adsb.fi] 429 rate limit hit — pausing requests for 5 minutes');
+      adsbFiBackoffUntil = Date.now() + 30 * 60 * 1000; // back off 30 minutes
+      console.warn('[adsb.fi] 429 rate limit hit — pausing requests for 30 minutes');
     }
     throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
   }

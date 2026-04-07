@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getCachedAircraftType, FlightState } from './opensky';
 
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 20_000;
 
 // Military-only type codes — FlightAware has no commercial routes for these
 const MILITARY_TYPE_CODES = new Set([
