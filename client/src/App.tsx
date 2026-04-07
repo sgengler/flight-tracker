@@ -451,7 +451,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                         </td>}
                         {militaryMode && <td className="px-3 py-1 w-full max-w-0 truncate">
                           {f.aircraftType
-                            ? <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">{aircraftTypeName(f.aircraftType) ?? f.aircraftType.toUpperCase()}</span>
+                            ? <span className="text-slate-300">{aircraftTypeName(f.aircraftType) ?? f.aircraftType.toUpperCase()}</span>
                             : <span className="text-slate-600">—</span>}
                         </td>}
                         <td className="px-3 py-1 text-right whitespace-nowrap">{f.distanceMiles.toFixed(1)} mi</td>
