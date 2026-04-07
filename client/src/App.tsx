@@ -3,6 +3,7 @@ import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft } from './components/FlightMap';
+import { aircraftTypeName } from './utils';
 
 
 // Default fallback location (Chesterbrook, PA)
@@ -270,7 +271,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   <div key={f.icao24} className="flex items-center gap-2">
                     <span className="font-mono text-xs text-green-300 font-medium flex-1 min-w-0 truncate">
                       {f.callsign ?? f.icao24.toUpperCase()}
-                      {f.aircraftType && <span className="text-green-600 ml-1">· {f.aircraftType}</span>}
+                      {f.aircraftType && <span className="text-green-600 ml-1">· {aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>}
                     </span>
                     <span className="text-xs text-green-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
                     <button
