@@ -384,7 +384,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="-26 -26 52 52">
                     <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="currentColor"/>
                   </svg>
-                  {militaryMode ? 'Global Mil' : 'Global Mil'}
+                  Military Mode
                 </button>
               </div>
             </div>
