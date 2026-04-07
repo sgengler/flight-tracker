@@ -330,8 +330,9 @@ export function clusterFlights(
     });
   }
 
-  // Sort by cluster size descending; skip singletons (isolated aircraft)
+  // Sort by cluster size descending; skip singletons and cap at top 10
   return hotspots
     .filter(h => h.flights.length >= 2)
-    .sort((a, b) => b.flights.length - a.flights.length);
+    .sort((a, b) => b.flights.length - a.flights.length)
+    .slice(0, 10);
 }
