@@ -326,26 +326,21 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   <button
                     onClick={() => setMilTab('nearby')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                  >Nearby</button>
+                  >Nearby <span className="opacity-60">{displayFlights.length}{displayFlights.length !== flights.length ? `/${flights.length}` : ''}</span></button>
                   <button
                     onClick={() => setMilTab('hotspots')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'hotspots' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                  >Hotspots</button>
+                  >Hotspots <span className="opacity-60">{hotspots.length}</span></button>
                   <button
                     onClick={() => setMilTab('regions')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'regions' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                  >Regions</button>
+                  >Regions <span className="opacity-60">{regionGroups.length}</span></button>
                 </div>
               ) : (
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nearby Flights</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Nearby Flights <span className="font-normal normal-case tracking-normal">({displayFlights.length}{displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})</span>
+                </span>
               )}
-              <span className="text-xs text-slate-500">
-                {militaryMode && milTab === 'hotspots'
-                  ? `(${hotspots.length})`
-                  : militaryMode && milTab === 'regions'
-                    ? `(${regionGroups.length})`
-                    : `(${displayFlights.length}${displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})`}
-              </span>
               <div className="ml-auto">
                 {fullscreenPanel === 'flights'
                   ? <CollapseBtn onClick={() => setFullscreenPanel(null)} />
