@@ -8,15 +8,17 @@ set -e
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
-echo "==> Installing Node.js..."
-# NodeSource doesn't support armhf (32-bit Pi OS), use apt instead
-ARCH=$(dpkg --print-architecture)
-if [ "$ARCH" = "armhf" ]; then
-  sudo apt-get install -y nodejs npm
-else
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-  sudo apt-get install -y nodejs
+echo "==> Installing Node.js 20 via nvm..."
+# nvm works on all architectures including armhf (32-bit Pi OS)
+export NVM_DIR="$HOME/.nvm"
+if [ ! -d "$NVM_DIR" ]; then
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 fi
+# Load nvm into this shell session
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install 20
+nvm use 20
+nvm alias default 20
 
 echo "==> Installing pm2..."
 sudo npm install -g pm2
