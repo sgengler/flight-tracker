@@ -227,6 +227,123 @@ export function aircraftTypeName(typeCode: string | null | undefined): string | 
   return AIRCRAFT_TYPE_NAMES[typeCode.toUpperCase()] ?? null;
 }
 
+// --- Country from ICAO 24-bit hex address ---
+// Countries are assigned contiguous blocks of the 24-bit address space by ICAO.
+// Ranges sorted ascending; first match wins.
+const ICAO_RANGES: [number, number, string, string][] = [
+  // Africa
+  [0x010000, 0x017FFF, 'Egypt',        'EG'],
+  [0x018000, 0x01FFFF, 'Libya',        'LY'],
+  [0x020000, 0x027FFF, 'Morocco',      'MA'],
+  [0x028000, 0x02FFFF, 'Tunisia',      'TN'],
+  [0x030000, 0x033FFF, 'Botswana',     'BW'],
+  [0x034000, 0x037FFF, 'Burundi',      'BI'],
+  [0x038000, 0x03FFFF, 'Mozambique',   'MZ'],
+  [0x040000, 0x043FFF, 'Uganda',       'UG'],
+  [0x044000, 0x047FFF, 'Tanzania',     'TZ'],
+  [0x048000, 0x04BFFF, 'Zimbabwe',     'ZW'],
+  [0x04C000, 0x04FFFF, 'Zambia',       'ZM'],
+  [0x050000, 0x053FFF, 'Kenya',        'KE'],
+  [0x054000, 0x057FFF, 'Djibouti',     'DJ'],
+  [0x058000, 0x05BFFF, 'Ethiopia',     'ET'],
+  [0x200000, 0x27FFFF, 'South Africa', 'ZA'],
+  [0x640000, 0x67FFFF, 'Nigeria',      'NG'],
+  // Russia / CIS
+  [0x100000, 0x1FFFFF, 'Russia',       'RU'],
+  [0x500000, 0x5003FF, 'Armenia',      'AM'],
+  [0x600800, 0x6008FF, 'Azerbaijan',   'AZ'],
+  [0x710000, 0x717FFF, 'Saudi Arabia', 'SA'],
+  // Europe (Italy/Spain/France/Germany block)
+  [0x300000, 0x33FFFF, 'Italy',        'IT'],
+  [0x340000, 0x37FFFF, 'Spain',        'ES'],
+  [0x380000, 0x3BFFFF, 'France',       'FR'],
+  [0x3C0000, 0x3FFFFF, 'Germany',      'DE'],
+  // Europe (UK + rest)
+  [0x400000, 0x43FFFF, 'United Kingdom','GB'],
+  [0x440000, 0x447FFF, 'Austria',      'AT'],
+  [0x448000, 0x44FFFF, 'Belgium',      'BE'],
+  [0x450000, 0x457FFF, 'Bulgaria',     'BG'],
+  [0x458000, 0x45FFFF, 'Denmark',      'DK'],
+  [0x460000, 0x467FFF, 'Finland',      'FI'],
+  [0x468000, 0x46FFFF, 'Greece',       'GR'],
+  [0x470000, 0x477FFF, 'Norway',       'NO'],
+  [0x478000, 0x47FFFF, 'Netherlands',  'NL'],
+  [0x480000, 0x487FFF, 'Netherlands',  'NL'],
+  [0x488000, 0x48FFFF, 'Poland',       'PL'],
+  [0x490000, 0x497FFF, 'Portugal',     'PT'],
+  [0x498000, 0x49FFFF, 'Czech Republic','CZ'],
+  [0x4A0000, 0x4AFFFF, 'Sweden',       'SE'],
+  [0x4B0000, 0x4B7FFF, 'Switzerland',  'CH'],
+  [0x4B8000, 0x4BFFFF, 'Turkey',       'TR'],
+  [0x4C0000, 0x4C7FFF, 'Croatia',      'HR'],
+  [0x4C8000, 0x4CFFFF, 'Slovakia',     'SK'],
+  [0x4D0000, 0x4D7FFF, 'Romania',      'RO'],
+  [0x4D8000, 0x4DFFFF, 'Hungary',      'HU'],
+  [0x4E0000, 0x4E7FFF, 'Serbia',       'RS'],
+  [0x500800, 0x500FFF, 'Lithuania',    'LT'],
+  [0x501000, 0x5013FF, 'Latvia',       'LV'],
+  [0x501800, 0x501BFF, 'Estonia',      'EE'],
+  [0x508000, 0x50FFFF, 'Ukraine',      'UA'],
+  [0x510000, 0x5103FF, 'Belarus',      'BY'],
+  // Middle East
+  [0x718000, 0x71FFFF, 'Jordan',       'JO'],
+  [0x720000, 0x727FFF, 'Syria',        'SY'],
+  [0x728000, 0x72FFFF, 'Iraq',         'IQ'],
+  [0x730000, 0x737FFF, 'Kuwait',       'KW'],
+  [0x738000, 0x73FFFF, 'Israel',       'IL'],
+  [0x740000, 0x747FFF, 'Bahrain',      'BH'],
+  [0x748000, 0x74FFFF, 'UAE',          'AE'],
+  [0x750000, 0x757FFF, 'Qatar',        'QA'],
+  [0x760000, 0x767FFF, 'Oman',         'OM'],
+  [0x768000, 0x76FFFF, 'UAE',          'AE'],
+  [0x770000, 0x777FFF, 'Iran',         'IR'],
+  [0x778000, 0x77FFFF, 'Yemen',        'YE'],
+  // Asia / Pacific
+  [0x700000, 0x700FFF, 'Kyrgyzstan',   'KG'],
+  [0x702000, 0x702FFF, 'Nepal',        'NP'],
+  [0x760000, 0x763FFF, 'Pakistan',     'PK'],
+  [0x780000, 0x7BFFFF, 'China',        'CN'],
+  [0x7C0000, 0x7FFFFF, 'Australia',    'AU'],
+  [0x800000, 0x83FFFF, 'India',        'IN'],
+  [0x840000, 0x87FFFF, 'Japan',        'JP'],
+  [0x880000, 0x887FFF, 'South Korea',  'KR'],
+  [0x888000, 0x88FFFF, 'North Korea',  'KP'],
+  [0x890000, 0x8903FF, 'Indonesia',    'ID'],
+  [0x894000, 0x894FFF, 'Pakistan',     'PK'],
+  [0x8A0000, 0x8A7FFF, 'Philippines',  'PH'],
+  [0x8B0000, 0x8B7FFF, 'Singapore',    'SG'],
+  [0x8C0000, 0x8C7FFF, 'Malaysia',     'MY'],
+  [0x8D0000, 0x8D3FFF, 'Thailand',     'TH'],
+  [0x8E0000, 0x8E3FFF, 'Vietnam',      'VN'],
+  // Americas
+  [0xA00000, 0xAFFFFF, 'United States','US'],
+  [0xC00000, 0xC3FFFF, 'Canada',       'CA'],
+  [0xC80000, 0xC87FFF, 'New Zealand',  'NZ'],
+  [0xD00000, 0xD3FFFF, 'Mexico',       'MX'],
+  [0xE00000, 0xE3FFFF, 'Argentina',    'AR'],
+  [0xE40000, 0xE7FFFF, 'Brazil',       'BR'],
+  [0xE80000, 0xE83FFF, 'Chile',        'CL'],
+  [0xE84000, 0xE87FFF, 'Colombia',     'CO'],
+  [0xE90000, 0xE90FFF, 'Venezuela',    'VE'],
+];
+
+function isoToFlag(iso: string): string {
+  const base = 0x1F1E6;
+  return String.fromCodePoint(
+    base + iso.toUpperCase().charCodeAt(0) - 65,
+    base + iso.toUpperCase().charCodeAt(1) - 65
+  );
+}
+
+export function getCountryFromIcao(icao24: string): { name: string; flag: string } | null {
+  const addr = parseInt(icao24, 16);
+  if (isNaN(addr)) return null;
+  for (const [min, max, name, iso] of ICAO_RANGES) {
+    if (addr >= min && addr <= max) return { name, flag: isoToFlag(iso) };
+  }
+  return null;
+}
+
 export function formatSecondsAgo(timestamp: number): string {
   const secs = Math.floor((Date.now() - timestamp) / 1000);
   if (secs < 5) return 'just now';

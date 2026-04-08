@@ -1,11 +1,12 @@
 import { FlightState } from '../types';
-import { metersToFeet, msToKnots, bearingToCardinal, headingToCardinal, aircraftTypeName } from '../utils';
+import { metersToFeet, msToKnots, bearingToCardinal, headingToCardinal, aircraftTypeName, getCountryFromIcao } from '../utils';
 
 interface Props {
   flight: FlightState;
   info: { photoUrl: string | null } | null;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  militaryMode?: boolean;
 }
 
 function StatBox({ label, value, colorClass = 'text-white' }: { label: string; value: string; colorClass?: string }) {
@@ -26,7 +27,7 @@ function BigStatBox({ label, value, colorClass = 'text-white' }: { label: string
   );
 }
 
-export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscreen }: Props) {
+export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscreen, militaryMode = false }: Props) {
   const alt = flight.baroAltitude != null
     ? `${metersToFeet(flight.baroAltitude).toLocaleString()} ft` : '—';
   const geoAlt = flight.geoAltitude != null
@@ -48,6 +49,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
   const bearing = `${Math.round(flight.bearingDeg)}° ${direction}`;
   const coords = `${flight.latitude.toFixed(4)}°, ${flight.longitude.toFixed(4)}°`;
   const displayName = flight.callsign ?? flight.icao24.toUpperCase();
+  const country = militaryMode ? getCountryFromIcao(flight.icao24) : null;
 
   if (isFullscreen) {
     return (
@@ -71,7 +73,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
                 <a href={`https://www.flightradar24.com/${flight.callsign.trim()}`} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-400 hover:text-sky-300 underline underline-offset-2">FR24 ↗</a>
               )}
             </div>
-            <div className="flex items-center gap-1.5 mb-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
               <span className="text-xs text-slate-400 font-mono">{flight.icao24.toUpperCase()}</span>
               {flight.aircraftType && (
                 <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
@@ -82,6 +84,13 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
                 <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">Police</span>
               )}
             </div>
+            {country && (
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-lg leading-none">{country.flag}</span>
+                <span className="text-xs text-slate-400">{country.name}</span>
+              </div>
+            )}
+            {!country && <div className="mb-3" />}
 
             {/* Route */}
             {flight.route ? (
@@ -170,9 +179,10 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
             )}
             <div className="ml-auto text-xs font-semibold text-sky-300">{flight.distanceMiles.toFixed(1)} mi {direction}</div>
           </div>
-          <div className="text-xs text-slate-400 font-mono">
-            {flight.icao24.toUpperCase()}
-            {flight.aircraftType && <span className="ml-1 not-italic font-sans text-slate-300"> · {aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono flex-wrap">
+            {country && <><span className="text-base leading-none not-italic">{country.flag}</span><span className="font-sans not-italic text-slate-400">{country.name}</span><span className="text-slate-600">·</span></>}
+            <span>{flight.icao24.toUpperCase()}</span>
+            {flight.aircraftType && <span className="not-italic font-sans text-slate-300"> · {aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
           </div>
         </div>
         {flight.trueTrack != null && (

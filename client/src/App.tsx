@@ -3,7 +3,7 @@ import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from './components/FlightMap';
-import { aircraftTypeName, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup } from './utils';
+import { aircraftTypeName, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
 
@@ -436,6 +436,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                         <td className="px-3 py-1 font-mono whitespace-nowrap">
                           <span className="inline-flex items-center gap-1.5">
                             <CategoryIcon category={categorizeAircraft(f.aircraftType)} isPolice={f.isPolice} />
+                            {militaryMode && (() => { const c = getCountryFromIcao(f.icao24); return c ? <span className="text-base leading-none" title={c.name}>{c.flag}</span> : null; })()}
                             {f.callsign ?? f.icao24}
                           </span>
                         </td>
@@ -553,6 +554,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                 info={info}
                 isFullscreen={fullscreenPanel === 'card'}
                 onToggleFullscreen={() => setFullscreenPanel(fullscreenPanel === 'card' ? null : 'card')}
+                militaryMode={militaryMode}
               />
             ) : (
               <div className="bg-slate-800/60 rounded-xl p-3 text-center text-slate-400 text-xs border border-white/10">
