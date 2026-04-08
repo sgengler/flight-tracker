@@ -493,6 +493,32 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
         {(fullscreenPanel === null || fullscreenPanel === 'card') && (
         <div className={`${fullscreenPanel === 'card' ? 'flex-1' : 'flex-[2]'} flex flex-col gap-1.5 min-w-0 ${fullscreenPanel === 'card' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
+          <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0'}>
+            {selectedIcao && (
+              <button
+                onClick={() => selectFlight(null)}
+                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 mb-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-400 text-xs font-medium hover:bg-sky-500/25 transition-colors"
+              >
+                <span>⟳</span> Return to closest plane
+              </button>
+            )}
+            {selectedFlight ? (
+              <FlightCard
+                flight={selectedFlight}
+                info={info}
+                isFullscreen={fullscreenPanel === 'card'}
+                onToggleFullscreen={() => setFullscreenPanel(fullscreenPanel === 'card' ? null : 'card')}
+                militaryMode={militaryMode}
+              />
+            ) : (
+              <div className="bg-slate-800/60 rounded-xl p-3 text-center text-slate-400 text-xs border border-white/10">
+                {status === 'connecting' || status === 'reconnecting'
+                  ? 'Searching for nearby flights…'
+                  : 'No airborne flights detected nearby. Click a row to select.'}
+              </div>
+            )}
+          </div>
+
           {/* Police alert — hidden in card fullscreen */}
           {fullscreenPanel === null && policeFlights.length > 0 && (
             <div className="flex-shrink-0 rounded-xl border border-blue-400/40 bg-blue-500/10 px-3 py-2">
@@ -562,32 +588,6 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
               </div>
             </div>
           )}
-
-          <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0'}>
-            {selectedIcao && (
-              <button
-                onClick={() => selectFlight(null)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 mb-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-400 text-xs font-medium hover:bg-sky-500/25 transition-colors"
-              >
-                <span>⟳</span> Return to closest plane
-              </button>
-            )}
-            {selectedFlight ? (
-              <FlightCard
-                flight={selectedFlight}
-                info={info}
-                isFullscreen={fullscreenPanel === 'card'}
-                onToggleFullscreen={() => setFullscreenPanel(fullscreenPanel === 'card' ? null : 'card')}
-                militaryMode={militaryMode}
-              />
-            ) : (
-              <div className="bg-slate-800/60 rounded-xl p-3 text-center text-slate-400 text-xs border border-white/10">
-                {status === 'connecting' || status === 'reconnecting'
-                  ? 'Searching for nearby flights…'
-                  : 'No airborne flights detected nearby. Click a row to select.'}
-              </div>
-            )}
-          </div>
 
           {/* Icon legend — hidden in card fullscreen */}
           {fullscreenPanel === null && (
