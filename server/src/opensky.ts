@@ -237,14 +237,14 @@ export interface RouteInfo {
 }
 
 // Route cache — keyed by lowercase icao24 hex
-// Successful routes cached 12h (don't change mid-flight); failed lookups retried after 5 min
+// Both successful routes and failed lookups cached for 7 days
 interface RouteResult {
   departure: string | null; departureCity: string | null;
   arrival: string | null; arrivalCity: string | null;
   airline: string | null;
 }
 const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
-const ROUTE_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Persist route cache to disk so FlightAware calls survive server restarts
 const CACHE_FILE = path.resolve(__dirname, '../../cache/routes.json');
@@ -443,4 +443,35 @@ export async function fetchPlanePhoto(icao24: string, typeName?: string | null):
   }
 
   return null;
+}
+
+// ── Globe.adsbexchange.com trace proxy ───────────────────────────────────────
+
+// Returns [lat, lon, speedMs][] for the current-day trace of an aircraft.
+// Proxies globe.adsbexchange.com which requires a Referer header.
+export async function fetchAircraftTrace(icao24: string): Promise<Array<[number, number, number]>> {
+  const hex = icao24.toLowerCase();
+
+  const suffix = hex.slice(-2);
+  const url = `https://globe.adsbexchange.com/data/traces/${suffix}/trace_full_${hex}.json`;
+  const res = await fetch(url, {
+    headers: {
+      'Referer': 'https://globe.adsbexchange.com/',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    },
+  });
+  if (!res.ok) throw new Error(`trace fetch failed: ${res.status}`);
+
+  const data = await res.json() as {
+    trace: Array<[number, number, number, string | number, number, ...unknown[]]>;
+  };
+
+  // Each entry: [timeOffset, lat, lon, alt_or_"ground", groundspeedKts, ...]
+  const positions: Array<[number, number, number]> = data.trace.map(entry => [
+    entry[1],              // lat
+    entry[2],              // lon
+    (entry[4] ?? 0) / 1.94384, // knots → m/s
+  ]);
+
+  return positions;
 }

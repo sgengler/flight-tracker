@@ -6,7 +6,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { exec } from 'child_process';
 import { subscribe, subscribeMilitary } from './poller';
-import { fetchPlanePhoto } from './opensky';
+import { fetchPlanePhoto, fetchAircraftTrace } from './opensky';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -48,6 +48,20 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/version', (_req, res) => {
   res.json({ startedAt: SERVER_START });
+});
+
+app.get('/api/trace/:icao24', async (req, res) => {
+  const icao24 = req.params.icao24.toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(icao24)) {
+    res.status(400).json({ error: 'Invalid icao24' });
+    return;
+  }
+  try {
+    const positions = await fetchAircraftTrace(icao24);
+    res.json(positions);
+  } catch (err) {
+    res.status(502).json({ error: 'Trace fetch failed' });
+  }
 });
 
 app.get('/api/flight-info', async (req, res) => {

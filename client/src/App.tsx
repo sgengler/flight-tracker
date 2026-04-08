@@ -174,15 +174,15 @@ function CollapseBtn({ onClick }: { onClick: () => void }) {
 
 function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const [militaryMode, setMilitaryMode] = useState(false);
-  const { flight, flights, status } = useFlightStream(lat, lon, militaryMode ? 'military' : 'normal');
+  const { flights, status } = useFlightStream(lat, lon, militaryMode ? 'military' : 'normal');
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
   const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
-  const flightHistoryRef = useRef<Map<string, [number, number][]>>(new Map());
-  const [selectedTrail, setSelectedTrail] = useState<[number, number][]>([]);
+  const flightHistoryRef = useRef<Map<string, [number, number, number?][]>>(new Map());
+  const [selectedTrail, setSelectedTrail] = useState<[number, number, number?][]>([]);
 
   // Reset active categories, tab, and focus whenever mode changes
   useEffect(() => {
@@ -257,6 +257,9 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     return groupByBroadRegion(flights);
   }, [flights, militaryMode]);
 
+  // Use manually selected flight if still visible, otherwise fall back to closest visible
+  const selectedFlight = (selectedIcao ? displayFlights.find(f => f.icao24 === selectedIcao) : null) ?? displayFlights[0] ?? null;
+
   // Accumulate position history for every flight on each poll
   useEffect(() => {
     const activeIcaos = new Set(flights.map(f => f.icao24));
@@ -264,7 +267,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
       const prev = flightHistoryRef.current.get(f.icao24) ?? [];
       const last = prev[prev.length - 1];
       if (!last || last[0] !== f.latitude || last[1] !== f.longitude) {
-        const next = [...prev, [f.latitude, f.longitude] as [number, number]];
+        const next = [...prev, [f.latitude, f.longitude, f.velocity ?? undefined] as [number, number, number?]];
         flightHistoryRef.current.set(f.icao24, next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next);
       }
     }
@@ -272,7 +275,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     for (const icao of flightHistoryRef.current.keys()) {
       if (!activeIcaos.has(icao)) flightHistoryRef.current.delete(icao);
     }
-    const icao = (selectedIcao ?? flight?.icao24) ?? null;
+    const icao = (selectedIcao ?? selectedFlight?.icao24) ?? null;
     if (icao) setSelectedTrail(flightHistoryRef.current.get(icao) ?? []);
   }, [flights]);
 
@@ -282,8 +285,29 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     setSelectedTrail(icao24 ? (flightHistoryRef.current.get(icao24) ?? []) : []);
   };
 
-  // Use manually selected flight if still visible, otherwise fall back to closest visible
-  const selectedFlight = (selectedIcao ? displayFlights.find(f => f.icao24 === selectedIcao) : null) ?? displayFlights[0] ?? null;
+  // Backfill trail from globe.adsbexchange.com for whichever flight is displayed.
+  // Keyed on selectedFlight so it also fires for the auto-selected first flight.
+  // A Set prevents re-fetching the same plane within a session.
+  const traceFetchedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const icao = selectedFlight?.icao24;
+    if (!icao || traceFetchedRef.current.has(icao)) return;
+    let cancelled = false;
+    fetch(`/api/trace/${icao}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((positions: [number, number, number][] | null) => {
+        if (cancelled || !positions || positions.length === 0) return;
+        traceFetchedRef.current.add(icao);
+        // Prepend historical data to any live positions already accumulated,
+        // so the trail bridges from history all the way to the current position.
+        const live = flightHistoryRef.current.get(icao) ?? [];
+        const merged = ([...positions, ...live] as [number, number, number?][]).slice(-MAX_HISTORY);
+        flightHistoryRef.current.set(icao, merged);
+        setSelectedTrail(merged);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedFlight?.icao24]);
   const info = useFlightInfo(selectedFlight?.icao24 ?? null, selectedFlight?.aircraftType ? (aircraftTypeName(selectedFlight.aircraftType) ?? null) : null);
 
   return (
@@ -623,6 +647,17 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   </svg>
                 </div>
                 <div className="text-xs font-medium text-slate-200 truncate">Selected</div>
+              </div>
+            </div>
+
+            {/* Trail speed gradient key */}
+            <div className="mt-2 px-1.5">
+              <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Trail Speed</div>
+              <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(to right, #a855f7, #38bdf8, #4ade80, #facc15)' }} />
+              <div className="flex justify-between mt-0.5">
+                <span className="text-xs font-mono text-slate-500">≤35 mph</span>
+                <span className="text-xs font-mono text-slate-500">~375 mph</span>
+                <span className="text-xs font-mono text-slate-500">≥635 mph</span>
               </div>
             </div>
           </div>

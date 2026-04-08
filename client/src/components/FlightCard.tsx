@@ -1,5 +1,5 @@
 import { FlightState } from '../types';
-import { metersToFeet, msToKnots, bearingToCardinal, headingToCardinal, aircraftTypeName, getCountryFromIcao } from '../utils';
+import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, getCountryFromIcao } from '../utils';
 
 interface Props {
   flight: FlightState;
@@ -33,7 +33,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
   const geoAlt = flight.geoAltitude != null
     ? `${metersToFeet(flight.geoAltitude).toLocaleString()} ft` : '—';
   const speed = flight.velocity != null
-    ? `${msToKnots(flight.velocity).toLocaleString()} kts` : '—';
+    ? `${msToMph(flight.velocity).toLocaleString()} mph` : '—';
   const heading = flight.trueTrack != null
     ? `${Math.round(flight.trueTrack)}° ${headingToCardinal(flight.trueTrack)}` : '—';
 

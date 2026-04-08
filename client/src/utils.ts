@@ -6,6 +6,10 @@ export function msToKnots(ms: number): number {
   return Math.round(ms * 1.94384);
 }
 
+export function msToMph(ms: number): number {
+  return Math.round(ms * 2.23694);
+}
+
 export function bearingToCardinal(deg: number): string {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return dirs[Math.round(deg / 45) % 8];

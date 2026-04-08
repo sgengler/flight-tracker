@@ -12,20 +12,24 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-// Top-down aircraft SVG paths, pointing UP (north) at heading=0, centered at (0,0)
-const JET_PATH       = 'M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z';
-const PROP_PATH      = 'M0,-18 L3,-8 L3,-4 L16,0 L16,4 L3,3 L3,14 L7,15 L7,18 L0,16 L-7,18 L-7,15 L-3,14 L-3,3 L-16,4 L-16,0 L-3,-4 L-3,-8 Z';
-const SMALL_PATH     = 'M0,-17 L2.5,-13 L2.5,-4 L14,0 L14,3.5 L2.5,1.5 L2.5,12 L5.5,13 L5.5,16 L0,17 L-5.5,16 L-5.5,13 L-2.5,12 L-2.5,1.5 L-14,3.5 L-14,0 L-2.5,-4 L-2.5,-13 Z';
-// Swept delta-wing fighter silhouette (F-16 / F-22 style)
-const FIGHTER_PATH   = 'M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z';
-// Wide swept wings, shorter body — B-52 / B-1B style
-const BOMBER_PATH    = 'M0,-13 L2,-7 L3,-1 L22,6 L21,10 L3,5 L2.5,13 L5.5,14 L5.5,17 L0,15 L-5.5,17 L-5.5,14 L-2.5,13 L-3,5 L-21,10 L-22,6 L-3,-1 L-2,-7 Z';
-// Wide body with engine-nacelle bumps on wing — C-17 / C-130 / KC-135 style
-const TRANSPORT_PATH = 'M0,-17 L3,-9 L5,-6 L20,2 L20,7 L5,2 L4,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-4,14 L-5,2 L-20,7 L-20,2 L-5,-6 L-3,-9 Z';
-// Nearly straight wings, twin-engine rear — A-10 Warthog style
-const ATTACK_PATH    = 'M0,-18 L2,-12 L3,-1 L19,2 L19,6 L3,1 L4.5,13 L8,14 L7,17 L0,16 L-7,17 L-8,14 L-4.5,13 L-3,1 L-19,6 L-19,2 L-3,-1 L-2,-12 Z';
-// Extremely high aspect-ratio wings, tiny body — MQ-9 / RQ-4 style
-const UAV_PATH       = 'M0,-10 L1,-5 L2,-1 L25,3 L25,6 L2,2 L1.5,11 L4,12 L4,14 L0,13 L-4,14 L-4,12 L-1.5,11 L-2,2 L-25,6 L-25,3 L-2,-1 L-1,-5 Z';
+// Top-down aircraft SVG paths, nose points UP (north) at heading=0, centered at (0,0).
+// Engine nacelle pods are added separately in aircraftIcon() for realistic FR24-style silhouettes.
+// Commercial twin-jet airliner (737/A320 style): narrow fuselage, swept wings, horizontal tail
+const JET_PATH       = 'M0,-22 L2,-15 L2.5,-5 L20,5 L20,9 L2.5,4 L3,12 L8,14 L8,17 L1.5,16 L0,18 L-1.5,16 L-8,17 L-8,14 L-3,12 L-2.5,4 L-20,9 L-20,5 L-2.5,-5 L-2,-15 Z';
+// Twin turboprop (King Air/ATR style): low-sweep wings, nacelles ahead of leading edge
+const PROP_PATH      = 'M0,-19 L2,-13 L2.5,-3 L16,0 L16,4 L2.5,2 L2.5,12 L7,14 L7,17 L1,16 L0,18 L-1,16 L-7,17 L-7,14 L-2.5,12 L-2.5,2 L-16,4 L-16,0 L-2.5,-3 L-2,-13 Z';
+// Light GA aircraft (Cessna/Cirrus style): short fuselage, straight wide wings
+const SMALL_PATH     = 'M0,-16 L1.5,-11 L2,-2 L14,1 L14,4 L2,1 L2,11 L5,12 L5,15 L1,14 L0,16 L-1,14 L-5,15 L-5,12 L-2,11 L-2,1 L-14,4 L-14,1 L-2,-2 L-1.5,-11 Z';
+// Swept cranked-arrow fighter (F-16/F-22 style): highly swept, narrow tail
+const FIGHTER_PATH   = 'M0,-22 L1.5,-14 L2.5,-4 L21,10 L16,15 L2.5,9 L3,14 L6,17 L2,20 L0,21 L-2,20 L-6,17 L-3,14 L-2.5,9 L-16,15 L-21,10 L-2.5,-4 L-1.5,-14 Z';
+// Wide-span bomber (B-52/B-1 style): very wide span, 4 underwing engines
+const BOMBER_PATH    = 'M0,-14 L2,-8 L3,-1 L23,6 L22,10 L3,5 L3,13 L6,14 L6,17 L1,16 L0,18 L-1,16 L-6,17 L-6,14 L-3,13 L-3,5 L-22,10 L-23,6 L-3,-1 L-2,-8 Z';
+// Military transport (C-17/C-130 style): wide fuselage, 4 underwing turbofans
+const TRANSPORT_PATH = 'M0,-18 L3,-10 L5,-4 L20,2 L20,7 L5,2 L4,13 L8,15 L8,18 L1,17 L0,19 L-1,17 L-8,18 L-8,15 L-4,13 L-5,2 L-20,7 L-20,2 L-5,-4 L-3,-10 Z';
+// Attack aircraft (A-10 style): straight wings, twin rear-fuselage engine pods
+const ATTACK_PATH    = 'M0,-19 L2,-12 L2.5,-2 L20,2 L20,6 L2.5,4 L4,12 L8,13 L7,16 L0,15 L-7,16 L-8,13 L-4,12 L-2.5,4 L-20,6 L-20,2 L-2.5,-2 L-2,-12 Z';
+// UAV (MQ-9/RQ-4 style): very high aspect ratio wings, V-tail
+const UAV_PATH       = 'M0,-11 L1,-6 L1.5,0 L25,4 L25,7 L1.5,3 L2,11 L5,13 L4,15 L0,14 L-4,15 L-5,13 L-2,11 L-1.5,3 L-25,7 L-25,4 L-1.5,0 L-1,-6 Z';
 
 function heliInnerSvg(color: string, filterAttr: string): string {
   const s = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
@@ -143,10 +147,14 @@ function aircraftIcon(heading: number, selected: boolean, aircraftType: string |
     ? `<filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${glowColor}"/></filter>`
     : '';
   const filterAttr = (selected || isPolice || isMil) ? 'filter="url(#glow)"' : '';
+  const shadow =
+    '<filter id="sh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="6" dy="6" stdDeviation="0.5" flood-color="rgba(0,0,0,0.28)"/></filter>' +
+    '<filter id="sh2" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="6" dy="6" stdDeviation="0.5" flood-color="rgba(0,0,0,0.28)"/></filter>';
 
   let body: string;
+  const shadowId = selected ? 'sh2' : 'sh';
   if (cat === 'heli' || cat === 'mil-heli') {
-    body = heliInnerSvg(color, filterAttr);
+    body = `<g filter="url(#${shadowId})">${heliInnerSvg(color, filterAttr)}</g>`;  // heli doesn't rotate
   } else {
     const planePath =
       cat === 'prop'      ? PROP_PATH :
@@ -157,12 +165,39 @@ function aircraftIcon(heading: number, selected: boolean, aircraftType: string |
       cat === 'uav'       ? UAV_PATH :
       cat === 'fighter'   ? FIGHTER_PATH :
       JET_PATH;
-    body = `<g transform="rotate(${heading})"><path d="${planePath}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round" ${filterAttr}/></g>`;
+    // Engine nacelle pods rendered on top of the wing fill for realistic silhouettes
+    const ns = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
+    const pod = (cx: number, cy: number, rx: number, ry: number) =>
+      `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${color}" ${ns}/>`;
+    let nacelles = '';
+    if (cat === 'jet') {
+      // Twin underwing turbofans at ~35% semi-span
+      nacelles = pod(13, 5, 1.5, 3) + pod(-13, 5, 1.5, 3);
+    } else if (cat === 'prop') {
+      // Twin turboprop nacelles extending ahead of wing leading edge, with prop discs
+      nacelles =
+        pod(10, 0.5, 1.5, 3) + pod(-10, 0.5, 1.5, 3) +
+        `<ellipse cx="10" cy="-4" rx="5" ry="0.7" fill="${color}" ${ns}/>` +
+        `<ellipse cx="-10" cy="-4" rx="5" ry="0.7" fill="${color}" ${ns}/>`;
+    } else if (cat === 'transport') {
+      // 4 turbofan engines under each wing
+      nacelles = pod(10, 1, 1.5, 2.5) + pod(16, 3.5, 1.5, 2.5) +
+                 pod(-10, 1, 1.5, 2.5) + pod(-16, 3.5, 1.5, 2.5);
+    } else if (cat === 'bomber') {
+      // 4 engines under each wing (B-52/B-1 style)
+      nacelles = pod(9, 4, 1.5, 2.5) + pod(16, 6.5, 1.5, 2.5) +
+                 pod(-9, 4, 1.5, 2.5) + pod(-16, 6.5, 1.5, 2.5);
+    } else if (cat === 'attack') {
+      // Twin rear-fuselage turbofan pods (A-10 style)
+      nacelles = pod(5, 9, 1.3, 3) + pod(-5, 9, 1.3, 3);
+    }
+    // Shadow on outer (unrotated) group so dx/dy stay fixed in screen space
+    body = `<g filter="url(#${shadowId})"><g transform="rotate(${heading})"><path d="${planePath}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round" ${filterAttr}/>${nacelles}</g></g>`;
   }
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="-26 -26 52 52">` +
-    `<defs>${glow}</defs>${body}</svg>`;
+    `<defs>${shadow}${glow}</defs>${body}</svg>`;
   return L.divIcon({ className: '', html: svg, iconSize: [40, 40], iconAnchor: [20, 20] });
 }
 
@@ -432,13 +467,25 @@ function FlyToFlight({ flight }: { flight: FlightState | null }) {
 }
 
 // Recenters the map when the selected flight is about to leave the visible area.
-// Uses a 25% inner margin — if the plane is outside the inner 50% of the viewport,
-// pan to bring it back to center.
+// Suppressed once the user manually drags the map — resets when a new flight is selected.
 function KeepFlightInView({ flight }: { flight: FlightState | null }) {
   const map = useMap();
+  const userPannedRef = useRef(false);
+
+  // Detect manual drag and suppress recentering
+  useEffect(() => {
+    const onDragStart = () => { userPannedRef.current = true; };
+    map.on('dragstart', onDragStart);
+    return () => { map.off('dragstart', onDragStart); };
+  }, [map]);
+
+  // Reset suppression when a new flight is selected
+  useEffect(() => {
+    userPannedRef.current = false;
+  }, [flight?.icao24]);
 
   useEffect(() => {
-    if (!flight) return;
+    if (!flight || userPannedRef.current) return;
     const pos = L.latLng(flight.latitude, flight.longitude);
     const inner = map.getBounds().pad(-0.25);
     if (!inner.contains(pos)) {
@@ -460,6 +507,79 @@ function FlyToPoint({ point }: { point: [number, number, number?] | null }) {
   return null;
 }
 
+// ── Trail colour helpers ────────────────────────────────────────────────────
+
+function haversineDist(a: [number, number], b: [number, number]): number {
+  const R = 6_371_000;
+  const φ1 = (a[0] * Math.PI) / 180, φ2 = (b[0] * Math.PI) / 180;
+  const Δφ = ((b[0] - a[0]) * Math.PI) / 180;
+  const Δλ = ((b[1] - a[1]) * Math.PI) / 180;
+  const x = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function lerpColor(a: string, b: string, t: number): string {
+  const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+  const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+  const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`;
+}
+
+// Purple (very slow) → blue → green → yellow (fast)
+// ≤30 kts = purple, 30–100 kts = purple→blue, 100–350 kts = blue→green, 350–550 kts = green→yellow, ≥550 kts = yellow
+function trailColor(speedMs: number): string {
+  const kts = speedMs * 1.94384;
+  if (kts <= 30)  return '#a855f7';
+  if (kts >= 550) return '#facc15';
+  if (kts < 100)  return lerpColor('#a855f7', '#38bdf8', (kts - 30) / 70);
+  if (kts < 350)  return lerpColor('#38bdf8', '#4ade80', (kts - 100) / 250);
+  return lerpColor('#4ade80', '#facc15', (kts - 350) / 200);
+}
+
+const TRAIL_POLL_S = 15; // server poll interval used to estimate per-segment speed
+
+// Renders speed-coloured trail segments + position dots directly via Leaflet
+// (bypasses React-Leaflet components for performance with up to 300 segments).
+function TrailingLine({ positions }: { positions: [number, number, number?][] }) {
+  const map = useMap();
+  const lgRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    lgRef.current = L.layerGroup().addTo(map);
+    return () => { lgRef.current?.remove(); lgRef.current = null; };
+  }, [map]);
+
+  useEffect(() => {
+    const lg = lgRef.current;
+    if (!lg) return;
+    lg.clearLayers();
+    if (positions.length < 2) return;
+
+    for (let i = 0; i < positions.length - 1; i++) {
+      // Use stored speed if available (from trace backfill), otherwise estimate from distance
+      const speedMs = positions[i][2] ?? haversineDist(
+        [positions[i][0], positions[i][1]],
+        [positions[i + 1][0], positions[i + 1][1]],
+      ) / TRAIL_POLL_S;
+      const color = trailColor(speedMs);
+
+      // Coloured line segment
+      const seg = L.polyline([positions[i], positions[i + 1]], { color, weight: 3, opacity: 0.8 });
+      seg.on('add', (e: L.LeafletEvent) => {
+        const el = (e.target as L.Polyline).getElement() as HTMLElement | undefined;
+        if (el) el.style.filter = 'drop-shadow(6px 6px 0.5px rgba(0,0,0,0.28))';
+      });
+      lg.addLayer(seg);
+
+    }
+  }, [positions]);
+
+  return null;
+}
+
 function InvalidateSizeOnResize() {
   const map = useMap();
   useEffect(() => {
@@ -476,7 +596,7 @@ interface Props {
   userLon: number;
   flight: FlightState | null;
   flights: FlightState[];
-  trail: [number, number][];
+  trail: [number, number, number?][];
   onSelectFlight: (icao24: string) => void;
   militaryMode?: boolean;
   focusPoint?: [number, number, number?] | null;
@@ -529,12 +649,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
       })()}
 
       {/* Historical trail */}
-      {trail.length > 1 && (
-        <Polyline
-          positions={trail}
-          pathOptions={{ color: '#38bdf8', weight: 3, opacity: 0.8 }}
-        />
-      )}
+      {trail.length > 1 && <TrailingLine positions={trail} />}
     </MapContainer>
   );
 }
