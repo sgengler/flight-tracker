@@ -151,6 +151,29 @@ function CategoryIcon({ category, isPolice }: { category: AircraftCategory; isPo
 
 type FullscreenPanel = 'map' | 'flights' | 'card' | null;
 
+const EXPLORE_CITIES: { name: string; region: string; lat: number; lon: number; category: 'city' | 'military' }[] = [
+  // Cities
+  { name: 'Washington D.C.', region: 'United States',   lat:  38.8951, lon:  -77.0364, category: 'city' },
+  { name: 'New York City',   region: 'United States',   lat:  40.7128, lon:  -74.0060, category: 'city' },
+  { name: 'Los Angeles',     region: 'United States',   lat:  34.0522, lon: -118.2437, category: 'city' },
+  { name: 'Chicago',         region: 'United States',   lat:  41.9742, lon:  -87.9073, category: 'city' },
+  { name: 'Atlanta',         region: 'United States',   lat:  33.6407, lon:  -84.4277, category: 'city' },
+  { name: 'London',          region: 'United Kingdom',  lat:  51.4775, lon:   -0.4614, category: 'city' },
+  { name: 'Dubai',           region: 'UAE',             lat:  25.2048, lon:   55.2708, category: 'city' },
+  { name: 'Tel Aviv',        region: 'Israel',          lat:  32.0853, lon:   34.7818, category: 'city' },
+  { name: 'Tokyo',           region: 'Japan',           lat:  35.5494, lon:  139.7798, category: 'city' },
+  { name: 'Singapore',       region: 'Singapore',       lat:   1.3644, lon:  103.9915, category: 'city' },
+  // Military bases
+  { name: 'Nellis AFB',      region: 'Nevada, USA',     lat:  36.2356, lon: -115.0342, category: 'military' },
+  { name: 'Edwards AFB',     region: 'California, USA', lat:  34.9054, lon: -117.8838, category: 'military' },
+  { name: 'Eglin AFB',       region: 'Florida, USA',    lat:  30.4832, lon:  -86.5253, category: 'military' },
+  { name: 'JBSA Randolph',   region: 'San Antonio, TX', lat:  29.5302, lon:  -98.2789, category: 'military' },
+  { name: 'Laughlin AFB',    region: 'Del Rio, TX',     lat:  29.3595, lon: -100.7817, category: 'military' },
+  { name: 'Ramstein AB',     region: 'Germany',         lat:  49.4369, lon:    7.6003, category: 'military' },
+  { name: 'Kadena AB',       region: 'Okinawa, Japan',  lat:  26.3558, lon:  127.7681, category: 'military' },
+  { name: 'Al Udeid AB',     region: 'Qatar',           lat:  25.1173, lon:   51.3147, category: 'military' },
+];
+
 function ExpandBtn({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors" title="Expand">
@@ -174,7 +197,11 @@ function CollapseBtn({ onClick }: { onClick: () => void }) {
 
 function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const [militaryMode, setMilitaryMode] = useState(false);
-  const { flights, status } = useFlightStream(lat, lon, militaryMode ? 'military' : 'normal');
+  const [normalTab, setNormalTab] = useState<'nearby' | 'explore'>('nearby');
+  const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
+  const homeLat = exploreCity?.lat ?? lat;
+  const homeLon = exploreCity?.lon ?? lon;
+  const { flights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal');
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
@@ -182,6 +209,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
   const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
   const flightHistoryRef = useRef<Map<string, [number, number, number?][]>>(new Map());
+  const traceFetchedRef = useRef<Set<string>>(new Set());
   const [selectedTrail, setSelectedTrail] = useState<[number, number, number?][]>([]);
 
   // Reset active categories, tab, and focus whenever mode changes
@@ -190,6 +218,15 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     setMilTab('nearby');
     setFocusPoint(null);
   }, [militaryMode]);
+
+  // Reset selection and history when explore city changes
+  useEffect(() => {
+    setSelectedIcao(null);
+    flightHistoryRef.current.clear();
+    traceFetchedRef.current.clear();
+    setSelectedTrail([]);
+    if (exploreCity) setFocusPoint([exploreCity.lat, exploreCity.lon, 9]);
+  }, [exploreCity]);
 
   const toggleCategory = (cat: FilterCategory) => {
     setActiveCategories(prev => {
@@ -288,7 +325,6 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   // Backfill trail from globe.adsbexchange.com for whichever flight is displayed.
   // Keyed on selectedFlight so it also fires for the auto-selected first flight.
   // A Set prevents re-fetching the same plane within a session.
-  const traceFetchedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const icao = selectedFlight?.icao24;
     if (!icao || traceFetchedRef.current.has(icao)) return;
@@ -320,7 +356,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
           {/* Map — hidden when flights is fullscreen */}
           {fullscreenPanel !== 'flights' && (
           <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
-            <FlightMap userLat={lat} userLon={lon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} />
+            <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} />
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'
                 ? (
@@ -361,9 +397,16 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   >Regions <span className="opacity-60">{regionGroups.length}</span></button>
                 </div>
               ) : (
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Nearby Flights <span className="font-normal normal-case tracking-normal">({displayFlights.length}{displayFlights.length !== flights.length ? ` of ${flights.length}` : ''})</span>
-                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setNormalTab('nearby')}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >Nearby <span className="opacity-60">{displayFlights.length}{displayFlights.length !== flights.length ? `/${flights.length}` : ''}</span></button>
+                  <button
+                    onClick={() => setNormalTab('explore')}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'explore' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >Explore</button>
+                </div>
               )}
               <div className="ml-auto">
                 {fullscreenPanel === 'flights'
@@ -433,8 +476,56 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
               )
             )}
 
+            {/* Explore city indicator when on nearby tab */}
+            {!militaryMode && normalTab === 'nearby' && exploreCity && (
+              <div className="px-3 py-1.5 border-b border-white/5 flex items-center gap-2 bg-sky-500/5">
+                <span className="text-xs text-sky-400 font-medium flex-1 truncate">Exploring {exploreCity.name}</span>
+                <button
+                  onClick={() => setExploreCity(null)}
+                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+                >✕ Home</button>
+              </div>
+            )}
+
+            {/* Explore tab */}
+            {!militaryMode && normalTab === 'explore' && (
+              <div className="p-2 flex flex-col gap-2">
+                {exploreCity && (
+                  <button
+                    onClick={() => { setExploreCity(null); setNormalTab('nearby'); }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-400/20 text-sky-400 text-xs hover:bg-sky-500/20 transition-colors"
+                  >
+                    <span>←</span> Return to home location
+                  </button>
+                )}
+                {(['city', 'military'] as const).map(cat => (
+                  <div key={cat}>
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1 mb-1">
+                      {cat === 'city' ? 'Cities' : 'Military Bases'}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {EXPLORE_CITIES.filter(c => c.category === cat).map(city => (
+                        <button
+                          key={city.name}
+                          onClick={() => { setExploreCity(city); setNormalTab('nearby'); }}
+                          className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
+                            exploreCity?.name === city.name
+                              ? 'bg-sky-500/20 border-sky-400/40 text-white'
+                              : 'bg-slate-900/60 border-white/5 text-slate-300 hover:bg-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className="text-sm font-semibold">{city.name}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{city.region}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Nearby aircraft tab (normal mode always, military mode when nearby tab active) */}
-            {(!militaryMode || milTab === 'nearby') && (
+            {(!militaryMode || milTab === 'nearby') && normalTab !== 'explore' && (
               displayFlights.length === 0 ? (
                 <div className="px-3 py-3 text-xs text-slate-500">No data yet…</div>
               ) : (
@@ -494,28 +585,30 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
         <div className={`${fullscreenPanel === 'card' ? 'flex-1' : 'flex-[2]'} flex flex-col gap-1.5 min-w-0 ${fullscreenPanel === 'card' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
           <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0'}>
-            {selectedIcao && (
-              <button
-                onClick={() => selectFlight(null)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 mb-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-400 text-xs font-medium hover:bg-sky-500/25 transition-colors"
-              >
-                <span>⟳</span> Return to closest plane
-              </button>
-            )}
             {selectedFlight ? (
-              <FlightCard
-                flight={selectedFlight}
-                info={info}
-                isFullscreen={fullscreenPanel === 'card'}
-                onToggleFullscreen={() => setFullscreenPanel(fullscreenPanel === 'card' ? null : 'card')}
-                militaryMode={militaryMode}
-              />
+              <div key={selectedFlight.icao24} className={`flight-card-enter${fullscreenPanel === 'card' ? ' flex-1 min-h-0' : ''}`}>
+                <FlightCard
+                  flight={selectedFlight}
+                  info={info}
+                  isFullscreen={fullscreenPanel === 'card'}
+                  onToggleFullscreen={() => setFullscreenPanel(fullscreenPanel === 'card' ? null : 'card')}
+                  militaryMode={militaryMode}
+                />
+              </div>
             ) : (
               <div className="bg-slate-800/60 rounded-xl p-3 text-center text-slate-400 text-xs border border-white/10">
                 {status === 'connecting' || status === 'reconnecting'
                   ? 'Searching for nearby flights…'
                   : 'No airborne flights detected nearby. Click a row to select.'}
               </div>
+            )}
+            {selectedIcao && (
+              <button
+                onClick={() => selectFlight(null)}
+                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 mt-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-400 text-xs font-medium hover:bg-sky-500/25 transition-colors"
+              >
+                <span>⟳</span> Return to closest plane
+              </button>
             )}
           </div>
 

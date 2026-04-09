@@ -34,3 +34,13 @@ html, body, #root {
 .leaflet-container .leaflet-tile-pane {
   filter: brightness(0.75) saturate(0.8);
 }
+
+/* Flight card swap animation — plays whenever the selected aircraft changes */
+@keyframes flight-card-in {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+.flight-card-enter {
+  animation: flight-card-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { FlightState } from '../types';
 import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, getCountryFromIcao } from '../utils';
 
@@ -28,6 +29,16 @@ function BigStatBox({ label, value, colorClass = 'text-white' }: { label: string
 }
 
 export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscreen, militaryMode = false }: Props) {
+  const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null);
+  const photoUrl = info?.photoUrl ?? null;
+  const imgRef = useRef<HTMLImageElement>(null);
+  // Handle cached images that fire onLoad before React renders
+  useEffect(() => {
+    if (photoUrl && imgRef.current?.complete) setLoadedPhotoUrl(photoUrl);
+  });
+  const photoVisible = loadedPhotoUrl === photoUrl && photoUrl !== null;
+  // Keep old image in DOM while new one loads so the container height doesn't collapse
+  const renderUrl = photoUrl ?? loadedPhotoUrl;
   const alt = flight.baroAltitude != null
     ? `${metersToFeet(flight.baroAltitude).toLocaleString()} ft` : '—';
   const geoAlt = flight.geoAltitude != null
@@ -142,12 +153,18 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
 
         {/* Right — photo fills remaining space */}
         <div className="flex-1 min-w-0 bg-gradient-to-br from-slate-700 to-slate-900 relative overflow-hidden">
-          {info?.photoUrl ? (
-            <img src={info.photoUrl} alt="Aircraft" className="w-full h-full object-contain" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="text-8xl opacity-20 select-none" style={{ transform: `rotate(${(flight.trueTrack ?? 45) - 90}deg)` }}>✈</span>
-            </div>
+          {/* Placeholder — fades out once image is ready */}
+          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ${photoVisible ? 'opacity-0' : 'opacity-100'}`}>
+            <span className="text-8xl opacity-20 select-none" style={{ transform: `rotate(${(flight.trueTrack ?? 45) - 90}deg)` }}>✈</span>
+          </div>
+          {renderUrl && (
+            <img
+              ref={imgRef}
+              src={renderUrl}
+              alt="Aircraft"
+              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${photoVisible ? 'opacity-100' : 'opacity-0'}`}
+              onLoad={() => setLoadedPhotoUrl(renderUrl)}
+            />
           )}
           {flight.trueTrack != null && (
             <div className="absolute top-3 right-3 text-2xl select-none text-sky-300 drop-shadow" style={{ transform: `rotate(${flight.trueTrack - 90}deg)` }}>✈</div>
@@ -163,12 +180,20 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
 
       {/* ── Photo / Header ── */}
       <div className="relative bg-gradient-to-br from-slate-700 to-slate-900 overflow-hidden">
-        {info?.photoUrl ? (
-          <img src={info.photoUrl} alt="Aircraft" className="w-full h-auto block" />
+        {/* Placeholder — fades out once image is ready, provides height when no image */}
+        <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ${photoVisible ? 'opacity-0' : 'opacity-100'}`}>
+          <span className="text-5xl opacity-20 select-none" style={{ transform: `rotate(${(flight.trueTrack ?? 45) - 90}deg)` }}>✈</span>
+        </div>
+        {renderUrl ? (
+          <img
+            ref={imgRef}
+            src={renderUrl}
+            alt="Aircraft"
+            className={`w-full h-auto block transition-opacity duration-500 ${photoVisible ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setLoadedPhotoUrl(renderUrl)}
+          />
         ) : (
-          <div className="w-full min-h-28 flex items-center justify-center">
-            <span className="text-5xl opacity-20 select-none" style={{ transform: `rotate(${(flight.trueTrack ?? 45) - 90}deg)` }}>✈</span>
-          </div>
+          <div className="w-full min-h-28" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 px-3 pb-2">

@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getCachedAircraftType, FlightState } from './opensky';
+import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getCachedAircraftType, adsbFiIsRateLimited, FlightState } from './opensky';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -23,6 +23,19 @@ function isMilitaryType(typeCode: string | null): boolean {
   return typeCode != null && MILITARY_TYPE_CODES.has(typeCode.toUpperCase());
 }
 
+// Helicopter type codes and prefixes — no scheduled routes
+const HELI_EXACT = new Set([
+  'EC35','EC45','EC55','EC75','AS50','AS32','AS35',
+  'S76','S92','B06','B07','R22','R44','R66','B505',
+  'AW13','AW16','AW17','AW18','AW19',
+]);
+
+function isHelicopterType(typeCode: string | null): boolean {
+  if (!typeCode) return false;
+  const t = typeCode.toUpperCase();
+  return t.startsWith('H') || HELI_EXACT.has(t);
+}
+
 interface Session {
   lat: number;
   lon: number;
@@ -41,10 +54,12 @@ function sessionKey(lat: number, lon: number): string {
 }
 
 async function poll(session: Session) {
+  if (adsbFiIsRateLimited()) return; // silently wait out the backoff; interval resumes automatically
   try {
     let flights = await fetchNearbyFlights(session.lat, session.lon, 75);
     console.log(`[poller] ${session.lat},${session.lon} → ${flights.length} flights at 75mi`);
-    for (const radius of [150, 300, 600, 1200]) {
+    // Cap at 250 mi (~217 nm) to stay under adsb.fi's distance limit; adsb.lol handles larger radii
+    for (const radius of [150, 250]) {
       if (flights.length > 0) break;
       flights = await fetchNearbyFlights(session.lat, session.lon, radius);
       console.log(`[poller] expanded to ${radius}mi → ${flights.length} flights`);
@@ -59,8 +74,8 @@ async function poll(session: Session) {
         const { typeCode, isPolice } = await getCachedAircraftType(f.icao24);
         f.isPolice = isPolice;
         if (!f.aircraftType && typeCode) f.aircraftType = typeCode;
-        // Skip FlightAware route lookup for military and police — they don't have commercial routes
-        if (f.callsign && !isPolice && !isMilitaryType(f.aircraftType)) {
+        // Skip FlightAware route lookup for military, police, and helicopters — no scheduled routes
+        if (f.callsign && !isPolice && !isMilitaryType(f.aircraftType) && !isHelicopterType(f.aircraftType)) {
           f.route = await getCachedRoute(f.callsign, f.icao24);
         }
       }
@@ -118,6 +133,7 @@ export function subscribe(lat: number, lon: number, res: Response): () => void {
 }
 
 async function pollMilitary(session: Session) {
+  if (adsbFiIsRateLimited()) return;
   try {
     const flights = await fetchMilitaryFlights(session.lat, session.lon);
     console.log(`[military] ${flights.length} military aircraft globally`);

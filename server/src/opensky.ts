@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 
-// adsb.fi — free, no auth required, includes military traffic (no FAA LADD filter)
-const ADSBFI_BASE = 'https://opendata.adsb.fi/api';
+// adsb.fi — primary source; adsb.lol is the fallback when adsb.fi rate-limits
+const ADSBFI_BASE   = 'https://opendata.adsb.fi/api';
+const ADSBFALLBACK_BASE = 'https://api.adsb.lol';
 const MILES_TO_NM = 0.868976; // statute miles → nautical miles
 
 // adsb.fi aircraft object (subset of fields we use)
@@ -65,35 +66,74 @@ const ADSBFI_BACKOFF_STEPS_MS = [5 * 60 * 1000, 10 * 60 * 1000, 30 * 60 * 1000];
 let adsbFiLastRequestAt = 0;
 const ADSBFI_MIN_INTERVAL_MS = 2000; // stay well under 1 req/sec limit
 
+let adsbLolBackoffUntil = 0;
+let adsbLolLastRequestAt = 0;
+
+// Returns true only when ALL sources are backed off (poller should skip entirely)
+export function adsbFiIsRateLimited(): boolean {
+  return Date.now() < adsbFiBackoffUntil && Date.now() < adsbLolBackoffUntil;
+}
+
 async function adsbFiThrottle() {
   const wait = ADSBFI_MIN_INTERVAL_MS - (Date.now() - adsbFiLastRequestAt);
   if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
   adsbFiLastRequestAt = Date.now();
 }
 
-export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 75): Promise<FlightState[]> {
-  if (Date.now() < adsbFiBackoffUntil) {
-    const remainingSec = Math.ceil((adsbFiBackoffUntil - Date.now()) / 1000);
-    throw new Error(`adsb.fi rate limited — backing off for ${remainingSec}s`);
-  }
+async function adsbLolThrottle() {
+  const wait = ADSBFI_MIN_INTERVAL_MS - (Date.now() - adsbLolLastRequestAt);
+  if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+  adsbLolLastRequestAt = Date.now();
+}
 
-  await adsbFiThrottle();
-
-  const radiusNm = Math.round(radiusMiles * MILES_TO_NM);
-  const res = await fetch(`${ADSBFI_BASE}/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`);
-
-  if (!res.ok) {
-    if (res.status === 429) {
-      const stepMs = ADSBFI_BACKOFF_STEPS_MS[Math.min(adsbFiBackoffCount, ADSBFI_BACKOFF_STEPS_MS.length - 1)];
-      adsbFiBackoffCount++;
-      adsbFiBackoffUntil = Date.now() + stepMs;
-      console.warn(`[adsb.fi] 429 rate limit hit — pausing for ${stepMs / 60000} min (attempt ${adsbFiBackoffCount})`);
+// Fetches ADS-B data from adsb.fi, falling back to adsb.lol.
+// adsb.fi uses /v3/ for nearby and /v2/ for military; adsb.lol only has /v2/.
+async function fetchAdsbData(path: string): Promise<{ ac?: AdsbFiAircraft[] }> {
+  // Try adsb.fi if not backed off
+  if (Date.now() >= adsbFiBackoffUntil) {
+    await adsbFiThrottle();
+    const res = await fetch(`${ADSBFI_BASE}${path}`);
+    if (res.ok) {
+      adsbFiBackoffCount = 0;
+      return res.json() as Promise<{ ac?: AdsbFiAircraft[] }>;
     }
-    throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
+    if (res.status === 429 || res.status >= 500) {
+      const stepMs = res.status === 429
+        ? ADSBFI_BACKOFF_STEPS_MS[Math.min(adsbFiBackoffCount, ADSBFI_BACKOFF_STEPS_MS.length - 1)]
+        : 2 * 60 * 1000;
+      if (res.status === 429) adsbFiBackoffCount++;
+      adsbFiBackoffUntil = Date.now() + stepMs;
+      console.warn(`[adsb.fi] ${res.status} — pausing ${stepMs / 60000} min, trying adsb.lol`);
+    } else if (res.status === 400) {
+      // 400 often means the query exceeded adsb.fi's distance limit — try adsb.lol instead
+      console.warn(`[adsb.fi] 400 Bad Request for ${path} — trying adsb.lol`);
+    } else {
+      throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
+    }
   }
-  adsbFiBackoffCount = 0;
 
-  const data = await res.json() as { ac?: AdsbFiAircraft[] };
+  // Fall back to adsb.lol — uses /v2/ for all endpoints (no /v3/)
+  if (Date.now() >= adsbLolBackoffUntil) {
+    await adsbLolThrottle();
+    const lolPath = path.replace(/^\/v3\//, '/v2/');
+    const res = await fetch(`${ADSBFALLBACK_BASE}${lolPath}`);
+    if (res.ok) {
+      return res.json() as Promise<{ ac?: AdsbFiAircraft[] }>;
+    }
+    if (res.status === 429 || res.status >= 500) {
+      const pause = res.status === 429 ? 5 * 60 * 1000 : 2 * 60 * 1000;
+      adsbLolBackoffUntil = Date.now() + pause;
+      console.warn(`[adsb.lol] ${res.status} — pausing ${pause / 60000} min`);
+    }
+    throw new Error(`adsb.lol API error: ${res.status} ${res.statusText}`);
+  }
+
+  throw new Error('all ADS-B sources rate limited');
+}
+
+export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 75): Promise<FlightState[]> {
+  const radiusNm = Math.round(radiusMiles * MILES_TO_NM);
+  const data = await fetchAdsbData(`/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`);
   const aircraft = data.ac ?? [];
 
   const flights: FlightState[] = [];
@@ -132,27 +172,7 @@ export function findClosestFlight(flights: FlightState[]): FlightState | null {
 }
 
 export async function fetchMilitaryFlights(refLat: number, refLon: number): Promise<FlightState[]> {
-  if (Date.now() < adsbFiBackoffUntil) {
-    const remainingSec = Math.ceil((adsbFiBackoffUntil - Date.now()) / 1000);
-    throw new Error(`adsb.fi rate limited — backing off for ${remainingSec}s`);
-  }
-
-  await adsbFiThrottle();
-
-  const res = await fetch(`${ADSBFI_BASE}/v2/mil`);
-
-  if (!res.ok) {
-    if (res.status === 429) {
-      const stepMs = ADSBFI_BACKOFF_STEPS_MS[Math.min(adsbFiBackoffCount, ADSBFI_BACKOFF_STEPS_MS.length - 1)];
-      adsbFiBackoffCount++;
-      adsbFiBackoffUntil = Date.now() + stepMs;
-      console.warn(`[adsb.fi] 429 rate limit hit — pausing for ${stepMs / 60000} min (attempt ${adsbFiBackoffCount})`);
-    }
-    throw new Error(`adsb.fi API error: ${res.status} ${res.statusText}`);
-  }
-  adsbFiBackoffCount = 0;
-
-  const data = await res.json() as { ac?: AdsbFiAircraft[] };
+  const data = await fetchAdsbData('/v2/mil');
   const aircraft = data.ac ?? [];
 
   const flights: FlightState[] = [];
