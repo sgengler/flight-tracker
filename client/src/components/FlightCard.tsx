@@ -12,9 +12,9 @@ interface Props {
 
 function StatBox({ label, value, colorClass = 'text-white' }: { label: string; value: string; colorClass?: string }) {
   return (
-    <div className="bg-slate-900/60 rounded-lg px-2 py-1.5">
+    <div className="bg-slate-900/60 rounded-lg px-2 py-1.5 overflow-hidden">
       <div className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">{label}</div>
-      <div className={`text-xs font-mono font-medium ${colorClass}`}>{value}</div>
+      <div className={`text-xs font-mono font-medium whitespace-nowrap ${colorClass}`}>{value}</div>
     </div>
   );
 }
@@ -52,7 +52,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
   const isClimbing = !isLevel && flight.verticalRate! > 0;
   const vrate = isLevel
     ? 'Level'
-    : `${isClimbing ? '+' : ''}${metersToFeet(flight.verticalRate!).toLocaleString()} ft/min`;
+    : `${isClimbing ? '+' : ''}${metersToFeet(flight.verticalRate!).toLocaleString()} fpm`;
   const vrateIcon = isLevel ? '' : isClimbing ? ' ↑' : ' ↓';
   const vrateColor = isLevel ? 'text-slate-300' : isClimbing ? 'text-emerald-400' : 'text-rose-400';
 
