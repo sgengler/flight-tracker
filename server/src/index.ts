@@ -6,7 +6,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { exec } from 'child_process';
 import { subscribe, subscribeMilitary } from './poller';
-import { fetchPlanePhoto, fetchAircraftTrace } from './opensky';
+import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute } from './opensky';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -61,6 +61,23 @@ app.get('/api/trace/:icao24', async (req, res) => {
     res.json(positions);
   } catch (err) {
     res.status(502).json({ error: 'Trace fetch failed' });
+  }
+});
+
+// On-demand route lookup for a user-selected flight. Cache-first; only spends
+// FlightAware quota when the route isn't already cached (and is allowed by caps).
+app.get('/api/route', async (req, res) => {
+  const icao24 = ((req.query.icao24 as string) ?? '').trim().toLowerCase();
+  const callsign = ((req.query.callsign as string) ?? '').trim();
+  if (!/^[0-9a-f]{6}$/.test(icao24) || !callsign) {
+    res.status(400).json({ error: 'Invalid icao24 or callsign' });
+    return;
+  }
+  try {
+    const route = await getCachedRoute(callsign, icao24, { interactive: true });
+    res.json({ route });
+  } catch {
+    res.json({ route: null });
   }
 });
 

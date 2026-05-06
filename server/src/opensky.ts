@@ -364,7 +364,7 @@ function looksLikeRegistration(callsign: string): boolean {
   return false;
 }
 
-async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
+async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boolean } = {}): Promise<RouteResult> {
   const apiKey = process.env.FLIGHTAWARE_API_KEY;
   const empty: RouteResult = { departure: null, departureCity: null, arrival: null, arrivalCity: null, airline: null };
   if (!apiKey) return empty;
@@ -376,7 +376,8 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
     return empty;
   }
 
-  if (!quotaAllow()) {
+  // Interactive (user-clicked) lookups bypass the daily cap and don't count toward it.
+  if (!opts.interactive && !quotaAllow()) {
     console.log(`[route] FlightAware ${key}: skipped (daily cap ${FA_DAILY_CAP} reached, ${faQuota.count} used)`);
     return empty;
   }
@@ -385,7 +386,7 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
   if (backoff && Date.now() < backoff) return empty;
 
   try {
-    quotaConsume();
+    if (!opts.interactive) quotaConsume();
     const res = await fetch(
       `https://aeroapi.flightaware.com/aeroapi/flights/${encodeURIComponent(key)}?max_pages=1`,
       { headers: { 'x-apikey': apiKey } }
@@ -393,7 +394,7 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
 
     if (!res.ok) {
       if (res.status === 429) faBackoffUntil.set(key, Date.now() + 60 * 60 * 1000);
-      console.log(`[route] FlightAware ${key}: HTTP ${res.status} (${faQuota.count}/${FA_DAILY_CAP} used today)`);
+      console.log(`[route] FlightAware ${key}: HTTP ${res.status}${opts.interactive ? ' (interactive)' : ` (${faQuota.count}/${FA_DAILY_CAP} used today)`}`);
       return empty;
     }
 
@@ -417,7 +418,7 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
       arrivalCity: flight!.destination!.city ?? null,
       airline: flight!.operator ?? null,
     };
-    console.log(`[route] FlightAware ${key}: ${result.departure}(${result.departureCity}) → ${result.arrival}(${result.arrivalCity}) (${faQuota.count}/${FA_DAILY_CAP} used today)`);
+    console.log(`[route] FlightAware ${key}: ${result.departure}(${result.departureCity}) → ${result.arrival}(${result.arrivalCity})${opts.interactive ? ' (interactive)' : ` (${faQuota.count}/${FA_DAILY_CAP} used today)`}`);
     return result;
   } catch (err) {
     console.log(`[route] FlightAware ${key}: exception – ${err}`);
@@ -447,7 +448,7 @@ export function getRouteFromCacheOnly(icao24: string): RouteInfo | null {
   return routeResultToInfo(cached.route);
 }
 
-export async function getCachedRoute(callsign: string, icao24: string): Promise<RouteInfo | null> {
+export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean } = {}): Promise<RouteInfo | null> {
   const key = icao24.toLowerCase();
   const cached = routeCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < ttlFor(cached.route)) {
@@ -461,7 +462,7 @@ export async function getCachedRoute(callsign: string, icao24: string): Promise<
   }
 
   const route = callsign
-    ? await fetchFlightAwareRoute(callsign)
+    ? await fetchFlightAwareRoute(callsign, opts)
     : { departure: null, departureCity: null, arrival: null, arrivalCity: null, airline: null };
 
   routeCache.set(key, { route, fetchedAt: Date.now() });
@@ -469,9 +470,16 @@ export async function getCachedRoute(callsign: string, icao24: string): Promise<
   return routeResultToInfo(route);
 }
 
-// hexdb.io — used only for police detection (RegisteredOwners).
-// Aircraft type code comes directly from adsb.fi now.
-interface AircraftCacheEntry { typeCode: string | null; isPolice: boolean; fetchedAt: number }
+// hexdb.io — used for police detection (RegisteredOwners) and as a Wikipedia-photo
+// fallback (Manufacturer + Type) when the client doesn't recognize the type code.
+// Aircraft type code comes directly from adsb.fi.
+interface AircraftCacheEntry {
+  typeCode: string | null;
+  isPolice: boolean;
+  manufacturer: string | null;
+  model: string | null;
+  fetchedAt: number;
+}
 const aircraftTypeCache = new Map<string, AircraftCacheEntry>();
 const AIRCRAFT_TYPE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -485,26 +493,55 @@ function isPoliceOwner(owner: string | undefined): boolean {
 }
 
 export async function getCachedAircraftType(icao24: string): Promise<{ typeCode: string | null; isPolice: boolean }> {
+  const entry = await getCachedAircraftEntry(icao24);
+  return { typeCode: entry.typeCode, isPolice: entry.isPolice };
+}
+
+async function getCachedAircraftEntry(icao24: string): Promise<AircraftCacheEntry> {
   const key = icao24.toLowerCase();
   const cached = aircraftTypeCache.get(key);
-  if (cached && 'isPolice' in cached && Date.now() - cached.fetchedAt < AIRCRAFT_TYPE_CACHE_TTL_MS) {
-    return { typeCode: cached.typeCode, isPolice: cached.isPolice };
+  if (cached && Date.now() - cached.fetchedAt < AIRCRAFT_TYPE_CACHE_TTL_MS) {
+    // Older entries may not have manufacturer/model — that's fine, they'll re-fetch on TTL
+    return cached;
   }
+
+  const empty: AircraftCacheEntry = {
+    typeCode: null, isPolice: false, manufacturer: null, model: null, fetchedAt: Date.now(),
+  };
 
   try {
     const res = await fetch(`https://hexdb.io/api/v1/aircraft/${key}`);
     if (!res.ok) {
-      aircraftTypeCache.set(key, { typeCode: null, isPolice: false, fetchedAt: Date.now() });
-      return { typeCode: null, isPolice: false };
+      aircraftTypeCache.set(key, empty);
+      return empty;
     }
-    const data = await res.json() as { ICAOTypeCode?: string; RegisteredOwners?: string };
-    const typeCode = data.ICAOTypeCode?.trim() || null;
-    const isPolice = isPoliceOwner(data.RegisteredOwners);
-    aircraftTypeCache.set(key, { typeCode, isPolice, fetchedAt: Date.now() });
-    return { typeCode, isPolice };
+    const data = await res.json() as { ICAOTypeCode?: string; RegisteredOwners?: string; Manufacturer?: string; Type?: string };
+    const entry: AircraftCacheEntry = {
+      typeCode: data.ICAOTypeCode?.trim() || null,
+      isPolice: isPoliceOwner(data.RegisteredOwners),
+      manufacturer: data.Manufacturer?.trim() || null,
+      model: data.Type?.trim() || null,
+      fetchedAt: Date.now(),
+    };
+    aircraftTypeCache.set(key, entry);
+    return entry;
   } catch {
-    aircraftTypeCache.set(key, { typeCode: null, isPolice: false, fetchedAt: Date.now() });
-    return { typeCode: null, isPolice: false };
+    aircraftTypeCache.set(key, empty);
+    return empty;
+  }
+}
+
+async function fetchWikipediaThumbnail(title: string): Promise<string | null> {
+  try {
+    const t = title.trim().replace(/\s+/g, '_');
+    if (!t) return null;
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t)}`);
+    if (!res.ok) return null;
+    const data = await res.json() as { type?: string; thumbnail?: { source: string } };
+    if (data.type && data.type !== 'standard') return null; // disambiguation, error, etc.
+    return data.thumbnail?.source ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -521,18 +558,24 @@ export async function fetchPlanePhoto(icao24: string, typeName?: string | null):
     // fall through to next source
   }
 
-  // Fall back to Wikipedia type photo when no specific photo is available
-  if (typeName) {
-    try {
-      const title = typeName.replace(/ /g, '_');
-      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-      if (res.ok) {
-        const data = await res.json() as { thumbnail?: { source: string } };
-        if (data.thumbnail?.source) return data.thumbnail.source;
-      }
-    } catch {
-      // no photo available
-    }
+  // Wikipedia type-photo fallback. Try in order:
+  //   1. Client-supplied typeName (mapped from ICAO type code on the client)
+  //   2. hexdb's "{Manufacturer} {Type}" — handles type codes the client doesn't map
+  //   3. Same with the trailing variant suffix stripped — e.g. "Beech 1900 D" → "Beech 1900"
+  const candidates: string[] = [];
+  if (typeName) candidates.push(typeName);
+
+  const entry = await getCachedAircraftEntry(icao24);
+  if (entry.manufacturer && entry.model) {
+    const full = `${entry.manufacturer} ${entry.model}`;
+    candidates.push(full);
+    const stripped = `${entry.manufacturer} ${entry.model.split(/\s+/)[0]}`;
+    if (stripped !== full) candidates.push(stripped);
+  }
+
+  for (const title of candidates) {
+    const thumb = await fetchWikipediaThumbnail(title);
+    if (thumb) return thumb;
   }
 
   return null;

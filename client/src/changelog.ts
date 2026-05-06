@@ -1,0 +1,31 @@
+// Add a new entry to the top of `CHANGELOG` whenever you ship user-visible work.
+// `APP_VERSION` is derived from the most recent entry, so version + log stay in sync.
+
+export interface ChangelogEntry {
+  version: string; // e.g. "0.2.0"
+  date: string;    // ISO YYYY-MM-DD
+  changes: string[];
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.2.0',
+    date: '2026-05-06',
+    changes: [
+      'Cut FlightAware AeroAPI usage to fit the $5/mo free tier (closest-flight-only, 30/day cap, 30-day null-route cache).',
+      'Selecting a non-closest flight now triggers an on-demand FlightAware lookup that bypasses the daily cap.',
+      'Fixed missing aircraft photos when the type code wasn’t in the client’s lookup table — server now falls back to hexdb manufacturer/model.',
+      'Fixed a race where photos didn’t load if the aircraft type arrived after selection.',
+      'Added in-app version label and changelog tab.',
+    ],
+  },
+  {
+    version: '0.1.0',
+    date: '2026-05-06',
+    changes: [
+      'Initial versioned baseline.',
+    ],
+  },
+];
+
+export const APP_VERSION = `v${CHANGELOG[0].version}`;

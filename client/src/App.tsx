@@ -6,6 +6,9 @@ import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from '
 import { aircraftTypeName, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
+import { RouteInfo } from './types';
+import { APP_VERSION } from './version';
+import { CHANGELOG } from './changelog';
 
 
 // Default fallback location (Chesterbrook, PA)
@@ -197,7 +200,7 @@ function CollapseBtn({ onClick }: { onClick: () => void }) {
 
 function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const [militaryMode, setMilitaryMode] = useState(false);
-  const [normalTab, setNormalTab] = useState<'nearby' | 'explore'>('nearby');
+  const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog'>('nearby');
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
@@ -211,6 +214,10 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const flightHistoryRef = useRef<Map<string, [number, number, number?][]>>(new Map());
   const traceFetchedRef = useRef<Set<string>>(new Set());
   const [selectedTrail, setSelectedTrail] = useState<[number, number, number?][]>([]);
+  // Routes fetched on-demand when the user selects a non-closest flight.
+  // Merged into selectedFlight for display until the next SSE tick brings it in via cache.
+  const [routeOverrides, setRouteOverrides] = useState<Record<string, RouteInfo | null>>({});
+  const routeFetchAttemptedRef = useRef<Set<string>>(new Set());
 
   // Reset active categories, tab, and focus whenever mode changes
   useEffect(() => {
@@ -224,6 +231,8 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     setSelectedIcao(null);
     flightHistoryRef.current.clear();
     traceFetchedRef.current.clear();
+    routeFetchAttemptedRef.current.clear();
+    setRouteOverrides({});
     setSelectedTrail([]);
     if (exploreCity) setFocusPoint([exploreCity.lat, exploreCity.lon, 9]);
   }, [exploreCity]);
@@ -295,7 +304,11 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   }, [flights, militaryMode]);
 
   // Use manually selected flight if still visible, otherwise fall back to closest visible
-  const selectedFlight = (selectedIcao ? displayFlights.find(f => f.icao24 === selectedIcao) : null) ?? displayFlights[0] ?? null;
+  const baseSelectedFlight = (selectedIcao ? displayFlights.find(f => f.icao24 === selectedIcao) : null) ?? displayFlights[0] ?? null;
+  // Apply on-demand route override (from /api/route fetch) if the stream hasn't filled it in yet
+  const selectedFlight = baseSelectedFlight && !baseSelectedFlight.route && routeOverrides[baseSelectedFlight.icao24]
+    ? { ...baseSelectedFlight, route: routeOverrides[baseSelectedFlight.icao24] }
+    : baseSelectedFlight;
 
   // Accumulate position history for every flight on each poll
   useEffect(() => {
@@ -344,6 +357,29 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [selectedFlight?.icao24]);
+
+  // On-demand route lookup: when the user explicitly selects a flight that has
+  // no route yet (poller only auto-fetches the closest), hit /api/route to
+  // trigger a FlightAware lookup. Subject to the same daily cap on the server.
+  useEffect(() => {
+    if (!selectedIcao) return;
+    const f = baseSelectedFlight;
+    if (!f || f.icao24 !== selectedIcao) return;
+    if (f.route) return;
+    if (!f.callsign) return;
+    if (routeFetchAttemptedRef.current.has(f.icao24)) return;
+    routeFetchAttemptedRef.current.add(f.icao24);
+    let cancelled = false;
+    fetch(`/api/route?icao24=${encodeURIComponent(f.icao24)}&callsign=${encodeURIComponent(f.callsign)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { route: RouteInfo | null } | null) => {
+        if (cancelled || !data) return;
+        setRouteOverrides(prev => ({ ...prev, [f.icao24]: data.route }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedIcao, baseSelectedFlight?.icao24, baseSelectedFlight?.callsign, baseSelectedFlight?.route]);
+
   const info = useFlightInfo(selectedFlight?.icao24 ?? null, selectedFlight?.aircraftType ? (aircraftTypeName(selectedFlight.aircraftType) ?? null) : null);
 
   return (
@@ -406,9 +442,14 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     onClick={() => setNormalTab('explore')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'explore' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Explore</button>
+                  <button
+                    onClick={() => setNormalTab('changelog')}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'changelog' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >Changelog</button>
                 </div>
               )}
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[10px] font-mono text-slate-500 select-none" title="App version">{APP_VERSION}</span>
                 {fullscreenPanel === 'flights'
                   ? <CollapseBtn onClick={() => setFullscreenPanel(null)} />
                   : <ExpandBtn onClick={() => setFullscreenPanel('flights')} />}
@@ -524,8 +565,25 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
               </div>
             )}
 
+            {/* Changelog tab */}
+            {!militaryMode && normalTab === 'changelog' && (
+              <div className="p-3 flex flex-col gap-3">
+                {CHANGELOG.map(entry => (
+                  <div key={entry.version}>
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span className="text-sm font-semibold text-white font-mono">v{entry.version}</span>
+                      <span className="text-xs text-slate-500">{entry.date}</span>
+                    </div>
+                    <ul className="text-xs text-slate-300 space-y-1 list-disc pl-4 marker:text-slate-600">
+                      {entry.changes.map((c, i) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Nearby aircraft tab (normal mode always, military mode when nearby tab active) */}
-            {(!militaryMode || milTab === 'nearby') && normalTab !== 'explore' && (
+            {(!militaryMode || milTab === 'nearby') && (militaryMode || normalTab === 'nearby') && (
               displayFlights.length === 0 ? (
                 <div className="px-3 py-3 text-xs text-slate-500">No data yet…</div>
               ) : (

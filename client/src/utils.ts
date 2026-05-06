@@ -166,7 +166,7 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   P46T: 'Piper M600', PA44: 'Piper Seminole', PA46: 'Piper Malibu',
   AEST: 'Piper Aerostar',
   BE20: 'Beechcraft King Air 200', BE35: 'Beechcraft Bonanza', BE36: 'Beechcraft Bonanza 36',
-  BE58: 'Beechcraft Baron', BE9L: 'Beechcraft King Air 90',
+  BE58: 'Beechcraft Baron', BE9L: 'Beechcraft King Air 90', B190: 'Beechcraft 1900',
   SR20: 'Cirrus SR20', SR22: 'Cirrus SR22', S22T: 'Cirrus SR22T',
   DA40: 'Diamond DA40', DA42: 'Diamond DA42 Twin Star', DA62: 'Diamond DA62',
   TBM7: 'Daher TBM 700', TBM8: 'Daher TBM 850', TBM9: 'Daher TBM 900',
