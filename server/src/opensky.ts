@@ -257,14 +257,18 @@ export interface RouteInfo {
 }
 
 // Route cache — keyed by lowercase icao24 hex
-// Both successful routes and failed lookups cached for 7 days
 interface RouteResult {
   departure: string | null; departureCity: string | null;
   arrival: string | null; arrivalCity: string | null;
   airline: string | null;
 }
 const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
-const ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;       // successful routes
+const NULL_ROUTE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // empty results — won't change
+
+function ttlFor(route: RouteResult): number {
+  return route.departure && route.arrival ? ROUTE_CACHE_TTL_MS : NULL_ROUTE_CACHE_TTL_MS;
+}
 
 // Persist route cache to disk so FlightAware calls survive server restarts
 const CACHE_FILE = path.resolve(__dirname, '../../cache/routes.json');
@@ -275,9 +279,7 @@ function loadRouteCache() {
     const entries = JSON.parse(raw) as [string, { route: RouteResult; fetchedAt: number }][];
     const now = Date.now();
     for (const [key, value] of entries) {
-      // Skip expired entries so stale data doesn't carry over
-      const ttl = ROUTE_CACHE_TTL_MS;
-      if (now - value.fetchedAt < ttl) {
+      if (now - value.fetchedAt < ttlFor(value.route)) {
         routeCache.set(key, value);
       }
     }
@@ -311,17 +313,79 @@ type FAFlight = {
 
 const faBackoffUntil = new Map<string, number>();
 
+// Daily call quota — FlightAware free tier is $5/mo at $0.005/result ≈ 1000/mo.
+// Cap at 30/day to stay under the free tier with margin.
+const FA_DAILY_CAP = 30;
+const QUOTA_FILE = path.resolve(__dirname, '../../cache/fa-quota.json');
+let faQuota: { date: string; count: number } = { date: '', count: 0 };
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+}
+
+function loadQuota() {
+  try {
+    const raw = fs.readFileSync(QUOTA_FILE, 'utf8');
+    faQuota = JSON.parse(raw);
+  } catch {
+    // first run — leave default
+  }
+  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
+}
+
+function saveQuota() {
+  try {
+    fs.mkdirSync(path.dirname(QUOTA_FILE), { recursive: true });
+    fs.writeFileSync(QUOTA_FILE, JSON.stringify(faQuota));
+  } catch (err) {
+    console.error('[fa quota] Failed to save:', err);
+  }
+}
+
+function quotaAllow(): boolean {
+  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
+  return faQuota.count < FA_DAILY_CAP;
+}
+
+function quotaConsume() {
+  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
+  faQuota.count++;
+  saveQuota();
+}
+
+loadQuota();
+
+// Callsigns that look like a registration/tail (e.g. "N12345", "G-ABCD") rarely
+// resolve to a scheduled route on FlightAware — skip the lookup.
+function looksLikeRegistration(callsign: string): boolean {
+  const c = callsign.trim().toUpperCase();
+  if (/^N\d/.test(c)) return true;                  // US tail (N-number)
+  if (/^[A-Z]{1,2}-?[A-Z0-9]{2,5}$/.test(c)) return true; // ICAO-style tail (G-ABCD, D-EXYZ)
+  return false;
+}
+
 async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
   const apiKey = process.env.FLIGHTAWARE_API_KEY;
-  if (!apiKey) return { departure: null, departureCity: null, arrival: null, arrivalCity: null, airline: null };
-
   const empty: RouteResult = { departure: null, departureCity: null, arrival: null, arrivalCity: null, airline: null };
+  if (!apiKey) return empty;
+
   const key = callsign.trim().toUpperCase();
+
+  if (looksLikeRegistration(key)) {
+    console.log(`[route] FlightAware ${key}: skipped (looks like registration)`);
+    return empty;
+  }
+
+  if (!quotaAllow()) {
+    console.log(`[route] FlightAware ${key}: skipped (daily cap ${FA_DAILY_CAP} reached, ${faQuota.count} used)`);
+    return empty;
+  }
 
   const backoff = faBackoffUntil.get(key);
   if (backoff && Date.now() < backoff) return empty;
 
   try {
+    quotaConsume();
     const res = await fetch(
       `https://aeroapi.flightaware.com/aeroapi/flights/${encodeURIComponent(key)}?max_pages=1`,
       { headers: { 'x-apikey': apiKey } }
@@ -329,7 +393,7 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
 
     if (!res.ok) {
       if (res.status === 429) faBackoffUntil.set(key, Date.now() + 60 * 60 * 1000);
-      console.log(`[route] FlightAware ${key}: HTTP ${res.status}`);
+      console.log(`[route] FlightAware ${key}: HTTP ${res.status} (${faQuota.count}/${FA_DAILY_CAP} used today)`);
       return empty;
     }
 
@@ -353,7 +417,7 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
       arrivalCity: flight!.destination!.city ?? null,
       airline: flight!.operator ?? null,
     };
-    console.log(`[route] FlightAware ${key}: ${result.departure}(${result.departureCity}) → ${result.arrival}(${result.arrivalCity})`);
+    console.log(`[route] FlightAware ${key}: ${result.departure}(${result.departureCity}) → ${result.arrival}(${result.arrivalCity}) (${faQuota.count}/${FA_DAILY_CAP} used today)`);
     return result;
   } catch (err) {
     console.log(`[route] FlightAware ${key}: exception – ${err}`);
@@ -361,22 +425,39 @@ async function fetchFlightAwareRoute(callsign: string): Promise<RouteResult> {
   }
 }
 
+function routeResultToInfo(r: RouteResult): RouteInfo | null {
+  if (!r.departure || !r.arrival) return null;
+  return {
+    origin: r.departure,
+    originCity: r.departureCity ?? airportCity(r.departure),
+    destination: r.arrival,
+    destinationCity: r.arrivalCity ?? airportCity(r.arrival),
+    airline: r.airline,
+  };
+}
+
+// Returns a cached route if present and fresh, else null. Never makes a
+// network call — used for non-closest flights where we don't want to spend
+// FlightAware quota.
+export function getRouteFromCacheOnly(icao24: string): RouteInfo | null {
+  const key = icao24.toLowerCase();
+  const cached = routeCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.fetchedAt >= ttlFor(cached.route)) return null;
+  return routeResultToInfo(cached.route);
+}
+
 export async function getCachedRoute(callsign: string, icao24: string): Promise<RouteInfo | null> {
   const key = icao24.toLowerCase();
   const cached = routeCache.get(key);
-  const ttl = ROUTE_CACHE_TTL_MS;
-  if (cached && Date.now() - cached.fetchedAt < ttl) {
+  if (cached && Date.now() - cached.fetchedAt < ttlFor(cached.route)) {
     const r = cached.route;
     if (!r.departure || !r.arrival) {
       console.log(`[route] cache hit (no route): ${callsign ?? icao24}`);
       return null;
     }
     console.log(`[route] cache hit: ${callsign ?? icao24} → ${r.departure}→${r.arrival}`);
-    return {
-      origin: r.departure, originCity: r.departureCity ?? airportCity(r.departure),
-      destination: r.arrival, destinationCity: r.arrivalCity ?? airportCity(r.arrival),
-      airline: r.airline,
-    };
+    return routeResultToInfo(r);
   }
 
   const route = callsign
@@ -385,15 +466,7 @@ export async function getCachedRoute(callsign: string, icao24: string): Promise<
 
   routeCache.set(key, { route, fetchedAt: Date.now() });
   saveRouteCache();
-  if (!route.departure || !route.arrival) return null;
-
-  return {
-    origin: route.departure,
-    originCity: route.departureCity ?? airportCity(route.departure),
-    destination: route.arrival,
-    destinationCity: route.arrivalCity ?? airportCity(route.arrival),
-    airline: route.airline,
-  };
+  return routeResultToInfo(route);
 }
 
 // hexdb.io — used only for police detection (RegisteredOwners).

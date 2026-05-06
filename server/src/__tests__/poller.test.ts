@@ -7,6 +7,7 @@ vi.mock('../opensky', () => ({
   fetchNearbyFlights: vi.fn(),
   findClosestFlight: vi.fn(),
   getCachedRoute: vi.fn().mockResolvedValue(null),
+  getRouteFromCacheOnly: vi.fn().mockReturnValue(null),
   getCachedAircraftType: vi.fn().mockResolvedValue({ typeCode: null, isPolice: false }),
 }));
 

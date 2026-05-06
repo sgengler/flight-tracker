@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getCachedAircraftType, adsbFiIsRateLimited, FlightState } from './opensky';
+import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getRouteFromCacheOnly, getCachedAircraftType, adsbFiIsRateLimited, FlightState } from './opensky';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -64,22 +64,30 @@ async function poll(session: Session) {
       flights = await fetchNearbyFlights(session.lat, session.lon, radius);
       console.log(`[poller] expanded to ${radius}mi → ${flights.length} flights`);
     }
-    // Enrich top 20 flights with routes and aircraft types (both cached)
+    // Enrich top 20 flights with aircraft types (cached, hexdb is free)
     const CONCURRENCY = 3;
     const queue = [...flights.slice(0, 20)];
     await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
       while (queue.length > 0) {
         const f = queue.shift()!;
-        // Get police status and type fallback first so we can skip route for military/police
         const { typeCode, isPolice } = await getCachedAircraftType(f.icao24);
         f.isPolice = isPolice;
         if (!f.aircraftType && typeCode) f.aircraftType = typeCode;
-        // Skip FlightAware route lookup for military, police, and helicopters — no scheduled routes
-        if (f.callsign && !isPolice && !isMilitaryType(f.aircraftType) && !isHelicopterType(f.aircraftType)) {
-          f.route = await getCachedRoute(f.callsign, f.icao24);
-        }
       }
     }));
+
+    // Attach routes from cache only for non-closest flights — no FA spend
+    for (const f of flights.slice(1, 20)) {
+      f.route = getRouteFromCacheOnly(f.icao24);
+    }
+
+    // Only the closest flight may trigger a FlightAware lookup
+    const closest = flights[0];
+    if (closest?.callsign && !closest.isPolice && !isMilitaryType(closest.aircraftType) && !isHelicopterType(closest.aircraftType)) {
+      closest.route = await getCachedRoute(closest.callsign, closest.icao24);
+    } else if (closest) {
+      closest.route = getRouteFromCacheOnly(closest.icao24);
+    }
 
     const flight = findClosestFlight(flights);
     console.log(`[poller] closest: ${flight ? `${flight.callsign} @ ${flight.distanceMiles.toFixed(1)}mi` : 'none'}`);
