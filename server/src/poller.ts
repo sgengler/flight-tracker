@@ -78,15 +78,15 @@ async function poll(session: Session) {
 
     // Attach routes from cache only for non-closest flights — no FA spend
     for (const f of flights.slice(1, 20)) {
-      f.route = getRouteFromCacheOnly(f.icao24);
+      if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
     }
 
     // Only the closest flight may trigger a FlightAware lookup
     const closest = flights[0];
     if (closest?.callsign && !closest.isPolice && !isMilitaryType(closest.aircraftType) && !isHelicopterType(closest.aircraftType)) {
       closest.route = await getCachedRoute(closest.callsign, closest.icao24);
-    } else if (closest) {
-      closest.route = getRouteFromCacheOnly(closest.icao24);
+    } else if (closest?.callsign) {
+      closest.route = getRouteFromCacheOnly(closest.icao24, closest.callsign);
     }
 
     const flight = findClosestFlight(flights);

@@ -438,11 +438,15 @@ function routeResultToInfo(r: RouteResult): RouteInfo | null {
   };
 }
 
+function routeCacheKey(icao24: string, callsign: string): string {
+  return `${icao24.toLowerCase()}:${callsign.trim().toUpperCase()}`;
+}
+
 // Returns a cached route if present and fresh, else null. Never makes a
 // network call — used for non-closest flights where we don't want to spend
 // FlightAware quota.
-export function getRouteFromCacheOnly(icao24: string): RouteInfo | null {
-  const key = `${icao24.toLowerCase()}:${todayKey()}`;
+export function getRouteFromCacheOnly(icao24: string, callsign: string): RouteInfo | null {
+  const key = routeCacheKey(icao24, callsign);
   const cached = routeCache.get(key);
   if (!cached) return null;
   if (Date.now() - cached.fetchedAt >= ttlFor(cached.route)) return null;
@@ -450,7 +454,7 @@ export function getRouteFromCacheOnly(icao24: string): RouteInfo | null {
 }
 
 export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean } = {}): Promise<RouteInfo | null> {
-  const key = `${icao24.toLowerCase()}:${todayKey()}`;
+  const key = routeCacheKey(icao24, callsign);
   const cached = routeCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < ttlFor(cached.route)) {
     const r = cached.route;
