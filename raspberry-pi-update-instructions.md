@@ -43,7 +43,31 @@ pi@fullpageos:~ $
 
 ---
 
-## Step 3 — Run the Update Script
+## Step 3 — Find the Project Folder
+
+First, find where the project is stored on the Pi by typing this and pressing **Return**:
+
+```
+find /home/pi -name "update.sh" 2>/dev/null
+```
+
+You'll see a result that looks something like:
+
+```
+/home/pi/flight-tracker/scripts/update.sh
+```
+
+The part before `/scripts/update.sh` is your project folder. Navigate to it by typing `cd` followed by a space and that path, then press **Return**. For example:
+
+```
+cd /home/pi/flight-tracker
+```
+
+(Your path may be slightly different — use whatever the previous command showed you.)
+
+---
+
+## Step 4 — Run the Update Script
 
 Type the following and press **Return**:
 
@@ -55,7 +79,7 @@ You'll see text scrolling by as the update runs. Wait for it to finish — it ma
 
 ---
 
-## Step 4 — Disconnect
+## Step 5 — Disconnect
 
 When the update is done, type the following and press **Return**:
 
