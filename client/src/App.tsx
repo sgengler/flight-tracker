@@ -198,6 +198,41 @@ function CollapseBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
+type UpdateState = 'idle' | 'checking' | 'updating' | 'upToDate';
+
+function UpdateButton() {
+  const [state, setState] = useState<UpdateState>('idle');
+
+  async function handleClick() {
+    setState('checking');
+    try {
+      const res = await fetch('/api/check-update', { method: 'POST' });
+      const data = await res.json() as { updating: boolean };
+      setState(data.updating ? 'updating' : 'upToDate');
+    } catch {
+      setState('idle');
+    }
+  }
+
+  const label =
+    state === 'checking' ? 'Checking…' :
+    state === 'updating' ? 'Update in progress — page will reload shortly' :
+    state === 'upToDate' ? 'Already up to date' :
+    'Check for Updates';
+
+  const disabled = state === 'checking' || state === 'updating';
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={disabled}
+      className="self-start text-xs px-3 py-1.5 rounded-md bg-white/10 text-slate-300 hover:bg-white/15 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+    >
+      {label}
+    </button>
+  );
+}
+
 function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const [militaryMode, setMilitaryMode] = useState(false);
   const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog'>('nearby');
@@ -568,6 +603,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
             {/* Changelog tab */}
             {!militaryMode && normalTab === 'changelog' && (
               <div className="p-3 flex flex-col gap-3">
+                <UpdateButton />
                 {CHANGELOG.map(entry => (
                   <div key={entry.version}>
                     <div className="flex items-baseline gap-2 mb-1">

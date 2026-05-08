@@ -147,6 +147,43 @@ app.get('/api/flights/stream/military', (req, res) => {
   });
 });
 
+// Auto-update: check for new commits and run the update script if found.
+const UPDATE_SCRIPT = path.resolve(__dirname, '../../scripts/update.sh');
+const REPO_DIR = path.resolve(__dirname, '../..');
+const UPDATE_INTERVAL_MS = 60 * 60 * 1000;
+
+// Returns true if an update was triggered, false if already up to date.
+function checkForUpdates(): Promise<boolean> {
+  return new Promise((resolve) => {
+    console.log('[updater] Checking for updates...');
+    exec('git fetch origin main --quiet && git rev-parse HEAD && git rev-parse origin/main',
+      { cwd: REPO_DIR },
+      (err, stdout) => {
+        if (err) {
+          console.error('[updater] git check failed:', err.message);
+          return resolve(false);
+        }
+        const [local, remote] = stdout.trim().split('\n');
+        if (local === remote) {
+          console.log('[updater] Already up to date.');
+          return resolve(false);
+        }
+        console.log('[updater] New commits found — running update script...');
+        exec(`bash "${UPDATE_SCRIPT}"`, { timeout: 5 * 60 * 1000 }, (err2, out) => {
+          if (err2) console.error('[updater] Update script failed:', err2.message);
+          else if (out) console.log('[updater]', out.trim());
+        });
+        resolve(true);
+      }
+    );
+  });
+}
+
+app.post('/api/check-update', async (_req, res) => {
+  const updating = await checkForUpdates();
+  res.json({ updating });
+});
+
 // Serve built client in production
 app.use(express.static(CLIENT_DIST));
 app.get('*', (_req, res) => {
@@ -156,3 +193,5 @@ app.get('*', (_req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
+setInterval(() => checkForUpdates(), UPDATE_INTERVAL_MS);

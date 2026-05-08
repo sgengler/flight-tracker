@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.0',
+    date: '2026-05-08',
+    changes: [
+      'Fixed route cache returning the wrong direction for flights that run multiple legs per week — cache is now keyed by aircraft + date.',
+      'Server now automatically checks for updates every hour and applies them if found.',
+      'Added a "Check for Updates" button to the changelog tab for on-demand updates.',
+    ],
+  },
+  {
     version: '0.2.0',
     date: '2026-05-06',
     changes: [

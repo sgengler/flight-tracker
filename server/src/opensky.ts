@@ -256,15 +256,16 @@ export interface RouteInfo {
   airline: string | null;
 }
 
-// Route cache — keyed by lowercase icao24 hex
+// Route cache — keyed by "lowercase icao24 hex:YYYY-MM-DD" so the same aircraft
+// flying a different route the next day gets a fresh lookup instead of a stale one.
 interface RouteResult {
   departure: string | null; departureCity: string | null;
   arrival: string | null; arrivalCity: string | null;
   airline: string | null;
 }
 const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
-const ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;       // successful routes
-const NULL_ROUTE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // empty results — won't change
+const ROUTE_CACHE_TTL_MS = 2 * 24 * 60 * 60 * 1000;      // 2 days — date key handles daily staleness
+const NULL_ROUTE_CACHE_TTL_MS = 2 * 24 * 60 * 60 * 1000; // same — retry the next day
 
 function ttlFor(route: RouteResult): number {
   return route.departure && route.arrival ? ROUTE_CACHE_TTL_MS : NULL_ROUTE_CACHE_TTL_MS;
@@ -441,7 +442,7 @@ function routeResultToInfo(r: RouteResult): RouteInfo | null {
 // network call — used for non-closest flights where we don't want to spend
 // FlightAware quota.
 export function getRouteFromCacheOnly(icao24: string): RouteInfo | null {
-  const key = icao24.toLowerCase();
+  const key = `${icao24.toLowerCase()}:${todayKey()}`;
   const cached = routeCache.get(key);
   if (!cached) return null;
   if (Date.now() - cached.fetchedAt >= ttlFor(cached.route)) return null;
@@ -449,7 +450,7 @@ export function getRouteFromCacheOnly(icao24: string): RouteInfo | null {
 }
 
 export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean } = {}): Promise<RouteInfo | null> {
-  const key = icao24.toLowerCase();
+  const key = `${icao24.toLowerCase()}:${todayKey()}`;
   const cached = routeCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < ttlFor(cached.route)) {
     const r = cached.route;
