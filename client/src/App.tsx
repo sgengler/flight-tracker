@@ -198,7 +198,7 @@ function CollapseBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-type UpdateState = 'idle' | 'checking' | 'updating' | 'upToDate';
+type UpdateState = 'idle' | 'checking' | 'updating' | 'upToDate' | 'error';
 
 function UpdateButton() {
   const [state, setState] = useState<UpdateState>('idle');
@@ -222,7 +222,9 @@ function UpdateButton() {
       }
     }, 3000);
 
-    return () => clearInterval(interval);
+    const timeout = setTimeout(() => setState('error'), 3 * 60 * 1000);
+
+    return () => { clearInterval(interval); clearTimeout(timeout); };
   }, [state]);
 
   async function handleClick() {
@@ -245,6 +247,7 @@ function UpdateButton() {
     state === 'checking' ? 'Checking…' :
     state === 'updating' ? 'Update in progress — reloading when ready…' :
     state === 'upToDate' ? 'Already up to date' :
+    state === 'error' ? 'Update may have failed — tap to try again' :
     'Check for Updates';
 
   const disabled = state === 'checking' || state === 'updating';

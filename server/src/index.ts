@@ -4,7 +4,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { subscribe, subscribeMilitary } from './poller';
 import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute } from './opensky';
 
@@ -169,10 +169,13 @@ function checkForUpdates(): Promise<boolean> {
           return resolve(false);
         }
         console.log('[updater] New commits found — running update script...');
-        exec(`bash "${UPDATE_SCRIPT}"`, (err2, out) => {
-          if (err2) console.error('[updater] Update script failed:', err2.message);
-          else if (out) console.log('[updater]', out.trim());
+        // Detach the update script so it survives pm2 killing this process mid-restart.
+        const child = spawn('bash', [UPDATE_SCRIPT], {
+          detached: true,
+          stdio: 'ignore',
+          cwd: REPO_DIR,
         });
+        child.unref();
         resolve(true);
       }
     );
