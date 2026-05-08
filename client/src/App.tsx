@@ -202,10 +202,18 @@ type UpdateState = 'idle' | 'checking' | 'updating' | 'upToDate' | 'error';
 
 function UpdateButton() {
   const [state, setState] = useState<UpdateState>('idle');
+  const [log, setLog] = useState<string | null>(null);
   const startedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (state !== 'updating') return;
+    if (state !== 'updating' && state !== 'error') return;
+
+    async function fetchLog() {
+      const res = await fetch('/api/update-log');
+      if (res.ok) setLog(await res.text());
+    }
+
+    if (state === 'error') { fetchLog(); return; }
 
     const interval = setInterval(async () => {
       try {
@@ -228,7 +236,9 @@ function UpdateButton() {
   }, [state]);
 
   async function handleClick() {
+    if (state === 'error') { setState('idle'); setLog(null); return; }
     setState('checking');
+    setLog(null);
     try {
       const res = await fetch('/api/version');
       if (res.ok) {
@@ -247,19 +257,26 @@ function UpdateButton() {
     state === 'checking' ? 'Checking…' :
     state === 'updating' ? 'Update in progress — reloading when ready…' :
     state === 'upToDate' ? 'Already up to date' :
-    state === 'error' ? 'Update may have failed — tap to try again' :
+    state === 'error' ? 'Update may have failed — tap to dismiss' :
     'Check for Updates';
 
   const disabled = state === 'checking' || state === 'updating';
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={disabled}
-      className="self-start text-xs px-3 py-1.5 rounded-md bg-white/10 text-slate-300 hover:bg-white/15 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-    >
-      {label}
-    </button>
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={handleClick}
+        disabled={disabled}
+        className="self-start text-xs px-3 py-1.5 rounded-md bg-white/10 text-slate-300 hover:bg-white/15 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {label}
+      </button>
+      {log && (
+        <pre className="text-[10px] text-slate-400 bg-black/30 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
+          {log}
+        </pre>
+      )}
+    </div>
   );
 }
 

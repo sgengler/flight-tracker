@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import express from 'express';
 import cors from 'cors';
@@ -150,6 +151,7 @@ app.get('/api/flights/stream/military', (req, res) => {
 // Auto-update: check for new commits and run the update script if found.
 const UPDATE_SCRIPT = path.resolve(__dirname, '../../scripts/update.sh');
 const REPO_DIR = path.resolve(__dirname, '../..');
+const UPDATE_LOG = path.resolve(__dirname, '../../cache/update.log');
 const UPDATE_INTERVAL_MS = 60 * 60 * 1000;
 
 // Returns true if an update was triggered, false if already up to date.
@@ -170,12 +172,16 @@ function checkForUpdates(): Promise<boolean> {
         }
         console.log('[updater] New commits found — running update script...');
         // Detach the update script so it survives pm2 killing this process mid-restart.
+        // Redirect stdout/stderr to a log file for in-app debugging.
+        fs.mkdirSync(path.dirname(UPDATE_LOG), { recursive: true });
+        const logFd = fs.openSync(UPDATE_LOG, 'w');
         const child = spawn('bash', [UPDATE_SCRIPT], {
           detached: true,
-          stdio: 'ignore',
+          stdio: ['ignore', logFd, logFd],
           cwd: REPO_DIR,
         });
         child.unref();
+        fs.closeSync(logFd);
         resolve(true);
       }
     );
@@ -185,6 +191,15 @@ function checkForUpdates(): Promise<boolean> {
 app.post('/api/check-update', async (_req, res) => {
   const updating = await checkForUpdates();
   res.json({ updating });
+});
+
+app.get('/api/update-log', (_req, res) => {
+  try {
+    const log = fs.readFileSync(UPDATE_LOG, 'utf8');
+    res.type('text/plain').send(log);
+  } catch {
+    res.type('text/plain').send('No update log found.');
+  }
 });
 
 // Serve built client in production
