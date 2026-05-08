@@ -169,7 +169,7 @@ function checkForUpdates(): Promise<boolean> {
           return resolve(false);
         }
         console.log('[updater] New commits found — running update script...');
-        exec(`bash "${UPDATE_SCRIPT}"`, { timeout: 5 * 60 * 1000 }, (err2, out) => {
+        exec(`bash "${UPDATE_SCRIPT}"`, (err2, out) => {
           if (err2) console.error('[updater] Update script failed:', err2.message);
           else if (out) console.log('[updater]', out.trim());
         });
