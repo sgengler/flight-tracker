@@ -202,12 +202,39 @@ type UpdateState = 'idle' | 'checking' | 'updating' | 'upToDate';
 
 function UpdateButton() {
   const [state, setState] = useState<UpdateState>('idle');
+  const startedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (state !== 'updating') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/version');
+        if (!res.ok) return;
+        const { startedAt } = await res.json() as { startedAt: number };
+        if (startedAtRef.current === null) {
+          startedAtRef.current = startedAt;
+        } else if (startedAt !== startedAtRef.current) {
+          window.location.reload();
+        }
+      } catch {
+        // server restarting — keep polling
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [state]);
 
   async function handleClick() {
     setState('checking');
     try {
-      const res = await fetch('/api/check-update', { method: 'POST' });
-      const data = await res.json() as { updating: boolean };
+      const res = await fetch('/api/version');
+      if (res.ok) {
+        const { startedAt } = await res.json() as { startedAt: number };
+        startedAtRef.current = startedAt;
+      }
+      const updateRes = await fetch('/api/check-update', { method: 'POST' });
+      const data = await updateRes.json() as { updating: boolean };
       setState(data.updating ? 'updating' : 'upToDate');
     } catch {
       setState('idle');
@@ -216,7 +243,7 @@ function UpdateButton() {
 
   const label =
     state === 'checking' ? 'Checking…' :
-    state === 'updating' ? 'Update in progress — page will reload shortly' :
+    state === 'updating' ? 'Update in progress — reloading when ready…' :
     state === 'upToDate' ? 'Already up to date' :
     'Check for Updates';
 
