@@ -76,18 +76,19 @@ async function poll(session: Session) {
       }
     }));
 
-    // Attach routes from cache only for non-closest flights — no FA spend
-    for (const f of flights.slice(1, 20)) {
+    // Attach routes from cache only for flights outside the top 5 — no FA spend
+    for (const f of flights.slice(5, 20)) {
       if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
     }
 
-    // Only the closest flight may trigger a FlightAware lookup
-    const closest = flights[0];
-    if (closest?.callsign && !closest.isPolice && !isMilitaryType(closest.aircraftType) && !isHelicopterType(closest.aircraftType)) {
-      closest.route = await getCachedRoute(closest.callsign, closest.icao24);
-    } else if (closest?.callsign) {
-      closest.route = getRouteFromCacheOnly(closest.icao24, closest.callsign);
-    }
+    // Top 5 flights may trigger FlightAware lookups
+    await Promise.all(flights.slice(0, 5).map(async f => {
+      if (!f.callsign || f.isPolice || isMilitaryType(f.aircraftType) || isHelicopterType(f.aircraftType)) {
+        if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
+        return;
+      }
+      f.route = await getCachedRoute(f.callsign, f.icao24);
+    }));
 
     const flight = findClosestFlight(flights);
     console.log(`[poller] closest: ${flight ? `${flight.callsign} @ ${flight.distanceMiles.toFixed(1)}mi` : 'none'}`);
