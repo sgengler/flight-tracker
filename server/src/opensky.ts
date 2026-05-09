@@ -348,6 +348,14 @@ function quotaAllow(): boolean {
   return faQuota.count < FA_DAILY_CAP;
 }
 
+export function getQuotaStatus(): { used: number; cap: number; resetsAt: string } {
+  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  tomorrow.setUTCHours(0, 0, 0, 0);
+  return { used: faQuota.count, cap: FA_DAILY_CAP, resetsAt: tomorrow.toISOString() };
+}
+
 function quotaConsume() {
   if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
   faQuota.count++;
