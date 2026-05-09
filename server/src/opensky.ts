@@ -256,16 +256,16 @@ export interface RouteInfo {
   airline: string | null;
 }
 
-// Route cache — keyed by "lowercase icao24 hex:YYYY-MM-DD" so the same aircraft
-// flying a different route the next day gets a fresh lookup instead of a stale one.
+// Route cache — keyed by "lowercase icao24 hex:callsign". The callsign encodes
+// the flight number and direction, so a hit always means the same route.
 interface RouteResult {
   departure: string | null; departureCity: string | null;
   arrival: string | null; arrivalCity: string | null;
   airline: string | null;
 }
 const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
-const ROUTE_CACHE_TTL_MS = 2 * 24 * 60 * 60 * 1000;      // 2 days — date key handles daily staleness
-const NULL_ROUTE_CACHE_TTL_MS = 2 * 24 * 60 * 60 * 1000; // same — retry the next day
+const ROUTE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;     // 30 days — callsign key makes this safe
+const NULL_ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days — retry weekly for unknown callsigns
 
 function ttlFor(route: RouteResult): number {
   return route.departure && route.arrival ? ROUTE_CACHE_TTL_MS : NULL_ROUTE_CACHE_TTL_MS;
