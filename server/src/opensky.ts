@@ -369,7 +369,7 @@ loadQuota();
 function looksLikeRegistration(callsign: string): boolean {
   const c = callsign.trim().toUpperCase();
   if (/^N\d/.test(c)) return true;                  // US tail (N-number)
-  if (/^[A-Z]{1,2}-?[A-Z0-9]{2,5}$/.test(c)) return true; // ICAO-style tail (G-ABCD, D-EXYZ)
+  if (/^[A-Z]{1,2}-[A-Z0-9]{2,5}$/.test(c)) return true; // ICAO-style tail requires hyphen (G-ABCD, D-EXYZ)
   return false;
 }
 
