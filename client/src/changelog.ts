@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.3',
+    date: '2026-05-09',
+    changes: [
+      'Test entry for update button git reset test.',
+    ],
+  },
+  {
     version: '0.3.2',
     date: '2026-05-08',
     changes: [
