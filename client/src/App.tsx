@@ -697,8 +697,8 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                           </span>
                         </td>
                         {!militaryMode && <td className="px-3 py-1 max-w-0 truncate">
-                          {f.route
-                            ? <span className="text-slate-400">{f.route.originCity} → {f.route.destinationCity}</span>
+                          {(f.route ?? routeOverrides[f.icao24])
+                            ? <span className="text-slate-400">{(f.route ?? routeOverrides[f.icao24])!.originCity} → {(f.route ?? routeOverrides[f.icao24])!.destinationCity}</span>
                             : <span className="text-slate-600">—</span>}
                         </td>}
                         {militaryMode && <td className="px-3 py-1 w-full max-w-0 truncate">
