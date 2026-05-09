@@ -373,10 +373,12 @@ function looksLikeRegistration(callsign: string): boolean {
   return false;
 }
 
-async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boolean } = {}): Promise<RouteResult> {
+// Returns null when the lookup was skipped (quota, no key, backoff) — caller must NOT cache null.
+// Returns a RouteResult when FA was actually contacted — caller should cache it (even if empty).
+async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boolean } = {}): Promise<RouteResult | null> {
   const apiKey = process.env.FLIGHTAWARE_API_KEY;
   const empty: RouteResult = { departure: null, departureCity: null, arrival: null, arrivalCity: null, airline: null };
-  if (!apiKey) return empty;
+  if (!apiKey) return null;
 
   const key = callsign.trim().toUpperCase();
 
@@ -388,11 +390,11 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
   // Interactive (user-clicked) lookups bypass the daily cap and don't count toward it.
   if (!opts.interactive && !quotaAllow()) {
     console.log(`[route] FlightAware ${key}: skipped (daily cap ${FA_DAILY_CAP} reached, ${faQuota.count} used)`);
-    return empty;
+    return null;
   }
 
   const backoff = faBackoffUntil.get(key);
-  if (backoff && Date.now() < backoff) return empty;
+  if (backoff && Date.now() < backoff) return null;
 
   try {
     if (!opts.interactive) quotaConsume();
@@ -474,13 +476,15 @@ export async function getCachedRoute(callsign: string, icao24: string, opts: { i
     return routeResultToInfo(r);
   }
 
-  const route = callsign
-    ? await fetchFlightAwareRoute(callsign, opts)
-    : { departure: null, departureCity: null, arrival: null, arrivalCity: null, airline: null };
+  const route = callsign ? await fetchFlightAwareRoute(callsign, opts) : null;
 
-  routeCache.set(key, { route, fetchedAt: Date.now() });
-  saveRouteCache();
-  return routeResultToInfo(route);
+  // Only cache when FA was actually contacted. null means lookup was skipped
+  // (quota hit, no API key, backoff) — don't poison the cache in that case.
+  if (route !== null) {
+    routeCache.set(key, { route, fetchedAt: Date.now() });
+    saveRouteCache();
+  }
+  return route !== null ? routeResultToInfo(route) : null;
 }
 
 // hexdb.io — used for police detection (RegisteredOwners) and as a Wikipedia-photo
