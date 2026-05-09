@@ -198,6 +198,16 @@ function CollapseBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
+function routeSkipReason(f: { callsign?: string | null; isPolice?: boolean; aircraftType?: string | null }): string | null {
+  if (f.isPolice) return 'Police';
+  const cat = categorizeAircraft(f.aircraftType ?? null);
+  if (MILITARY_CATS.has(cat)) return 'Military';
+  if (cat === 'heli' || cat === 'mil-heli') return 'Helicopter';
+  if (!f.callsign) return 'No callsign';
+  if (/^N\d/.test(f.callsign) || /^[A-Z]{1,2}-[A-Z0-9]{2,5}$/.test(f.callsign)) return 'Private';
+  return null;
+}
+
 type UpdateState = 'idle' | 'checking' | 'updating' | 'upToDate' | 'error';
 
 function UpdateButton() {
@@ -699,7 +709,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                         {!militaryMode && <td className="px-3 py-1 max-w-0 truncate">
                           {(f.route ?? routeOverrides[f.icao24])
                             ? <span className="text-slate-400">{(f.route ?? routeOverrides[f.icao24])!.originCity} → {(f.route ?? routeOverrides[f.icao24])!.destinationCity}</span>
-                            : <span className="text-slate-600">—</span>}
+                            : <span className="text-slate-600 italic">{routeSkipReason(f) ?? '—'}</span>}
                         </td>}
                         {militaryMode && <td className="px-3 py-1 w-full max-w-0 truncate">
                           {f.aircraftType
