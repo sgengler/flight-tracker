@@ -4,7 +4,10 @@
 
 set -e
 
-# Load nvm so we use the correct Node version (cron doesn't source .bashrc)
+# Load nvm so we use the correct Node version (cron doesn't source .bashrc).
+# Unset npm_config_prefix first — pm2 inherits it from the system npm and
+# nvm refuses to load when it's set.
+unset npm_config_prefix
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
