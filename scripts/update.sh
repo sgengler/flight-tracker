@@ -36,6 +36,9 @@ npm install
 echo "[$(date)] Building server and client..."
 npm run build
 
+echo "[$(date)] Clearing route cache..."
+rm -f "$REPO_DIR/cache/routes.json"
+
 echo "[$(date)] Restarting server..."
 pm2 restart flight-tracker
 
