@@ -315,8 +315,8 @@ type FAFlight = {
 const faBackoffUntil = new Map<string, number>();
 
 // Daily call quota — FlightAware free tier is $5/mo at $0.005/result ≈ 1000/mo.
-// Cap at 30/day to stay under the free tier with margin.
-const FA_DAILY_CAP = 30;
+// Cap at 100/day to stay under the free tier with margin.
+const FA_DAILY_CAP = 100;
 const QUOTA_FILE = path.resolve(__dirname, '../../cache/fa-quota.json');
 let faQuota: { date: string; count: number } = { date: '', count: 0 };
 

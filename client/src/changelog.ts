@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.3.1',
+    date: '2026-05-12',
+    changes: [
+      'Increased FlightAware daily route-lookup cap from 30 to 100.',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-05-08',
     changes: [
