@@ -264,12 +264,6 @@ interface RouteResult {
   airline: string | null;
 }
 const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
-const ROUTE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;     // 30 days — callsign key makes this safe
-const NULL_ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days — retry weekly for unknown callsigns
-
-function ttlFor(route: RouteResult): number {
-  return route.departure && route.arrival ? ROUTE_CACHE_TTL_MS : NULL_ROUTE_CACHE_TTL_MS;
-}
 
 // Persist route cache to disk so FlightAware calls survive server restarts
 const CACHE_FILE = path.resolve(__dirname, '../../cache/routes.json');
@@ -278,11 +272,8 @@ function loadRouteCache() {
   try {
     const raw = fs.readFileSync(CACHE_FILE, 'utf8');
     const entries = JSON.parse(raw) as [string, { route: RouteResult; fetchedAt: number }][];
-    const now = Date.now();
     for (const [key, value] of entries) {
-      if (now - value.fetchedAt < ttlFor(value.route)) {
-        routeCache.set(key, value);
-      }
+      routeCache.set(key, value);
     }
     console.log(`[route cache] Loaded ${routeCache.size} entries from disk`);
   } catch {
@@ -465,14 +456,13 @@ export function getRouteFromCacheOnly(icao24: string, callsign: string): RouteIn
   const key = routeCacheKey(icao24, callsign);
   const cached = routeCache.get(key);
   if (!cached) return null;
-  if (Date.now() - cached.fetchedAt >= ttlFor(cached.route)) return null;
   return routeResultToInfo(cached.route);
 }
 
 export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean } = {}): Promise<RouteInfo | null> {
   const key = routeCacheKey(icao24, callsign);
   const cached = routeCache.get(key);
-  if (cached && Date.now() - cached.fetchedAt < ttlFor(cached.route)) {
+  if (cached) {
     const r = cached.route;
     if (!r.departure || !r.arrival) {
       console.log(`[route] cache hit (no route): ${callsign ?? icao24}`);
