@@ -154,6 +154,58 @@ function CategoryIcon({ category, isPolice }: { category: AircraftCategory; isPo
 
 type FullscreenPanel = 'map' | 'flights' | 'card' | null;
 
+function StatsTab() {
+  const [stats, setStats] = useState<{ date: string; count: number }[] | null>(null);
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { date: string; count: number }[] | null) => { if (data) setStats(data); })
+      .catch(() => {});
+  }, []);
+
+  if (!stats) return <div className="px-3 py-3 text-xs text-slate-500">Loading…</div>;
+  if (stats.length === 0) return <div className="px-3 py-3 text-xs text-slate-500">No API calls recorded yet.</div>;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayCount = stats.find(d => d.date === today)?.count ?? 0;
+  const total = stats.reduce((sum, d) => sum + d.count, 0);
+
+  return (
+    <div className="p-3 flex flex-col gap-3">
+      <div className="flex gap-2">
+        <div className="flex-1 rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today</div>
+          <div className="text-2xl font-mono font-semibold text-white">{todayCount}</div>
+        </div>
+        <div className="flex-1 rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day total</div>
+          <div className="text-2xl font-mono font-semibold text-white">{total}</div>
+        </div>
+      </div>
+      <div>
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">FlightAware API calls by day</div>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-slate-500 uppercase tracking-wider text-[10px]">
+              <th className="text-left font-medium pb-1.5">Date</th>
+              <th className="text-right font-medium pb-1.5">Calls</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {stats.map(d => (
+              <tr key={d.date} className={d.date === today ? 'text-white' : 'text-slate-400'}>
+                <td className="py-1 font-mono">{d.date}</td>
+                <td className="py-1 text-right font-mono">{d.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 const EXPLORE_CITIES: { name: string; region: string; lat: number; lon: number; category: 'city' | 'military' }[] = [
   // Cities
   { name: 'Washington D.C.', region: 'United States',   lat:  38.8951, lon:  -77.0364, category: 'city' },
@@ -292,7 +344,7 @@ function UpdateButton() {
 
 function Dashboard({ lat, lon }: { lat: number; lon: number }) {
   const [militaryMode, setMilitaryMode] = useState(false);
-  const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog'>('nearby');
+  const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog' | 'stats'>('nearby');
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
@@ -538,6 +590,10 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     onClick={() => setNormalTab('changelog')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'changelog' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Changelog</button>
+                  <button
+                    onClick={() => setNormalTab('stats')}
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'stats' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  >Stats</button>
                 </div>
               )}
               <div className="ml-auto flex items-center gap-2">
@@ -674,6 +730,9 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                 ))}
               </div>
             )}
+
+            {/* Stats tab */}
+            {!militaryMode && normalTab === 'stats' && <StatsTab />}
 
             {/* Nearby aircraft tab (normal mode always, military mode when nearby tab active) */}
             {(!militaryMode || milTab === 'nearby') && (militaryMode || normalTab === 'nearby') && (

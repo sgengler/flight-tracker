@@ -314,51 +314,63 @@ type FAFlight = {
 
 const faBackoffUntil = new Map<string, number>();
 
-// Daily call quota — FlightAware free tier is $5/mo at $0.005/result ≈ 1000/mo.
-// Cap at 100/day to stay under the free tier with margin.
-const FA_DAILY_CAP = 100;
+interface DailyCount { date: string; count: number }
+
 const QUOTA_FILE = path.resolve(__dirname, '../../cache/fa-quota.json');
-let faQuota: { date: string; count: number } = { date: '', count: 0 };
+let faHistory: DailyCount[] = [];
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 }
 
+function quotaCutoff(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 30);
+  return d.toISOString().slice(0, 10);
+}
+
 function loadQuota() {
   try {
     const raw = fs.readFileSync(QUOTA_FILE, 'utf8');
-    faQuota = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.history)) {
+      faHistory = parsed.history;
+    } else if (parsed.date && parsed.count !== undefined) {
+      // Migrate old single-day format
+      faHistory = [{ date: parsed.date, count: parsed.count }];
+    }
   } catch {
     // first run — leave default
   }
-  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
+  faHistory = faHistory.filter(h => h.date >= quotaCutoff());
 }
 
 function saveQuota() {
   try {
     fs.mkdirSync(path.dirname(QUOTA_FILE), { recursive: true });
-    fs.writeFileSync(QUOTA_FILE, JSON.stringify(faQuota));
+    fs.writeFileSync(QUOTA_FILE, JSON.stringify({ history: faHistory }));
   } catch (err) {
     console.error('[fa quota] Failed to save:', err);
   }
 }
 
-function quotaAllow(): boolean {
-  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
-  return faQuota.count < FA_DAILY_CAP;
+function todayCount(): number {
+  return faHistory.find(h => h.date === todayKey())?.count ?? 0;
 }
 
-export function getQuotaStatus(): { used: number; cap: number; resetsAt: string } {
-  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
-  const tomorrow = new Date();
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  tomorrow.setUTCHours(0, 0, 0, 0);
-  return { used: faQuota.count, cap: FA_DAILY_CAP, resetsAt: tomorrow.toISOString() };
+export function getApiStats(): DailyCount[] {
+  return [...faHistory].sort((a, b) => b.date.localeCompare(a.date));
 }
 
 function quotaConsume() {
-  if (faQuota.date !== todayKey()) faQuota = { date: todayKey(), count: 0 };
-  faQuota.count++;
+  const today = todayKey();
+  const entry = faHistory.find(h => h.date === today);
+  if (entry) {
+    entry.count++;
+  } else {
+    faHistory.push({ date: today, count: 1 });
+  }
+  faHistory = faHistory.filter(h => h.date >= quotaCutoff());
   saveQuota();
 }
 
@@ -387,17 +399,11 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
     return empty;
   }
 
-  // Interactive (user-clicked) lookups bypass the daily cap and don't count toward it.
-  if (!opts.interactive && !quotaAllow()) {
-    console.log(`[route] FlightAware ${key}: skipped (daily cap ${FA_DAILY_CAP} reached, ${faQuota.count} used)`);
-    return null;
-  }
-
   const backoff = faBackoffUntil.get(key);
   if (backoff && Date.now() < backoff) return null;
 
   try {
-    if (!opts.interactive) quotaConsume();
+    quotaConsume();
     const res = await fetch(
       `https://aeroapi.flightaware.com/aeroapi/flights/${encodeURIComponent(key)}?max_pages=1`,
       { headers: { 'x-apikey': apiKey } }
@@ -405,7 +411,7 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
 
     if (!res.ok) {
       if (res.status === 429) faBackoffUntil.set(key, Date.now() + 60 * 60 * 1000);
-      console.log(`[route] FlightAware ${key}: HTTP ${res.status}${opts.interactive ? ' (interactive)' : ` (${faQuota.count}/${FA_DAILY_CAP} used today)`}`);
+      console.log(`[route] FlightAware ${key}: HTTP ${res.status} (${todayCount()} used today)`);
       return empty;
     }
 
@@ -429,7 +435,7 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
       arrivalCity: flight!.destination!.city ?? null,
       airline: flight!.operator ?? null,
     };
-    console.log(`[route] FlightAware ${key}: ${result.departure}(${result.departureCity}) → ${result.arrival}(${result.arrivalCity})${opts.interactive ? ' (interactive)' : ` (${faQuota.count}/${FA_DAILY_CAP} used today)`}`);
+    console.log(`[route] FlightAware ${key}: ${result.departure}(${result.departureCity}) → ${result.arrival}(${result.arrivalCity}) (${todayCount()} used today)`);
     return result;
   } catch (err) {
     console.log(`[route] FlightAware ${key}: exception – ${err}`);

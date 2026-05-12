@@ -7,7 +7,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { exec, spawn } from 'child_process';
 import { subscribe, subscribeMilitary } from './poller';
-import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute, getQuotaStatus } from './opensky';
+import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute, getApiStats } from './opensky';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -44,7 +44,11 @@ if (ACCESS_TOKEN) {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, time: new Date().toISOString(), faQuota: getQuotaStatus() });
+  res.json({ ok: true, time: new Date().toISOString(), faUsage: getApiStats() });
+});
+
+app.get('/api/stats', (_req, res) => {
+  res.json(getApiStats());
 });
 
 app.get('/api/version', (_req, res) => {
