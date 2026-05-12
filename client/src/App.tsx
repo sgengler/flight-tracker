@@ -155,12 +155,12 @@ function CategoryIcon({ category, isPolice }: { category: AircraftCategory; isPo
 type FullscreenPanel = 'map' | 'flights' | 'card' | null;
 
 function StatsTab() {
-  const [stats, setStats] = useState<{ date: string; count: number }[] | null>(null);
+  const [stats, setStats] = useState<{ date: string; fresh: number; cached: number }[] | null>(null);
 
   useEffect(() => {
     fetch('/api/stats')
       .then(r => r.ok ? r.json() : null)
-      .then((data: { date: string; count: number }[] | null) => { if (data) setStats(data); })
+      .then((data: { date: string; fresh: number; cached: number }[] | null) => { if (data) setStats(data); })
       .catch(() => {});
   }, []);
 
@@ -168,35 +168,48 @@ function StatsTab() {
   if (stats.length === 0) return <div className="px-3 py-3 text-xs text-slate-500">No API calls recorded yet.</div>;
 
   const today = new Date().toISOString().slice(0, 10);
-  const todayCount = stats.find(d => d.date === today)?.count ?? 0;
-  const total = stats.reduce((sum, d) => sum + d.count, 0);
+  const todayEntry = stats.find(d => d.date === today);
+  const todayFresh = todayEntry?.fresh ?? 0;
+  const todayCached = todayEntry?.cached ?? 0;
+  const totalFresh = stats.reduce((sum, d) => sum + d.fresh, 0);
+  const totalCached = stats.reduce((sum, d) => sum + d.cached, 0);
 
   return (
     <div className="p-3 flex flex-col gap-3">
-      <div className="flex gap-2">
-        <div className="flex-1 rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today</div>
-          <div className="text-2xl font-mono font-semibold text-white">{todayCount}</div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Fresh</div>
+          <div className="text-2xl font-mono font-semibold text-white">{todayFresh}</div>
         </div>
-        <div className="flex-1 rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day total</div>
-          <div className="text-2xl font-mono font-semibold text-white">{total}</div>
+        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Cached</div>
+          <div className="text-2xl font-mono font-semibold text-slate-400">{todayCached}</div>
+        </div>
+        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Fresh</div>
+          <div className="text-xl font-mono font-semibold text-white">{totalFresh}</div>
+        </div>
+        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Cached</div>
+          <div className="text-xl font-mono font-semibold text-slate-400">{totalCached}</div>
         </div>
       </div>
       <div>
-        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">FlightAware API calls by day</div>
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">FlightAware lookups by day</div>
         <table className="w-full text-xs">
           <thead>
             <tr className="text-slate-500 uppercase tracking-wider text-[10px]">
               <th className="text-left font-medium pb-1.5">Date</th>
-              <th className="text-right font-medium pb-1.5">Calls</th>
+              <th className="text-right font-medium pb-1.5">Fresh</th>
+              <th className="text-right font-medium pb-1.5">Cached</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {stats.map(d => (
               <tr key={d.date} className={d.date === today ? 'text-white' : 'text-slate-400'}>
                 <td className="py-1 font-mono">{d.date}</td>
-                <td className="py-1 text-right font-mono">{d.count}</td>
+                <td className="py-1 text-right font-mono">{d.fresh}</td>
+                <td className="py-1 text-right font-mono">{d.cached}</td>
               </tr>
             ))}
           </tbody>

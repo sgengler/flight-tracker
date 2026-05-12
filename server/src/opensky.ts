@@ -305,7 +305,7 @@ type FAFlight = {
 
 const faBackoffUntil = new Map<string, number>();
 
-interface DailyCount { date: string; count: number }
+interface DailyCount { date: string; fresh: number; cached: number }
 
 const QUOTA_FILE = path.resolve(__dirname, '../../cache/fa-quota.json');
 let faHistory: DailyCount[] = [];
@@ -325,10 +325,13 @@ function loadQuota() {
     const raw = fs.readFileSync(QUOTA_FILE, 'utf8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed.history)) {
-      faHistory = parsed.history;
+      faHistory = parsed.history.map((h: { date: string; fresh?: number; cached?: number; count?: number }) => ({
+        date: h.date,
+        fresh: h.fresh ?? h.count ?? 0,
+        cached: h.cached ?? 0,
+      }));
     } else if (parsed.date && parsed.count !== undefined) {
-      // Migrate old single-day format
-      faHistory = [{ date: parsed.date, count: parsed.count }];
+      faHistory = [{ date: parsed.date, fresh: parsed.count, cached: 0 }];
     }
   } catch {
     // first run — leave default
@@ -345,8 +348,25 @@ function saveQuota() {
   }
 }
 
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSave() {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => { saveTimer = null; saveQuota(); }, 60_000);
+}
+
+function todayEntry(): DailyCount {
+  const today = todayKey();
+  let entry = faHistory.find(h => h.date === today);
+  if (!entry) {
+    entry = { date: today, fresh: 0, cached: 0 };
+    faHistory.push(entry);
+    faHistory = faHistory.filter(h => h.date >= quotaCutoff());
+  }
+  return entry;
+}
+
 function todayCount(): number {
-  return faHistory.find(h => h.date === todayKey())?.count ?? 0;
+  return faHistory.find(h => h.date === todayKey())?.fresh ?? 0;
 }
 
 export function getApiStats(): DailyCount[] {
@@ -354,15 +374,14 @@ export function getApiStats(): DailyCount[] {
 }
 
 function quotaConsume() {
-  const today = todayKey();
-  const entry = faHistory.find(h => h.date === today);
-  if (entry) {
-    entry.count++;
-  } else {
-    faHistory.push({ date: today, count: 1 });
-  }
+  todayEntry().fresh++;
   faHistory = faHistory.filter(h => h.date >= quotaCutoff());
   saveQuota();
+}
+
+function cacheHitConsume() {
+  todayEntry().cached++;
+  scheduleSave();
 }
 
 loadQuota();
@@ -463,6 +482,7 @@ export async function getCachedRoute(callsign: string, icao24: string, opts: { i
   const key = routeCacheKey(icao24, callsign);
   const cached = routeCache.get(key);
   if (cached) {
+    cacheHitConsume();
     const r = cached.route;
     if (!r.departure || !r.arrival) {
       console.log(`[route] cache hit (no route): ${callsign ?? icao24}`);
