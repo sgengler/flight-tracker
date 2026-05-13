@@ -457,13 +457,37 @@ function UpdateButton() {
   );
 }
 
-function Dashboard({ lat, lon, dev }: { lat: number; lon: number; dev: boolean }) {
+const TOPGUN_DUMMY: FlightState = {
+  icao24: 'ae1234',
+  callsign: 'TOPGUN1',
+  originCountry: 'United States',
+  latitude: 0, // filled in at render time
+  longitude: 0,
+  baroAltitude: 8534,
+  onGround: false,
+  velocity: 480,
+  trueTrack: 270,
+  verticalRate: 0,
+  geoAltitude: 8700,
+  distanceMiles: 3.7,
+  bearingDeg: 45,
+  route: null,
+  aircraftType: 'F22',
+  isPolice: false,
+};
+
+function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: boolean; topgun: boolean }) {
   const [militaryMode, setMilitaryMode] = useState(false);
   const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog' | 'stats'>('nearby');
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
-  const { flights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev);
+  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev);
+  const flights = useMemo(() => {
+    if (!topgun || militaryMode) return rawFlights;
+    const dummy = { ...TOPGUN_DUMMY, latitude: homeLat + 0.04, longitude: homeLon + 0.04 };
+    return [dummy, ...rawFlights.filter(f => f.icao24 !== dummy.icao24)];
+  }, [rawFlights, topgun, militaryMode, homeLat, homeLon]);
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
@@ -1108,7 +1132,9 @@ function Dashboard({ lat, lon, dev }: { lat: number; lon: number; dev: boolean }
 export default function App() {
   const geo = useGeolocation();
   useAutoReload();
-  const dev = new URLSearchParams(window.location.search).get('dev') === '1';
+  const params = new URLSearchParams(window.location.search);
+  const dev = params.get('dev') === '1';
+  const topgun = params.get('topgun') === '1';
 
-  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} />;
+  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} topgun={topgun} />;
 }

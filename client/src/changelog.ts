@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.8',
+    date: '2026-05-12',
+    changes: [
+      'Added ?topgun=1 URL param to force the Top Gun alert for testing and demos.',
+    ],
+  },
+  {
     version: '0.4.7',
     date: '2026-05-12',
     changes: [
