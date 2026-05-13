@@ -432,7 +432,7 @@ function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
   const speedDate = new Date(speedRecord.seenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="rounded-lg bg-slate-900/60 border border-white/5 flex items-stretch overflow-hidden">
+    <div className="rounded-lg bg-slate-900/60 border border-white/5 flex items-stretch overflow-hidden h-20">
       <div className="px-3 py-2.5 flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-mono font-semibold text-white">{speedMph} mph</span>
