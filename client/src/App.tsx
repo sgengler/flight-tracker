@@ -625,11 +625,18 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
   const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev);
+  // Delay injecting the dummy so the app looks normal for 5s before the alert fires
+  const [topGunActive, setTopGunActive] = useState(false);
+  useEffect(() => {
+    if (!topgun) return;
+    const t = setTimeout(() => setTopGunActive(true), 5000);
+    return () => clearTimeout(t);
+  }, [topgun]);
   const flights = useMemo(() => {
-    if (!topgun || militaryMode) return rawFlights;
+    if (!topGunActive || militaryMode) return rawFlights;
     const dummy = { ...TOPGUN_DUMMY, latitude: homeLat + 0.04, longitude: homeLon + 0.04 };
     return [dummy, ...rawFlights.filter(f => f.icao24 !== dummy.icao24)];
-  }, [rawFlights, topgun, militaryMode, homeLat, homeLon]);
+  }, [rawFlights, topGunActive, militaryMode, homeLat, homeLon]);
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
@@ -720,14 +727,12 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
   useEffect(() => {
     const count = topGunFlights.length;
     if (count > 0 && prevTopGunCountRef.current === 0) {
-      const delay = topgun ? 5000 : 0;
-      const t = setTimeout(() => { setTopGunTakeover(true); playRadarLock(); }, delay);
-      prevTopGunCountRef.current = count;
-      return () => clearTimeout(t);
+      setTopGunTakeover(true);
+      playRadarLock();
     }
     if (count === 0) setTopGunTakeover(false);
     prevTopGunCountRef.current = count;
-  }, [topGunFlights.length, topgun]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [topGunFlights.length]);
 
   // Filter flights by active categories
   const displayFlights = useMemo(() => {
