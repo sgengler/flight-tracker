@@ -749,7 +749,7 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
       setTopGunTakeover(true);
       playRadarLock();
     }
-    if (count === 0) dismissTopGunRef.current();
+    if (count === 0 && prevTopGunCountRef.current > 0) dismissTopGunRef.current();
     prevTopGunCountRef.current = count;
   }, [topGunFlights.length]);
 
