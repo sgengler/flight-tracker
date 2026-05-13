@@ -240,7 +240,7 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
 
   if (takeover) {
     return (
-      <div className="topgun-overlay topgun-scanline fixed inset-0 z-50 bg-black flex flex-col items-center justify-center overflow-hidden select-none">
+      <div className="topgun-overlay topgun-scanline fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center overflow-hidden select-none">
         {/* Grid */}
         <div className="absolute inset-0 opacity-[0.05]" style={gridBg} />
         {/* Vignette */}
@@ -720,12 +720,14 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
   useEffect(() => {
     const count = topGunFlights.length;
     if (count > 0 && prevTopGunCountRef.current === 0) {
-      setTopGunTakeover(true);
-      playRadarLock();
+      const delay = topgun ? 5000 : 0;
+      const t = setTimeout(() => { setTopGunTakeover(true); playRadarLock(); }, delay);
+      prevTopGunCountRef.current = count;
+      return () => clearTimeout(t);
     }
     if (count === 0) setTopGunTakeover(false);
     prevTopGunCountRef.current = count;
-  }, [topGunFlights.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [topGunFlights.length, topgun]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter flights by active categories
   const displayFlights = useMemo(() => {
