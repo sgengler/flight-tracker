@@ -636,7 +636,7 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
-  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev, () => { setTopGunTakeover(true); playRadarLock(); }, () => setTopGunTakeover(false));
+  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev, () => { setTopGunTakeover(true); playRadarLock(); }, () => dismissTopGunRef.current());
   // Delay injecting the dummy so the app looks normal for 5s before the alert fires
   const [topGunActive, setTopGunActive] = useState(false);
   useEffect(() => {
@@ -735,6 +735,13 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
 
   // Top Gun takeover — fires once when fighters first appear
   const [topGunTakeover, setTopGunTakeover] = useState(false);
+  // Keep component mounted for 500ms after dismiss so exit animation can play
+  const [topGunDismissing, setTopGunDismissing] = useState(false);
+  const dismissTopGunRef = useRef(() => {
+    setTopGunTakeover(false);
+    setTopGunDismissing(true);
+    setTimeout(() => setTopGunDismissing(false), 500);
+  });
   const prevTopGunCountRef = useRef(0);
   useEffect(() => {
     const count = topGunFlights.length;
@@ -742,9 +749,15 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
       setTopGunTakeover(true);
       playRadarLock();
     }
-    if (count === 0) setTopGunTakeover(false);
+    if (count === 0) dismissTopGunRef.current();
     prevTopGunCountRef.current = count;
   }, [topGunFlights.length]);
+
+  // Flights to show in the alert — real fighters if present, dummy otherwise
+  const topGunAlertFlights = useMemo(() => {
+    if (topGunFlights.length > 0) return topGunFlights;
+    return [{ ...TOPGUN_DUMMY, latitude: homeLat + 0.04, longitude: homeLon + 0.04 }];
+  }, [topGunFlights, homeLat, homeLon]);
 
   // Filter flights by active categories
   const displayFlights = useMemo(() => {
@@ -1145,14 +1158,14 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
             )}
           </div>
 
-          {/* Top Gun alert — fighter/attack aircraft in normal mode */}
-          {fullscreenPanel === null && topGunFlights.length > 0 && (
+          {/* Top Gun alert — fighter/attack aircraft in normal mode, or SSH-triggered */}
+          {fullscreenPanel === null && (topGunFlights.length > 0 || topGunTakeover || topGunDismissing) && (
             <TopGunAlert
-              flights={topGunFlights}
+              flights={topGunAlertFlights}
               selectedFlight={selectedFlight}
               onTrack={selectFlight}
               takeover={topGunTakeover}
-              onDismissModal={() => setTopGunTakeover(false)}
+              onDismissModal={() => dismissTopGunRef.current()}
             />
           )}
 
