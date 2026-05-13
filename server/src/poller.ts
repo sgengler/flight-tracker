@@ -25,6 +25,24 @@ function isMilitaryType(typeCode: string | null): boolean {
   return typeCode != null && MILITARY_TYPE_CODES.has(typeCode.toUpperCase());
 }
 
+// Known military ICAO address blocks (hex ranges, inclusive)
+// These aircraft won't have commercial routes regardless of type code
+const MILITARY_ICAO_RANGES: [number, number][] = [
+  [0xAE0000, 0xAEFFFF], // US military
+  [0x43C000, 0x43CFFF], // French military
+  [0x3A0000, 0x3AFFFF], // German military
+  [0x400000, 0x40003F], // UK military (Royal Air Force)
+  [0x43E000, 0x43EFFF], // French military (additional)
+  [0x710000, 0x71FFFF], // Chinese military (PLAAF)
+  [0x140000, 0x147FFF], // Russian military (some)
+];
+
+function isMilitaryIcao(icao24: string): boolean {
+  const n = parseInt(icao24, 16);
+  if (isNaN(n)) return false;
+  return MILITARY_ICAO_RANGES.some(([lo, hi]) => n >= lo && n <= hi);
+}
+
 // Helicopter type codes and prefixes — no scheduled routes
 const HELI_EXACT = new Set([
   'EC35','EC45','EC55','EC75','AS50','AS32','AS35',
@@ -86,7 +104,7 @@ async function poll(session: Session) {
 
     // Top 10 flights may trigger FlightAware lookups
     await Promise.all(flights.slice(0, 10).map(async f => {
-      if (!f.callsign || f.isPolice || isMilitaryType(f.aircraftType) || isHelicopterType(f.aircraftType)) {
+      if (!f.callsign || f.isPolice || isMilitaryType(f.aircraftType) || isHelicopterType(f.aircraftType) || isMilitaryIcao(f.icao24)) {
         if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
         return;
       }
