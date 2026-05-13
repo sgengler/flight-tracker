@@ -594,7 +594,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                   <button
                     onClick={() => setNormalTab('nearby')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                  >Nearby <span className="opacity-60">{displayFlights.length}{displayFlights.length !== flights.length ? `/${flights.length}` : ''}</span></button>
+                  >Nearby <span className="opacity-60">{Math.min(displayFlights.length, 10)}{flights.length > 10 ? `/${flights.length}` : ''}</span></button>
                   <button
                     onClick={() => setNormalTab('explore')}
                     className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'explore' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
@@ -763,7 +763,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {displayFlights.map((f) => (
+                    {displayFlights.slice(0, militaryMode ? displayFlights.length : 10).map((f) => (
                       <tr
                         key={f.icao24}
                         onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}

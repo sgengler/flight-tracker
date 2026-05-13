@@ -76,13 +76,13 @@ async function poll(session: Session) {
       }
     }));
 
-    // Attach routes from cache only for flights outside the top 5 — no FA spend
-    for (const f of flights.slice(5, 20)) {
+    // Attach routes from cache only for flights outside the top 10 — no FA spend
+    for (const f of flights.slice(10, 20)) {
       if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
     }
 
-    // Top 5 flights may trigger FlightAware lookups
-    await Promise.all(flights.slice(0, 5).map(async f => {
+    // Top 10 flights may trigger FlightAware lookups
+    await Promise.all(flights.slice(0, 10).map(async f => {
       if (!f.callsign || f.isPolice || isMilitaryType(f.aircraftType) || isHelicopterType(f.aircraftType)) {
         if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
         return;
