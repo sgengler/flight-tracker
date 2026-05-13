@@ -209,7 +209,7 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   MQ9: 'MQ-9 Reaper', MQ1: 'MQ-1 Predator', BTB2: 'Bayraktar TB2',
   // Military trainers
   T38: 'T-38 Talon', T6: 'T-6 Texan II', T45: 'T-45 Goshawk',
-  TEX2: 'T-6A Texan II', HAWK: 'BAE CT-155 Hawk',
+  TEX2: 'T-6A Texan II', HAWK: 'BAE Systems Hawk',
   G120: 'Grob G-120', G12T: 'Grob G-120TP', PC7: 'Pilatus PC-7',
   // Military helicopters
   AH64: 'AH-64 Apache', CH47: 'CH-47 Chinook', H47: 'CH-47 Chinook',
