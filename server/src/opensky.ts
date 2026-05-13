@@ -547,19 +547,24 @@ function devDummyRoute(callsign: string): RouteInfo {
   return DEV_DUMMY_ROUTES[idx];
 }
 
-export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean; dev?: boolean } = {}): Promise<RouteInfo | null> {
+export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean; dev?: boolean; force?: boolean } = {}): Promise<RouteInfo | null> {
   if (opts.dev) return devDummyRoute(callsign);
   const key = routeCacheKey(icao24, callsign);
-  const cached = routeCache.get(key);
-  if (cached) {
-    cacheHitConsume();
-    const r = cached.route;
-    if (!r.departure || !r.arrival) {
-      console.log(`[route] cache hit (no route): ${callsign ?? icao24}`);
-      return null;
+  if (opts.force) {
+    routeCache.delete(key);
+    console.log(`[route] cache busted: ${callsign ?? icao24}`);
+  } else {
+    const cached = routeCache.get(key);
+    if (cached) {
+      cacheHitConsume();
+      const r = cached.route;
+      if (!r.departure || !r.arrival) {
+        console.log(`[route] cache hit (no route): ${callsign ?? icao24}`);
+        return null;
+      }
+      console.log(`[route] cache hit: ${callsign ?? icao24} → ${r.departure}→${r.arrival}`);
+      return routeResultToInfo(r);
     }
-    console.log(`[route] cache hit: ${callsign ?? icao24} → ${r.departure}→${r.arrival}`);
-    return routeResultToInfo(r);
   }
 
   const route = callsign ? await fetchFlightAwareRoute(callsign, opts) : null;

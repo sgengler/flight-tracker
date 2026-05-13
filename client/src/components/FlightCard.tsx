@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FlightState } from '../types';
+import { FlightState, RouteInfo } from '../types';
 import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, getCountryFromIcao } from '../utils';
 
 interface Props {
@@ -30,6 +30,31 @@ function BigStatBox({ label, value, colorClass = 'text-white' }: { label: string
 
 export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscreen, militaryMode = false }: Props) {
   const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null);
+  const [refreshedRoute, setRefreshedRoute] = useState<RouteInfo | null | undefined>(undefined); // undefined = not yet refreshed
+  const [routeRefreshing, setRouteRefreshing] = useState(false);
+  // Reset local route override whenever the flight changes
+  const flightKey = `${flight.icao24}:${flight.callsign ?? ''}`;
+  const prevFlightKeyRef = useRef(flightKey);
+  if (prevFlightKeyRef.current !== flightKey) {
+    prevFlightKeyRef.current = flightKey;
+    setRefreshedRoute(undefined);
+  }
+
+  async function refreshRoute() {
+    if (!flight.callsign || routeRefreshing) return;
+    setRouteRefreshing(true);
+    try {
+      const res = await fetch(`/api/route/refresh?icao24=${flight.icao24}&callsign=${encodeURIComponent(flight.callsign)}`, { method: 'POST' });
+      const data = await res.json() as { route: RouteInfo | null };
+      setRefreshedRoute(data.route);
+    } catch {
+      // leave existing route intact on error
+    } finally {
+      setRouteRefreshing(false);
+    }
+  }
+
+  const displayRoute = refreshedRoute !== undefined ? refreshedRoute : flight.route;
   const photoUrl = info?.photoUrl ?? null;
   const imgRef = useRef<HTMLImageElement>(null);
   // Handle cached images that fire onLoad before React renders
@@ -104,30 +129,50 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
             {!country && <div className="mb-3" />}
 
             {/* Route */}
-            {flight.route ? (
-              <div className="mb-3">
-                {flight.route.airline && (
-                  <div className="text-xs text-slate-500 mb-1.5">{flight.route.airline}</div>
-                )}
+            <div className="mb-3">
+              {displayRoute ? (
+                <>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {displayRoute.airline && (
+                      <div className="text-xs text-slate-500">{displayRoute.airline}</div>
+                    )}
+                    {flight.callsign && (
+                      <button onClick={refreshRoute} disabled={routeRefreshing} className="ml-auto text-slate-600 hover:text-slate-400 transition-colors disabled:opacity-40" title="Refresh route">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={routeRefreshing ? 'animate-spin' : ''}>
+                          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="text-lg font-bold text-white font-mono tracking-wide">{displayRoute.origin}</div>
+                      <div className="text-xs text-slate-400 truncate">{displayRoute.originCity}</div>
+                    </div>
+                    <div className="flex items-center gap-0.5 text-sky-500 flex-shrink-0 text-xs">
+                      <div className="w-3 h-px bg-sky-500/40" />
+                      <span>✈</span>
+                      <div className="w-3 h-px bg-sky-500/40" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-lg font-bold text-white font-mono tracking-wide">{displayRoute.destination}</div>
+                      <div className="text-xs text-slate-400 truncate">{displayRoute.destinationCity}</div>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div className="flex items-center gap-2">
-                  <div className="min-w-0">
-                    <div className="text-lg font-bold text-white font-mono tracking-wide">{flight.route.origin}</div>
-                    <div className="text-xs text-slate-400 truncate">{flight.route.originCity}</div>
-                  </div>
-                  <div className="flex items-center gap-0.5 text-sky-500 flex-shrink-0 text-xs">
-                    <div className="w-3 h-px bg-sky-500/40" />
-                    <span>✈</span>
-                    <div className="w-3 h-px bg-sky-500/40" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-lg font-bold text-white font-mono tracking-wide">{flight.route.destination}</div>
-                    <div className="text-xs text-slate-400 truncate">{flight.route.destinationCity}</div>
-                  </div>
+                  <div className="text-xs text-slate-600 italic">No route data</div>
+                  {flight.callsign && (
+                    <button onClick={refreshRoute} disabled={routeRefreshing} className="text-slate-600 hover:text-slate-400 transition-colors disabled:opacity-40" title="Refresh route">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={routeRefreshing ? 'animate-spin' : ''}>
+                        <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                      </svg>
+                    </button>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="text-xs text-slate-600 italic mb-3">No route data</div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Stats */}

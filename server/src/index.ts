@@ -86,6 +86,22 @@ app.get('/api/route', async (req, res) => {
   }
 });
 
+// Force a fresh FlightAware lookup, bypassing the cache.
+app.post('/api/route/refresh', async (req, res) => {
+  const icao24 = ((req.query.icao24 as string) ?? '').trim().toLowerCase();
+  const callsign = ((req.query.callsign as string) ?? '').trim();
+  if (!/^[0-9a-f]{6}$/.test(icao24) || !callsign) {
+    res.status(400).json({ error: 'Invalid icao24 or callsign' });
+    return;
+  }
+  try {
+    const route = await getCachedRoute(callsign, icao24, { interactive: true, force: true });
+    res.json({ route });
+  } catch {
+    res.json({ route: null });
+  }
+});
+
 app.get('/api/flight-info', async (req, res) => {
   const icao24 = ((req.query.icao24 as string) ?? '').trim() || null;
   const typeName = ((req.query.typeName as string) ?? '').trim() || null;
