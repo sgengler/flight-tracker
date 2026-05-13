@@ -451,7 +451,7 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
     return result;
   } catch (err) {
     console.log(`[route] FlightAware ${key}: exception – ${err}`);
-    return empty;
+    return null; // don't cache network/parse failures — retry next time
   }
 }
 
