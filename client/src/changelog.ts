@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.9',
+    date: '2026-05-12',
+    changes: [
+      'Top Gun alert now takes over the full screen with a CRT flicker entrance and radar lock-on sound when a fighter first appears.',
+    ],
+  },
+  {
     version: '0.4.8',
     date: '2026-05-12',
     changes: [

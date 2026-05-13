@@ -169,23 +169,175 @@ const TOP_GUN_QUIPS = [
   "You didn't tell me who you were flying against.",
 ];
 
-function TopGunAlert({ flights, selectedFlight, onTrack }: {
+function playRadarLock() {
+  try {
+    const ctx = new AudioContext();
+    const beep = (t: number, freq: number, dur: number, vol = 0.25) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + t);
+      gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + dur);
+      osc.start(ctx.currentTime + t);
+      osc.stop(ctx.currentTime + t + dur + 0.05);
+    };
+    // Radar pings accelerating toward lock
+    [0, 0.45, 0.83, 1.15, 1.41, 1.62, 1.79, 1.93].forEach(t => beep(t, 880, 0.12));
+    // Lock acquired — dual-tone chord
+    beep(2.05, 1320, 1.4, 0.2);
+    beep(2.05, 1760, 1.4, 0.12);
+  } catch { /* AudioContext blocked by browser */ }
+}
+
+const RETICLE_SVG_PATHS = (
+  <>
+    <circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="6 5" />
+    <circle cx="50" cy="50" r="22" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="50" cy="50" r="4" fill="currentColor" />
+    <line x1="50" y1="4"  x2="50" y2="26" stroke="currentColor" strokeWidth="1.5" />
+    <line x1="50" y1="74" x2="50" y2="96" stroke="currentColor" strokeWidth="1.5" />
+    <line x1="4"  y1="50" x2="26" y2="50" stroke="currentColor" strokeWidth="1.5" />
+    <line x1="74" y1="50" x2="96" y2="50" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M14,34 L14,14 L34,14" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M66,14 L86,14 L86,34" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M14,66 L14,86 L34,86" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M66,86 L86,86 L86,66" fill="none" stroke="currentColor" strokeWidth="1.5" />
+  </>
+);
+
+function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModal }: {
   flights: FlightState[];
   selectedFlight: FlightState | null;
   onTrack: (icao24: string | null) => void;
+  takeover: boolean;
+  onDismissModal: () => void;
 }) {
   const primary = flights[0];
   const quipIdx = primary.icao24.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % TOP_GUN_QUIPS.length;
   const typeName = primary.aircraftType ? (aircraftTypeName(primary.aircraftType) ?? primary.aircraftType.toUpperCase()) : 'UNKNOWN BOGEY';
   const isTracking = primary.icao24 === selectedFlight?.icao24;
+  const [countdown, setCountdown] = useState(10);
+  const dismissRef = useRef(onDismissModal);
+  dismissRef.current = onDismissModal;
 
+  useEffect(() => {
+    if (!takeover) return;
+    setCountdown(10);
+    const id = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { clearInterval(id); dismissRef.current(); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [takeover]);
+
+  const gridBg = { backgroundImage: 'repeating-linear-gradient(0deg,#f59e0b 0,transparent 1px,transparent 24px),repeating-linear-gradient(90deg,#f59e0b 0,transparent 1px,transparent 24px)' };
+
+  if (takeover) {
+    return (
+      <div className="topgun-overlay topgun-scanline fixed inset-0 z-50 bg-black flex flex-col items-center justify-center overflow-hidden select-none">
+        {/* Grid */}
+        <div className="absolute inset-0 opacity-[0.05]" style={gridBg} />
+        {/* Vignette */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
+
+        <div className="relative flex flex-col items-center gap-5 px-8 py-6 max-w-md w-full">
+          {/* Header */}
+          <div className="flex items-center gap-3 w-full justify-center">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-400" />
+            </span>
+            <span className="topgun-blink text-xs font-black text-amber-400 uppercase tracking-[0.35em] font-mono">
+              Bogey in the AO{flights.length > 1 ? ` (${flights.length})` : ''}
+            </span>
+            <span className="text-xs font-mono text-amber-700 ml-auto">
+              {new Date().toISOString().slice(11, 19)}Z
+            </span>
+          </div>
+
+          {/* Large reticle */}
+          <div className="relative flex items-center justify-center">
+            <svg width="200" height="200" viewBox="0 0 100 100" className="text-amber-500 animate-spin [animation-duration:12s]">
+              {RETICLE_SVG_PATHS}
+            </svg>
+            <svg width="160" height="160" viewBox="0 0 100 100" className="text-amber-400/40 animate-spin absolute [animation-duration:7s] [animation-direction:reverse]">
+              <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="0.8" strokeDasharray="3 9" />
+            </svg>
+          </div>
+
+          {/* Aircraft name */}
+          <div className="text-center">
+            <div className="topgun-glitch text-4xl font-black text-amber-300 font-mono uppercase tracking-widest leading-none">
+              {typeName}
+            </div>
+            <div className="text-sm text-amber-500 font-mono mt-2 tracking-wider">
+              {primary.callsign ?? primary.icao24.toUpperCase()} &nbsp;·&nbsp; {primary.distanceMiles.toFixed(1)} mi
+              {primary.velocity != null && ` · ${Math.round(primary.velocity * 1.944)} kts`}
+            </div>
+          </div>
+
+          {/* Other bogeys */}
+          {flights.length > 1 && (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {flights.slice(1).map(f => (
+                <button key={f.icao24} onClick={() => onTrack(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                  className="text-[11px] font-mono text-amber-700 hover:text-amber-500 transition-colors border border-amber-900/50 rounded px-2 py-0.5">
+                  {f.callsign ?? f.icao24.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Quip */}
+          <div className="text-sm text-amber-700 italic font-mono text-center border-t border-amber-900/50 pt-4 w-full">
+            "{TOP_GUN_QUIPS[quipIdx]}"
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={() => { onTrack(isTracking ? null : primary.icao24); onDismissModal(); }}
+              className="flex-1 text-sm font-mono font-black px-4 py-3 rounded border border-amber-400/70 bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 transition-all uppercase tracking-[0.2em]"
+            >
+              ⊕ Lock On
+            </button>
+            <button
+              onClick={onDismissModal}
+              className="flex-1 text-sm font-mono font-black px-4 py-3 rounded border border-amber-900/60 bg-transparent text-amber-700 hover:text-amber-500 hover:border-amber-700/60 transition-all uppercase tracking-[0.2em]"
+            >
+              Clear
+            </button>
+          </div>
+
+          {/* Countdown bar */}
+          <div className="w-full">
+            <div className="flex justify-between text-[10px] font-mono text-amber-900 mb-1">
+              <span>AUTO-CLEAR</span><span>{countdown}s</span>
+            </div>
+            <div className="h-1 w-full bg-amber-950/60 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-600/70 rounded-full transition-all duration-1000 ease-linear"
+                style={{ width: `${(countdown / 10) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Sidebar widget (after takeover is dismissed)
   return (
     <div className="flex-shrink-0 rounded-xl border border-amber-500/60 bg-black overflow-hidden relative">
-      {/* HUD grid background */}
       <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'repeating-linear-gradient(0deg,#f59e0b 0,transparent 1px,transparent 18px),repeating-linear-gradient(90deg,#f59e0b 0,transparent 1px,transparent 18px)' }} />
 
       <div className="relative px-3 py-2.5">
-        {/* Header row */}
         <div className="flex items-center gap-2 mb-2.5">
           <span className="relative flex h-2 w-2 flex-shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
@@ -200,19 +352,9 @@ function TopGunAlert({ flights, selectedFlight, onTrack }: {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Targeting reticle */}
           <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center">
             <svg width="48" height="48" viewBox="0 0 100 100" className="text-amber-500 animate-spin [animation-duration:9s]">
-              <circle cx="50" cy="50" r="27" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="8 6" />
-              <circle cx="50" cy="50" r="5" fill="currentColor" />
-              <line x1="50" y1="13" x2="50" y2="36" stroke="currentColor" strokeWidth="2" />
-              <line x1="50" y1="64" x2="50" y2="87" stroke="currentColor" strokeWidth="2" />
-              <line x1="13" y1="50" x2="36" y2="50" stroke="currentColor" strokeWidth="2" />
-              <line x1="64" y1="50" x2="87" y2="50" stroke="currentColor" strokeWidth="2" />
-              <path d="M22,38 L22,22 L38,22" fill="none" stroke="currentColor" strokeWidth="2" />
-              <path d="M62,22 L78,22 L78,38" fill="none" stroke="currentColor" strokeWidth="2" />
-              <path d="M22,62 L22,78 L38,78" fill="none" stroke="currentColor" strokeWidth="2" />
-              <path d="M62,78 L78,78 L78,62" fill="none" stroke="currentColor" strokeWidth="2" />
+              {RETICLE_SVG_PATHS}
             </svg>
           </div>
 
@@ -571,6 +713,19 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
     }) : [],
     [flights, militaryMode]
   );
+
+  // Top Gun takeover — fires once when fighters first appear
+  const [topGunTakeover, setTopGunTakeover] = useState(false);
+  const prevTopGunCountRef = useRef(0);
+  useEffect(() => {
+    const count = topGunFlights.length;
+    if (count > 0 && prevTopGunCountRef.current === 0) {
+      setTopGunTakeover(true);
+      playRadarLock();
+    }
+    if (count === 0) setTopGunTakeover(false);
+    prevTopGunCountRef.current = count;
+  }, [topGunFlights.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter flights by active categories
   const displayFlights = useMemo(() => {
@@ -973,7 +1128,13 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
 
           {/* Top Gun alert — fighter/attack aircraft in normal mode */}
           {fullscreenPanel === null && topGunFlights.length > 0 && (
-            <TopGunAlert flights={topGunFlights} selectedFlight={selectedFlight} onTrack={selectFlight} />
+            <TopGunAlert
+              flights={topGunFlights}
+              selectedFlight={selectedFlight}
+              onTrack={selectFlight}
+              takeover={topGunTakeover}
+              onDismissModal={() => setTopGunTakeover(false)}
+            />
           )}
 
           {/* Police alert — hidden in card fullscreen */}
