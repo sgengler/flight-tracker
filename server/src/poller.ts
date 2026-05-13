@@ -14,6 +14,8 @@ const MILITARY_TYPE_CODES = new Set([
   'U2','SR71','RQ4','Q4','MQ9','MQ1','X47B','RQ180','BTB2',
   'P3','P8','V22',
   'T38','T6','T45','TEX2','HAWK','G120','G12T','PC7',
+  'EF2000','EUFI','RFAL','JAS3','TORA','AV8B','AJET','L39',
+  'MIG29','MIG21','SU27','SU30','SU35','F2','T50',
   'H60','S70','UH60','HH60','MH60','SH60','CH47','H47','AH64',
   'UH1','UH1Y','HH1','AH1','CH53','H53S','OH58','HH65',
   'AS65','B212','B412','A119','A139','A169','H500','AS55',

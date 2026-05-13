@@ -82,6 +82,18 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
     'W135','R135','GLF3','GLF5',                        // special mission / VIP
     'V22',                                              // tiltrotor
     'T38','T6','T45','TEX2','HAWK','G120','G12T','PC7', // trainers
+    // International fighters
+    'EF2000','EUFI',                                    // Eurofighter Typhoon
+    'RFAL',                                             // Dassault Rafale
+    'JAS3',                                             // Saab Gripen (JAS-39)
+    'TORA',                                             // Panavia Tornado
+    'AV8B',                                             // Harrier II (US Marines / RAF)
+    'AJET',                                             // Alpha Jet
+    'L39',                                              // L-39 Albatros (common airshow jet)
+    'MIG29','MIG21',                                    // MiG fighters
+    'SU27','SU30','SU35',                               // Sukhoi fighters
+    'F2',                                               // Mitsubishi F-2
+    'T50',                                              // T-50 Golden Eagle / FA-50
     // Military helicopters
     'H60','S70','UH60','HH60','MH60','SH60',            // Black Hawk / Seahawk family
     'CH47','H47',                                       // Chinook (both ICAO codes)
