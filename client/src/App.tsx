@@ -458,7 +458,7 @@ function UpdateButton() {
 }
 
 const TOPGUN_DUMMY: FlightState = {
-  icao24: 'ae1234',
+  icao24: '000000',
   callsign: 'TOPGUN1',
   originCountry: 'United States',
   latitude: 0, // filled in at render time
