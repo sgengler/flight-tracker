@@ -73,8 +73,20 @@ html, body, #root {
   91%  { clip-path: none; transform: none; opacity: 1; }
 }
 
+@keyframes topgun-crt-out {
+  0%   { opacity: 1; transform: scaleY(1);    filter: brightness(1); }
+  35%  { opacity: 1; transform: scaleY(1);    filter: brightness(2); }
+  55%  { opacity: 1; transform: scaleY(0.03); filter: brightness(4); }
+  75%  { opacity: 0.4; transform: scaleY(0.01); filter: brightness(6); }
+  100% { opacity: 0; transform: scaleY(0);    filter: brightness(0); }
+}
+
 .topgun-overlay {
   animation: topgun-crt-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.topgun-overlay-out {
+  animation: topgun-crt-out 0.45s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 .topgun-scanline::after {

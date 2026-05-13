@@ -221,15 +221,25 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
   const typeName = primary.aircraftType ? (aircraftTypeName(primary.aircraftType) ?? primary.aircraftType.toUpperCase()) : 'UNKNOWN BOGEY';
   const isTracking = primary.icao24 === selectedFlight?.icao24;
   const [countdown, setCountdown] = useState(10);
+  const [exiting, setExiting] = useState(false);
   const dismissRef = useRef(onDismissModal);
   dismissRef.current = onDismissModal;
+
+  const handleDismiss = useRef(() => {
+    setExiting(true);
+    setTimeout(() => dismissRef.current(), 450);
+  });
+
+  useEffect(() => {
+    if (takeover) setExiting(false);
+  }, [takeover]);
 
   useEffect(() => {
     if (!takeover) return;
     setCountdown(10);
     const id = setInterval(() => {
       setCountdown(c => {
-        if (c <= 1) { clearInterval(id); dismissRef.current(); return 0; }
+        if (c <= 1) { clearInterval(id); handleDismiss.current(); return 0; }
         return c - 1;
       });
     }, 1000);
@@ -238,9 +248,9 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
 
   const gridBg = { backgroundImage: 'repeating-linear-gradient(0deg,#f59e0b 0,transparent 1px,transparent 24px),repeating-linear-gradient(90deg,#f59e0b 0,transparent 1px,transparent 24px)' };
 
-  if (takeover) {
+  if (takeover || exiting) {
     return (
-      <div className="topgun-overlay topgun-scanline fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center overflow-hidden select-none">
+      <div className={`${exiting ? 'topgun-overlay-out' : 'topgun-overlay'} topgun-scanline fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center overflow-hidden select-none`}>
         {/* Grid */}
         <div className="absolute inset-0 opacity-[0.05]" style={gridBg} />
         {/* Vignette */}
@@ -302,13 +312,13 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
           {/* Buttons */}
           <div className="flex gap-3 w-full">
             <button
-              onClick={() => { onTrack(isTracking ? null : primary.icao24); onDismissModal(); }}
+              onClick={() => { onTrack(isTracking ? null : primary.icao24); handleDismiss.current(); }}
               className="flex-1 text-sm font-mono font-black px-4 py-3 rounded border border-amber-400/70 bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 transition-all uppercase tracking-[0.2em]"
             >
               ⊕ Lock On
             </button>
             <button
-              onClick={onDismissModal}
+              onClick={() => handleDismiss.current()}
               className="flex-1 text-sm font-mono font-black px-4 py-3 rounded border border-amber-900/60 bg-transparent text-amber-700 hover:text-amber-500 hover:border-amber-700/60 transition-all uppercase tracking-[0.2em]"
             >
               Clear
