@@ -6,7 +6,7 @@ import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from '
 import { aircraftTypeName, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
-import { RouteInfo } from './types';
+import { RouteInfo, FlightState } from './types';
 import { APP_VERSION } from './version';
 import { CHANGELOG } from './changelog';
 
@@ -153,6 +153,108 @@ function CategoryIcon({ category, isPolice }: { category: AircraftCategory; isPo
 }
 
 type FullscreenPanel = 'map' | 'flights' | 'card' | null;
+
+const TOP_GUN_QUIPS = [
+  "I feel the need… the need for speed.",
+  "Talk to me, Goose.",
+  "That's a negative, Ghost Rider.",
+  "You can be my wingman any time.",
+  "Highway to the Danger Zone.",
+  "It's classified. I could tell you, but then I'd have to kill you.",
+  "Son, your ego is writing checks your body can't cash.",
+  "Great balls of fire.",
+  "I'm not leaving my wingman.",
+  "The plaque for the alternates is in the ladies' room.",
+  "Maverick, you big stud.",
+  "You didn't tell me who you were flying against.",
+];
+
+function TopGunAlert({ flights, selectedFlight, onTrack }: {
+  flights: FlightState[];
+  selectedFlight: FlightState | null;
+  onTrack: (icao24: string | null) => void;
+}) {
+  const primary = flights[0];
+  const quipIdx = primary.icao24.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % TOP_GUN_QUIPS.length;
+  const typeName = primary.aircraftType ? (aircraftTypeName(primary.aircraftType) ?? primary.aircraftType.toUpperCase()) : 'UNKNOWN BOGEY';
+  const isTracking = primary.icao24 === selectedFlight?.icao24;
+
+  return (
+    <div className="flex-shrink-0 rounded-xl border border-amber-500/60 bg-black overflow-hidden relative">
+      {/* HUD grid background */}
+      <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'repeating-linear-gradient(0deg,#f59e0b 0,transparent 1px,transparent 18px),repeating-linear-gradient(90deg,#f59e0b 0,transparent 1px,transparent 18px)' }} />
+
+      <div className="relative px-3 py-2.5">
+        {/* Header row */}
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="relative flex h-2 w-2 flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+          </span>
+          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-[0.2em] font-mono flex-1">
+            Bogey in the AO{flights.length > 1 ? ` (${flights.length})` : ''}
+          </span>
+          <span className="text-[10px] font-mono text-amber-700">
+            {new Date().toISOString().slice(11, 19)}Z
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Targeting reticle */}
+          <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center">
+            <svg width="48" height="48" viewBox="0 0 100 100" className="text-amber-500 animate-spin [animation-duration:9s]">
+              <circle cx="50" cy="50" r="27" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="8 6" />
+              <circle cx="50" cy="50" r="5" fill="currentColor" />
+              <line x1="50" y1="13" x2="50" y2="36" stroke="currentColor" strokeWidth="2" />
+              <line x1="50" y1="64" x2="50" y2="87" stroke="currentColor" strokeWidth="2" />
+              <line x1="13" y1="50" x2="36" y2="50" stroke="currentColor" strokeWidth="2" />
+              <line x1="64" y1="50" x2="87" y2="50" stroke="currentColor" strokeWidth="2" />
+              <path d="M22,38 L22,22 L38,22" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="M62,22 L78,22 L78,38" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="M22,62 L22,78 L38,78" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="M62,78 L78,78 L78,62" fill="none" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-amber-300 font-mono uppercase tracking-wide truncate leading-tight">
+              {typeName}
+            </div>
+            <div className="text-xs text-amber-500 font-mono mt-0.5">
+              {primary.callsign ?? primary.icao24.toUpperCase()} · {primary.distanceMiles.toFixed(1)} mi
+              {primary.velocity != null && ` · ${Math.round(primary.velocity * 1.944)} kts`}
+            </div>
+            {flights.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {flights.slice(1).map(f => (
+                  <button key={f.icao24} onClick={() => onTrack(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                    className="text-[10px] font-mono text-amber-700 hover:text-amber-500 transition-colors">
+                    {f.callsign ?? f.icao24.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2 text-[10px] text-amber-700 italic font-mono border-t border-amber-900/60 pt-1.5">
+          "{TOP_GUN_QUIPS[quipIdx]}"
+        </div>
+
+        <button
+          onClick={() => onTrack(isTracking ? null : primary.icao24)}
+          className={`mt-2 w-full text-[11px] font-mono font-bold px-3 py-1.5 rounded border transition-all uppercase tracking-[0.15em] ${
+            isTracking
+              ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20 hover:border-amber-400/50 hover:text-amber-300'
+          }`}
+        >
+          {isTracking ? '✓  Tracking' : '⊕  Lock On'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function StatsTab() {
   const [stats, setStats] = useState<{ date: string; fresh: number; cached: number }[] | null>(null);
@@ -435,6 +537,15 @@ function Dashboard({ lat, lon, dev }: { lat: number; lon: number; dev: boolean }
   const policeFlights = useMemo(() =>
     flights.filter(f => f.isPolice),
     [flights]
+  );
+
+  // Fighter/attack aircraft — shown in normal mode with special alert
+  const topGunFlights = useMemo(() =>
+    !militaryMode ? flights.filter(f => {
+      const cat = categorizeAircraft(f.aircraftType);
+      return !f.isPolice && (cat === 'fighter' || cat === 'attack');
+    }) : [],
+    [flights, militaryMode]
   );
 
   // Filter flights by active categories
@@ -835,6 +946,11 @@ function Dashboard({ lat, lon, dev }: { lat: number; lon: number; dev: boolean }
               </button>
             )}
           </div>
+
+          {/* Top Gun alert — fighter/attack aircraft in normal mode */}
+          {fullscreenPanel === null && topGunFlights.length > 0 && (
+            <TopGunAlert flights={topGunFlights} selectedFlight={selectedFlight} onTrack={selectFlight} />
+          )}
 
           {/* Police alert — hidden in card fullscreen */}
           {fullscreenPanel === null && policeFlights.length > 0 && (

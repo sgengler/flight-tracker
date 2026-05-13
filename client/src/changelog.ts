@@ -9,6 +9,64 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.4.7',
+    date: '2026-05-12',
+    changes: [
+      'Added a Top Gun–style alert when a fighter or attack aircraft is detected nearby.',
+    ],
+  },
+  {
+    version: '0.4.6',
+    date: '2026-05-12',
+    changes: [
+      'Added dev mode (?dev=1) — returns dummy FlightAware routes so local testing never hits the live API.',
+    ],
+  },
+  {
+    version: '0.4.5',
+    date: '2026-05-12',
+    changes: [
+      'Network errors on FlightAware lookups are no longer cached — they retry like rate-limit responses.',
+    ],
+  },
+  {
+    version: '0.4.4',
+    date: '2026-05-12',
+    changes: [
+      'Nearby tab now shows the 10 closest flights and attempts route lookups for all of them.',
+    ],
+  },
+  {
+    version: '0.4.3',
+    date: '2026-05-12',
+    changes: [
+      'Rate-limited (429) and server-error FlightAware responses are no longer cached, so routes retry automatically.',
+    ],
+  },
+  {
+    version: '0.4.2',
+    date: '2026-05-12',
+    changes: [
+      'Stats tab now breaks down FlightAware lookups by cached vs. fresh per day.',
+    ],
+  },
+  {
+    version: '0.4.1',
+    date: '2026-05-12',
+    changes: [
+      'FlightAware route cache now lasts indefinitely — routes for known flights are never re-fetched.',
+    ],
+  },
+  {
+    version: '0.4.0',
+    date: '2026-05-12',
+    changes: [
+      'Removed FlightAware daily request cap.',
+      'Added Stats tab to monitor daily API usage.',
+      'Update script no longer clears the route cache on deploy.',
+    ],
+  },
+  {
     version: '0.3.1',
     date: '2026-05-12',
     changes: [
