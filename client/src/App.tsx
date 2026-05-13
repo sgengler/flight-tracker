@@ -355,13 +355,13 @@ function UpdateButton() {
   );
 }
 
-function Dashboard({ lat, lon }: { lat: number; lon: number }) {
+function Dashboard({ lat, lon, dev }: { lat: number; lon: number; dev: boolean }) {
   const [militaryMode, setMilitaryMode] = useState(false);
   const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog' | 'stats'>('nearby');
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
-  const { flights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal');
+  const { flights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev);
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
@@ -527,7 +527,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
     if (routeFetchAttemptedRef.current.has(f.icao24)) return;
     routeFetchAttemptedRef.current.add(f.icao24);
     let cancelled = false;
-    fetch(`/api/route?icao24=${encodeURIComponent(f.icao24)}&callsign=${encodeURIComponent(f.callsign)}`)
+    fetch(`/api/route?icao24=${encodeURIComponent(f.icao24)}&callsign=${encodeURIComponent(f.callsign)}${dev ? '&dev=1' : ''}`)
       .then(r => r.ok ? r.json() : null)
       .then((data: { route: RouteInfo | null } | null) => {
         if (cancelled || !data) return;
@@ -610,6 +610,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
                 </div>
               )}
               <div className="ml-auto flex items-center gap-2">
+                {dev && <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">DEV</span>}
                 <span className="text-[10px] font-mono text-slate-500 select-none" title="App version">{APP_VERSION}</span>
                 {fullscreenPanel === 'flights'
                   ? <CollapseBtn onClick={() => setFullscreenPanel(null)} />
@@ -991,6 +992,7 @@ function Dashboard({ lat, lon }: { lat: number; lon: number }) {
 export default function App() {
   const geo = useGeolocation();
   useAutoReload();
+  const dev = new URLSearchParams(window.location.search).get('dev') === '1';
 
-  return <Dashboard lat={geo.lat} lon={geo.lon} />;
+  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} />;
 }

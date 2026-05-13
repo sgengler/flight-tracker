@@ -79,7 +79,7 @@ app.get('/api/route', async (req, res) => {
     return;
   }
   try {
-    const route = await getCachedRoute(callsign, icao24, { interactive: true });
+    const route = await getCachedRoute(callsign, icao24, { interactive: true, dev: req.query.dev === '1' });
     res.json({ route });
   } catch {
     res.json({ route: null });
@@ -108,7 +108,7 @@ app.get('/api/flights/stream', (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering if proxied
   res.flushHeaders();
 
-  const unsubscribe = subscribe(lat, lon, res);
+  const unsubscribe = subscribe(lat, lon, res, req.query.dev === '1');
 
   req.on('close', () => {
     unsubscribe();

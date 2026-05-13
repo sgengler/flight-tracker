@@ -39,6 +39,7 @@ function isHelicopterType(typeCode: string | null): boolean {
 interface Session {
   lat: number;
   lon: number;
+  dev: boolean;
   clients: Set<Response>;
   interval: ReturnType<typeof setInterval>;
   lastFlight: FlightState | null;
@@ -87,7 +88,7 @@ async function poll(session: Session) {
         if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
         return;
       }
-      f.route = await getCachedRoute(f.callsign, f.icao24);
+      f.route = await getCachedRoute(f.callsign, f.icao24, { dev: session.dev });
     }));
 
     const flight = findClosestFlight(flights);
@@ -109,7 +110,7 @@ async function poll(session: Session) {
   }
 }
 
-export function subscribe(lat: number, lon: number, res: Response): () => void {
+export function subscribe(lat: number, lon: number, res: Response, dev = false): () => void {
   const key = sessionKey(lat, lon);
 
   let session = sessions.get(key);
@@ -117,6 +118,7 @@ export function subscribe(lat: number, lon: number, res: Response): () => void {
     session = {
       lat,
       lon,
+      dev,
       clients: new Set(),
       interval: setInterval(() => poll(session!), POLL_INTERVAL_MS),
       lastFlight: null,
@@ -184,6 +186,7 @@ export function subscribeMilitary(lat: number, lon: number, res: Response): () =
     session = {
       lat,
       lon,
+      dev: false,
       clients: new Set(),
       interval: setInterval(() => pollMilitary(session!), POLL_INTERVAL_MS),
       lastFlight: null,

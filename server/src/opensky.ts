@@ -480,7 +480,24 @@ export function getRouteFromCacheOnly(icao24: string, callsign: string): RouteIn
   return routeResultToInfo(cached.route);
 }
 
-export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean } = {}): Promise<RouteInfo | null> {
+const DEV_DUMMY_ROUTES: RouteInfo[] = [
+  { origin: 'KEWR', originCity: 'Newark',        destination: 'KLAX', destinationCity: 'Los Angeles',   airline: 'AAL' },
+  { origin: 'KATL', originCity: 'Atlanta',        destination: 'KORD', destinationCity: 'Chicago',       airline: 'DAL' },
+  { origin: 'KBOS', originCity: 'Boston',         destination: 'KMIA', destinationCity: 'Miami',         airline: 'JBU' },
+  { origin: 'KSFO', originCity: 'San Francisco',  destination: 'KJFK', destinationCity: 'New York',      airline: 'UAL' },
+  { origin: 'KPHL', originCity: 'Philadelphia',   destination: 'KDFW', destinationCity: 'Dallas',        airline: 'SWA' },
+  { origin: 'KDEN', originCity: 'Denver',         destination: 'KSEA', destinationCity: 'Seattle',       airline: 'SWA' },
+  { origin: 'KDFW', originCity: 'Dallas',         destination: 'KBOS', destinationCity: 'Boston',        airline: 'AAL' },
+  { origin: 'KMSP', originCity: 'Minneapolis',    destination: 'KLGA', destinationCity: 'New York',      airline: 'DAL' },
+];
+
+function devDummyRoute(callsign: string): RouteInfo {
+  const idx = callsign.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % DEV_DUMMY_ROUTES.length;
+  return DEV_DUMMY_ROUTES[idx];
+}
+
+export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean; dev?: boolean } = {}): Promise<RouteInfo | null> {
+  if (opts.dev) return devDummyRoute(callsign);
   const key = routeCacheKey(icao24, callsign);
   const cached = routeCache.get(key);
   if (cached) {
