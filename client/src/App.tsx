@@ -491,19 +491,19 @@ function StatsTab() {
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Fresh</div>
-            <div className="text-2xl font-mono font-semibold text-white">{todayFresh}</div>
+            <div className="text-2xl font-mono font-semibold text-white">{todayFresh.toLocaleString()}</div>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Cached</div>
-            <div className="text-2xl font-mono font-semibold text-slate-400">{todayCached}</div>
+            <div className="text-2xl font-mono font-semibold text-slate-400">{todayCached.toLocaleString()}</div>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Fresh</div>
-            <div className="text-xl font-mono font-semibold text-white">{totalFresh}</div>
+            <div className="text-xl font-mono font-semibold text-white">{totalFresh.toLocaleString()}</div>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Cached</div>
-            <div className="text-xl font-mono font-semibold text-slate-400">{totalCached}</div>
+            <div className="text-xl font-mono font-semibold text-slate-400">{totalCached.toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -522,8 +522,8 @@ function StatsTab() {
               {faHistory.map(d => (
                 <tr key={d.date} className={d.date === today ? 'text-white' : 'text-slate-400'}>
                   <td className="py-1 font-mono">{d.date}</td>
-                  <td className="py-1 text-right font-mono">{d.fresh}</td>
-                  <td className="py-1 text-right font-mono">{d.cached}</td>
+                  <td className="py-1 text-right font-mono">{d.fresh.toLocaleString()}</td>
+                  <td className="py-1 text-right font-mono">{d.cached.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
