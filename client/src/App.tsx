@@ -447,7 +447,7 @@ function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
         <div className="text-[10px] text-slate-500 mt-0.5">{speedDate}</div>
       </div>
       {info?.photoUrl && (
-        <img src={info.photoUrl} alt="Aircraft" className="w-28 h-full object-cover object-center flex-shrink-0" />
+        <img src={info.photoUrl} alt="Aircraft" className="w-36 h-full object-cover object-center flex-shrink-0" />
       )}
     </div>
   );
