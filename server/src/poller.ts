@@ -208,3 +208,11 @@ export function subscribeMilitary(lat: number, lon: number, res: Response): () =
     }
   };
 }
+
+export function broadcastTopGun() {
+  for (const session of sessions.values()) {
+    for (const client of session.clients) {
+      client.write('event: topgun\ndata: {}\n\n');
+    }
+  }
+}

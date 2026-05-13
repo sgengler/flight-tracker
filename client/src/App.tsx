@@ -634,7 +634,7 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
-  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev);
+  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev, () => { setTopGunTakeover(true); playRadarLock(); });
   // Delay injecting the dummy so the app looks normal for 5s before the alert fires
   const [topGunActive, setTopGunActive] = useState(false);
   useEffect(() => {

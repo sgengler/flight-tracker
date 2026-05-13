@@ -10,7 +10,7 @@ interface UseFlightStreamResult {
 
 const MAX_BACKOFF_MS = 30_000;
 
-export function useFlightStream(lat: number | null, lon: number | null, mode: 'normal' | 'military' = 'normal', dev = false): UseFlightStreamResult {
+export function useFlightStream(lat: number | null, lon: number | null, mode: 'normal' | 'military' = 'normal', dev = false, onTopGun?: () => void): UseFlightStreamResult {
   const [flight, setFlight] = useState<FlightState | null>(null);
   const [flights, setFlights] = useState<FlightState[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
@@ -69,6 +69,11 @@ export function useFlightStream(lat: number | null, lon: number | null, mode: 'n
           console.error('[SSE] parse error', e.data);
         }
       };
+
+      es.addEventListener('topgun', () => {
+        if (unmountedRef.current) return;
+        onTopGun?.();
+      });
 
       es.onerror = () => {
         if (unmountedRef.current) return;
