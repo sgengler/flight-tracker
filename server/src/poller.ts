@@ -33,7 +33,6 @@ const MILITARY_ICAO_RANGES: [number, number][] = [
   [0x3A0000, 0x3AFFFF], // German military
   [0x400000, 0x40003F], // UK military (Royal Air Force)
   [0x43E000, 0x43EFFF], // French military (additional)
-  [0x710000, 0x71FFFF], // Chinese military (PLAAF)
   [0x140000, 0x147FFF], // Russian military (some)
 ];
 
