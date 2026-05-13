@@ -6,7 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import { exec, spawn } from 'child_process';
-import { subscribe, subscribeMilitary, broadcastTopGun } from './poller';
+import { subscribe, subscribeMilitary, broadcastTopGun, broadcastTopGunDismiss } from './poller';
 import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute, getApiStats } from './opensky';
 
 const app = express();
@@ -121,6 +121,14 @@ app.post('/api/topgun', (req, res) => {
   const isLocal = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
   if (!isLocal) { res.status(403).json({ error: 'Forbidden' }); return; }
   broadcastTopGun();
+  res.json({ ok: true });
+});
+
+app.delete('/api/topgun', (req, res) => {
+  const addr = req.socket.remoteAddress ?? '';
+  const isLocal = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+  if (!isLocal) { res.status(403).json({ error: 'Forbidden' }); return; }
+  broadcastTopGunDismiss();
   res.json({ ok: true });
 });
 

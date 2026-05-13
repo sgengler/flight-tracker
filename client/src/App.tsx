@@ -224,14 +224,16 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
   const [exiting, setExiting] = useState(false);
   const dismissRef = useRef(onDismissModal);
   dismissRef.current = onDismissModal;
+  const prevTakeoverRef = useRef(false);
 
-  const handleDismiss = useRef(() => {
-    setExiting(true);
-    setTimeout(() => dismissRef.current(), 450);
-  });
-
+  // Play exit animation whenever takeover transitions true → false
   useEffect(() => {
+    if (!takeover && prevTakeoverRef.current) {
+      setExiting(true);
+      setTimeout(() => setExiting(false), 450);
+    }
     if (takeover) setExiting(false);
+    prevTakeoverRef.current = takeover;
   }, [takeover]);
 
   useEffect(() => {
@@ -239,7 +241,7 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
     setCountdown(10);
     const id = setInterval(() => {
       setCountdown(c => {
-        if (c <= 1) { clearInterval(id); handleDismiss.current(); return 0; }
+        if (c <= 1) { clearInterval(id); dismissRef.current(); return 0; }
         return c - 1;
       });
     }, 1000);
@@ -312,13 +314,13 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
           {/* Buttons */}
           <div className="flex gap-3 w-full">
             <button
-              onClick={() => { onTrack(isTracking ? null : primary.icao24); handleDismiss.current(); }}
+              onClick={() => { onTrack(isTracking ? null : primary.icao24); onDismissModal(); }}
               className="flex-1 text-sm font-mono font-black px-4 py-3 rounded border border-amber-400/70 bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 transition-all uppercase tracking-[0.2em]"
             >
               ⊕ Lock On
             </button>
             <button
-              onClick={() => handleDismiss.current()}
+              onClick={onDismissModal}
               className="flex-1 text-sm font-mono font-black px-4 py-3 rounded border border-amber-900/60 bg-transparent text-amber-700 hover:text-amber-500 hover:border-amber-700/60 transition-all uppercase tracking-[0.2em]"
             >
               Clear
@@ -634,7 +636,7 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
-  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev, () => { setTopGunTakeover(true); playRadarLock(); });
+  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev, () => { setTopGunTakeover(true); playRadarLock(); }, () => setTopGunTakeover(false));
   // Delay injecting the dummy so the app looks normal for 5s before the alert fires
   const [topGunActive, setTopGunActive] = useState(false);
   useEffect(() => {

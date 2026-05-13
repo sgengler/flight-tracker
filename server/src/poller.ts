@@ -216,3 +216,11 @@ export function broadcastTopGun() {
     }
   }
 }
+
+export function broadcastTopGunDismiss() {
+  for (const session of sessions.values()) {
+    for (const client of session.clients) {
+      client.write('event: topgun-dismiss\ndata: {}\n\n');
+    }
+  }
+}
