@@ -432,11 +432,8 @@ function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
   const speedDate = new Date(speedRecord.seenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="rounded-lg bg-slate-900/60 border border-white/5 overflow-hidden">
-      {info?.photoUrl && (
-        <img src={info.photoUrl} alt="Aircraft" className="w-full h-24 object-cover object-center" />
-      )}
-      <div className="px-3 py-2.5">
+    <div className="rounded-lg bg-slate-900/60 border border-white/5 flex items-stretch overflow-hidden">
+      <div className="px-3 py-2.5 flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-mono font-semibold text-white">{speedMph} mph</span>
           <span className="text-xs text-slate-500 font-mono">{speedKts} kts</span>
@@ -449,6 +446,9 @@ function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
         </div>
         <div className="text-[10px] text-slate-500 mt-0.5">{speedDate}</div>
       </div>
+      {info?.photoUrl && (
+        <img src={info.photoUrl} alt="Aircraft" className="w-28 h-full object-cover object-center flex-shrink-0" />
+      )}
     </div>
   );
 }
