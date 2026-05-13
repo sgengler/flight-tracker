@@ -258,7 +258,7 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
         {/* Vignette */}
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
 
-        <div className="relative flex flex-col items-center gap-5 px-8 py-12 max-w-md w-full">
+        <div className="relative flex flex-col items-center gap-3 px-8 py-6 max-w-md w-full">
           {/* Header */}
           <div className="flex items-center gap-3 w-full justify-center">
             <span className="relative flex h-3 w-3">
@@ -275,10 +275,10 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
 
           {/* Large reticle */}
           <div className="relative flex items-center justify-center">
-            <svg width="200" height="200" viewBox="0 0 100 100" className="text-amber-500 animate-spin [animation-duration:12s]">
+            <svg width="150" height="150" viewBox="0 0 100 100" className="text-amber-500 animate-spin [animation-duration:12s]">
               {RETICLE_SVG_PATHS}
             </svg>
-            <svg width="160" height="160" viewBox="0 0 100 100" className="text-amber-400/40 animate-spin absolute [animation-duration:7s] [animation-direction:reverse]">
+            <svg width="120" height="120" viewBox="0 0 100 100" className="text-amber-400/40 animate-spin absolute [animation-duration:7s] [animation-direction:reverse]">
               <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeWidth="0.8" strokeDasharray="3 9" />
             </svg>
           </div>
