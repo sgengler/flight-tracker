@@ -743,7 +743,16 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
     setTimeout(() => setTopGunDismissing(false), 500);
   });
   const prevTopGunCountRef = useRef(0);
+  const prevMilitaryModeRef = useRef(militaryMode);
   useEffect(() => {
+    // When military mode changes, reset all top gun state and skip detection for this cycle
+    if (prevMilitaryModeRef.current !== militaryMode) {
+      prevMilitaryModeRef.current = militaryMode;
+      prevTopGunCountRef.current = 0;
+      setTopGunTakeover(false);
+      setTopGunDismissing(false);
+      return;
+    }
     const count = topGunFlights.length;
     if (count > 0 && prevTopGunCountRef.current === 0) {
       setTopGunTakeover(true);
@@ -751,7 +760,7 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
     }
     if (count === 0 && prevTopGunCountRef.current > 0) dismissTopGunRef.current();
     prevTopGunCountRef.current = count;
-  }, [topGunFlights.length]);
+  }, [topGunFlights.length, militaryMode]);
 
   // Flights to show in the alert — real fighters if present, dummy otherwise
   const topGunAlertFlights = useMemo(() => {
