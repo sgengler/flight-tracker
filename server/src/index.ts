@@ -7,7 +7,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { exec, spawn } from 'child_process';
 import { subscribe, subscribeMilitary, broadcastTopGun, broadcastTopGunDismiss } from './poller';
-import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute, getApiStats } from './opensky';
+import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute, getApiStats, getSpeedRecord } from './opensky';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -48,7 +48,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.get('/api/stats', (_req, res) => {
-  res.json(getApiStats());
+  res.json({ faHistory: getApiStats(), speedRecord: getSpeedRecord() });
 });
 
 app.get('/api/version', (_req, res) => {

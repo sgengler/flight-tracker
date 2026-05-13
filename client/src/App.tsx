@@ -3,7 +3,7 @@ import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from './components/FlightMap';
-import { aircraftTypeName, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
+import { aircraftTypeName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
 import { RouteInfo, FlightState } from './types';
@@ -410,67 +410,105 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
   );
 }
 
+interface SpeedRecord {
+  velocityMs: number;
+  callsign: string | null;
+  icao24: string;
+  aircraftType: string | null;
+  seenAt: number;
+}
+
+interface StatsResponse {
+  faHistory: { date: string; fresh: number; cached: number }[];
+  speedRecord: SpeedRecord | null;
+}
+
 function StatsTab() {
-  const [stats, setStats] = useState<{ date: string; fresh: number; cached: number }[] | null>(null);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
 
   useEffect(() => {
     fetch('/api/stats')
       .then(r => r.ok ? r.json() : null)
-      .then((data: { date: string; fresh: number; cached: number }[] | null) => { if (data) setStats(data); })
+      .then((data: StatsResponse | null) => { if (data) setStats(data); })
       .catch(() => {});
   }, []);
 
   if (!stats) return <div className="px-3 py-3 text-xs text-slate-500">Loading…</div>;
-  if (stats.length === 0) return <div className="px-3 py-3 text-xs text-slate-500">No API calls recorded yet.</div>;
 
+  const { faHistory, speedRecord } = stats;
   const today = new Date().toISOString().slice(0, 10);
-  const todayEntry = stats.find(d => d.date === today);
+  const todayEntry = faHistory.find(d => d.date === today);
   const todayFresh = todayEntry?.fresh ?? 0;
   const todayCached = todayEntry?.cached ?? 0;
-  const totalFresh = stats.reduce((sum, d) => sum + d.fresh, 0);
-  const totalCached = stats.reduce((sum, d) => sum + d.cached, 0);
+  const totalFresh = faHistory.reduce((sum, d) => sum + d.fresh, 0);
+  const totalCached = faHistory.reduce((sum, d) => sum + d.cached, 0);
+
+  const speedMph = speedRecord ? Math.round(msToMph(speedRecord.velocityMs)).toLocaleString() : null;
+  const speedKts = speedRecord ? Math.round(speedRecord.velocityMs * 1.94384).toLocaleString() : null;
+  const speedLabel = speedRecord
+    ? (aircraftTypeName(speedRecord.aircraftType) ?? speedRecord.aircraftType ?? speedRecord.callsign ?? speedRecord.icao24)
+    : null;
+  const speedDate = speedRecord ? new Date(speedRecord.seenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null;
 
   return (
     <div className="p-3 flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Fresh</div>
-          <div className="text-2xl font-mono font-semibold text-white">{todayFresh}</div>
+      {speedRecord && (
+        <div>
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Speed Record</div>
+          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-mono font-semibold text-white">{speedMph} mph</span>
+              <span className="text-xs text-slate-500 font-mono">{speedKts} kts</span>
+            </div>
+            <div className="text-xs text-slate-300 mt-0.5">{speedLabel}{speedRecord.callsign && speedRecord.callsign !== speedLabel ? <span className="text-slate-500 ml-1">{speedRecord.callsign}</span> : null}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">{speedDate}</div>
+          </div>
         </div>
-        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Cached</div>
-          <div className="text-2xl font-mono font-semibold text-slate-400">{todayCached}</div>
-        </div>
-        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Fresh</div>
-          <div className="text-xl font-mono font-semibold text-white">{totalFresh}</div>
-        </div>
-        <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Cached</div>
-          <div className="text-xl font-mono font-semibold text-slate-400">{totalCached}</div>
-        </div>
-      </div>
+      )}
       <div>
-        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">FlightAware lookups by day</div>
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-slate-500 uppercase tracking-wider text-[10px]">
-              <th className="text-left font-medium pb-1.5">Date</th>
-              <th className="text-right font-medium pb-1.5">Fresh</th>
-              <th className="text-right font-medium pb-1.5">Cached</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {stats.map(d => (
-              <tr key={d.date} className={d.date === today ? 'text-white' : 'text-slate-400'}>
-                <td className="py-1 font-mono">{d.date}</td>
-                <td className="py-1 text-right font-mono">{d.fresh}</td>
-                <td className="py-1 text-right font-mono">{d.cached}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">FlightAware Lookups</div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Fresh</div>
+            <div className="text-2xl font-mono font-semibold text-white">{todayFresh}</div>
+          </div>
+          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Cached</div>
+            <div className="text-2xl font-mono font-semibold text-slate-400">{todayCached}</div>
+          </div>
+          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Fresh</div>
+            <div className="text-xl font-mono font-semibold text-white">{totalFresh}</div>
+          </div>
+          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Cached</div>
+            <div className="text-xl font-mono font-semibold text-slate-400">{totalCached}</div>
+          </div>
+        </div>
       </div>
+      {faHistory.length > 0 && (
+        <div>
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">By day</div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-500 uppercase tracking-wider text-[10px]">
+                <th className="text-left font-medium pb-1.5">Date</th>
+                <th className="text-right font-medium pb-1.5">Fresh</th>
+                <th className="text-right font-medium pb-1.5">Cached</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {faHistory.map(d => (
+                <tr key={d.date} className={d.date === today ? 'text-white' : 'text-slate-400'}>
+                  <td className="py-1 font-mono">{d.date}</td>
+                  <td className="py-1 text-right font-mono">{d.fresh}</td>
+                  <td className="py-1 text-right font-mono">{d.cached}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

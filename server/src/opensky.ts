@@ -373,6 +373,57 @@ export function getApiStats(): DailyCount[] {
   return [...faHistory].sort((a, b) => b.date.localeCompare(a.date));
 }
 
+// Speed record — fastest flight ever seen, persisted across restarts
+export interface SpeedRecord {
+  velocityMs: number;
+  callsign: string | null;
+  icao24: string;
+  aircraftType: string | null;
+  seenAt: number; // unix ms
+}
+
+const SPEED_FILE = path.resolve(__dirname, '../../cache/speed-record.json');
+let speedRecord: SpeedRecord | null = null;
+
+function loadSpeedRecord() {
+  try {
+    const raw = fs.readFileSync(SPEED_FILE, 'utf8');
+    speedRecord = JSON.parse(raw) as SpeedRecord;
+    console.log(`[speed record] Loaded: ${speedRecord.velocityMs.toFixed(1)} m/s (${speedRecord.callsign ?? speedRecord.icao24})`);
+  } catch {
+    // No record yet
+  }
+}
+
+function saveSpeedRecord() {
+  try {
+    fs.mkdirSync(path.dirname(SPEED_FILE), { recursive: true });
+    fs.writeFileSync(SPEED_FILE, JSON.stringify(speedRecord));
+  } catch (err) {
+    console.error('[speed record] Failed to save:', err);
+  }
+}
+
+loadSpeedRecord();
+
+export function getSpeedRecord(): SpeedRecord | null {
+  return speedRecord;
+}
+
+export function maybeUpdateSpeedRecord(flight: FlightState) {
+  if (flight.velocity == null) return;
+  if (speedRecord && flight.velocity <= speedRecord.velocityMs) return;
+  speedRecord = {
+    velocityMs: flight.velocity,
+    callsign: flight.callsign,
+    icao24: flight.icao24,
+    aircraftType: flight.aircraftType,
+    seenAt: Date.now(),
+  };
+  console.log(`[speed record] New record: ${speedRecord.velocityMs.toFixed(1)} m/s (${speedRecord.callsign ?? speedRecord.icao24})`);
+  saveSpeedRecord();
+}
+
 function quotaConsume() {
   todayEntry().fresh++;
   faHistory = faHistory.filter(h => h.date >= quotaCutoff());

@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getRouteFromCacheOnly, getCachedAircraftType, adsbFiIsRateLimited, FlightState } from './opensky';
+import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getRouteFromCacheOnly, getCachedAircraftType, adsbFiIsRateLimited, maybeUpdateSpeedRecord, FlightState } from './opensky';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -110,6 +110,8 @@ async function poll(session: Session) {
       f.route = await getCachedRoute(f.callsign, f.icao24, { dev: session.dev });
     }));
 
+    for (const f of flights) maybeUpdateSpeedRecord(f);
+
     const flight = findClosestFlight(flights);
     console.log(`[poller] closest: ${flight ? `${flight.callsign} @ ${flight.distanceMiles.toFixed(1)}mi` : 'none'}`);
     session.lastFlight = flight;
@@ -178,6 +180,8 @@ async function pollMilitary(session: Session) {
         if (!f.aircraftType && typeCode) f.aircraftType = typeCode;
       }
     }));
+
+    for (const f of flights) maybeUpdateSpeedRecord(f);
 
     const flight = findClosestFlight(flights);
     session.lastFlight = flight;

@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.5.0',
+    date: '2026-05-12',
+    changes: [
+      'Stats tab now shows the fastest flight speed ever recorded, including aircraft type and flight number.',
+    ],
+  },
+  {
     version: '0.4.9',
     date: '2026-05-12',
     changes: [
