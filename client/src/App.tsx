@@ -258,7 +258,7 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
         {/* Vignette */}
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%)' }} />
 
-        <div className="relative flex flex-col items-center gap-5 px-8 py-6 max-w-md w-full">
+        <div className="relative flex flex-col items-center gap-5 px-8 py-12 max-w-md w-full">
           {/* Header */}
           <div className="flex items-center gap-3 w-full justify-center">
             <span className="relative flex h-3 w-3">
