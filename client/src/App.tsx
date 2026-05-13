@@ -427,10 +427,15 @@ function StatsTab() {
   const [stats, setStats] = useState<StatsResponse | null>(null);
 
   useEffect(() => {
-    fetch('/api/stats')
-      .then(r => r.ok ? r.json() : null)
-      .then((data: StatsResponse | null) => { if (data) setStats(data); })
-      .catch(() => {});
+    function load() {
+      fetch('/api/stats')
+        .then(r => r.ok ? r.json() : null)
+        .then((data: StatsResponse | null) => { if (data) setStats(data); })
+        .catch(() => {});
+    }
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   if (!stats) return <div className="px-3 py-3 text-xs text-slate-500">Loading…</div>;
