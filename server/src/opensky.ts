@@ -422,6 +422,8 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
     if (!res.ok) {
       if (res.status === 429) faBackoffUntil.set(key, Date.now() + 60 * 60 * 1000);
       console.log(`[route] FlightAware ${key}: HTTP ${res.status} (${todayCount()} used today)`);
+      // Don't cache transient errors — return null so the caller skips caching and retries later.
+      if (res.status === 429 || res.status >= 500) return null;
       return empty;
     }
 
