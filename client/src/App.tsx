@@ -423,6 +423,36 @@ interface StatsResponse {
   speedRecord: SpeedRecord | null;
 }
 
+function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
+  const typeName = aircraftTypeName(speedRecord.aircraftType) ?? null;
+  const info = useFlightInfo(speedRecord.icao24, typeName);
+  const speedMph = Math.round(msToMph(speedRecord.velocityMs)).toLocaleString();
+  const speedKts = Math.round(speedRecord.velocityMs * 1.94384).toLocaleString();
+  const speedLabel = typeName ?? speedRecord.aircraftType ?? speedRecord.callsign ?? speedRecord.icao24;
+  const speedDate = new Date(speedRecord.seenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+  return (
+    <div className="rounded-lg bg-slate-900/60 border border-white/5 overflow-hidden">
+      {info?.photoUrl && (
+        <img src={info.photoUrl} alt="Aircraft" className="w-full h-24 object-cover object-center" />
+      )}
+      <div className="px-3 py-2.5">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-mono font-semibold text-white">{speedMph} mph</span>
+          <span className="text-xs text-slate-500 font-mono">{speedKts} kts</span>
+        </div>
+        <div className="text-xs text-slate-300 mt-0.5">
+          {speedLabel}
+          {speedRecord.callsign && speedRecord.callsign !== speedLabel
+            ? <span className="text-slate-500 ml-1">{speedRecord.callsign}</span>
+            : null}
+        </div>
+        <div className="text-[10px] text-slate-500 mt-0.5">{speedDate}</div>
+      </div>
+    </div>
+  );
+}
+
 function StatsTab() {
   const [stats, setStats] = useState<StatsResponse | null>(null);
 
@@ -448,26 +478,12 @@ function StatsTab() {
   const totalFresh = faHistory.reduce((sum, d) => sum + d.fresh, 0);
   const totalCached = faHistory.reduce((sum, d) => sum + d.cached, 0);
 
-  const speedMph = speedRecord ? Math.round(msToMph(speedRecord.velocityMs)).toLocaleString() : null;
-  const speedKts = speedRecord ? Math.round(speedRecord.velocityMs * 1.94384).toLocaleString() : null;
-  const speedLabel = speedRecord
-    ? (aircraftTypeName(speedRecord.aircraftType) ?? speedRecord.aircraftType ?? speedRecord.callsign ?? speedRecord.icao24)
-    : null;
-  const speedDate = speedRecord ? new Date(speedRecord.seenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null;
-
   return (
     <div className="p-3 flex flex-col gap-3">
       {speedRecord && (
         <div>
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Speed Record</div>
-          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2.5">
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-mono font-semibold text-white">{speedMph} mph</span>
-              <span className="text-xs text-slate-500 font-mono">{speedKts} kts</span>
-            </div>
-            <div className="text-xs text-slate-300 mt-0.5">{speedLabel}{speedRecord.callsign && speedRecord.callsign !== speedLabel ? <span className="text-slate-500 ml-1">{speedRecord.callsign}</span> : null}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">{speedDate}</div>
-          </div>
+          <SpeedRecordCard speedRecord={speedRecord} />
         </div>
       )}
       <div>
