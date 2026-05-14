@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import Database from 'better-sqlite3';
 
 // adsb.fi — primary source; adsb.lol is the fallback when adsb.fi rate-limits
 const ADSBFI_BASE   = 'https://opendata.adsb.fi/api';
@@ -263,38 +264,44 @@ interface RouteResult {
   arrival: string | null; arrivalCity: string | null;
   airline: string | null;
 }
-const routeCache = new Map<string, { route: RouteResult; fetchedAt: number }>();
 
-// Persist route cache to disk so FlightAware calls survive server restarts
-const CACHE_FILE = path.resolve(__dirname, '../../cache/routes.json');
+const DB_FILE = path.resolve(__dirname, '../../cache/routes.db');
+fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+const db = new Database(DB_FILE);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS routes (
+    key        TEXT PRIMARY KEY,
+    departure  TEXT,
+    dep_city   TEXT,
+    arrival    TEXT,
+    arr_city   TEXT,
+    airline    TEXT,
+    fetched_at INTEGER
+  )
+`);
 
-function loadRouteCache() {
-  try {
-    const raw = fs.readFileSync(CACHE_FILE, 'utf8');
-    const entries = JSON.parse(raw) as [string, { route: RouteResult; fetchedAt: number }][];
-    for (const [key, value] of entries) {
-      routeCache.set(key, value);
-    }
-    console.log(`[route cache] Loaded ${routeCache.size} entries from disk`);
-  } catch {
-    // File doesn't exist yet or is corrupt — start fresh
-  }
+const stmtGet    = db.prepare<[string], { departure: string | null; dep_city: string | null; arrival: string | null; arr_city: string | null; airline: string | null; fetched_at: number }>
+  ('SELECT departure, dep_city, arrival, arr_city, airline, fetched_at FROM routes WHERE key = ?');
+const stmtUpsert = db.prepare(
+  'INSERT OR REPLACE INTO routes (key, departure, dep_city, arrival, arr_city, airline, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+);
+const stmtDelete = db.prepare('DELETE FROM routes WHERE key = ?');
+const stmtCount  = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM routes');
+
+function dbGet(key: string): { route: RouteResult; fetchedAt: number } | undefined {
+  const row = stmtGet.get(key);
+  if (!row) return undefined;
+  return {
+    route: { departure: row.departure, departureCity: row.dep_city, arrival: row.arrival, arrivalCity: row.arr_city, airline: row.airline },
+    fetchedAt: row.fetched_at,
+  };
 }
 
-function saveRouteCache() {
-  const data = JSON.stringify([...routeCache.entries()]);
-  fs.mkdir(path.dirname(CACHE_FILE), { recursive: true }, () => {
-    fs.writeFile(CACHE_FILE, data, err => {
-      if (err) console.error('[route cache] Failed to save:', err);
-    });
-  });
+function dbSet(key: string, route: RouteResult, fetchedAt: number) {
+  stmtUpsert.run(key, route.departure, route.departureCity, route.arrival, route.arrivalCity, route.airline, fetchedAt);
 }
 
-// Load on startup, save every 5 minutes and on process exit
-loadRouteCache();
-setInterval(saveRouteCache, 5 * 60 * 1000);
-process.on('SIGTERM', () => { saveRouteCache(); process.exit(0); });
-process.on('SIGINT',  () => { saveRouteCache(); process.exit(0); });
+console.log(`[route cache] SQLite DB open, ${stmtCount.get()!.n} entries`);
 
 type FAFlight = {
   origin?: { code?: string; code_icao?: string; code_iata?: string; city?: string };
@@ -374,7 +381,7 @@ export function getApiStats(): DailyCount[] {
 }
 
 export function getCacheSize(): number {
-  return routeCache.size;
+  return stmtCount.get()!.n;
 }
 
 // Speed record — fastest flight ever seen, persisted across restarts
@@ -525,12 +532,11 @@ function routeCacheKey(icao24: string, callsign: string): string {
   return `${icao24.toLowerCase()}:${callsign.trim().toUpperCase()}`;
 }
 
-// Returns a cached route if present and fresh, else null. Never makes a
-// network call — used for non-closest flights where we don't want to spend
-// FlightAware quota.
+// Returns a cached route if present, else null. Never makes a network call —
+// used for non-closest flights where we don't want to spend FlightAware quota.
 export function getRouteFromCacheOnly(icao24: string, callsign: string): RouteInfo | null {
   const key = routeCacheKey(icao24, callsign);
-  const cached = routeCache.get(key);
+  const cached = dbGet(key);
   if (!cached) return null;
   return routeResultToInfo(cached.route);
 }
@@ -555,10 +561,10 @@ export async function getCachedRoute(callsign: string, icao24: string, opts: { i
   if (opts.dev) return devDummyRoute(callsign);
   const key = routeCacheKey(icao24, callsign);
   if (opts.force) {
-    routeCache.delete(key);
+    stmtDelete.run(key);
     console.log(`[route] cache busted: ${callsign ?? icao24}`);
   } else {
-    const cached = routeCache.get(key);
+    const cached = dbGet(key);
     if (cached) {
       cacheHitConsume();
       const r = cached.route;
@@ -576,8 +582,7 @@ export async function getCachedRoute(callsign: string, icao24: string, opts: { i
   // Only cache when FA was actually contacted. null means lookup was skipped
   // (quota hit, no API key, backoff) — don't poison the cache in that case.
   if (route !== null) {
-    routeCache.set(key, { route, fetchedAt: Date.now() });
-    saveRouteCache();
+    dbSet(key, route, Date.now());
   }
   return route !== null ? routeResultToInfo(route) : null;
 }

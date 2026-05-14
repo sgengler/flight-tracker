@@ -31,7 +31,7 @@ echo "[$(date)] New commits found — pulling and rebuilding..."
 git pull origin main
 
 echo "[$(date)] Installing dependencies..."
-npm install --ignore-scripts
+npm install
 
 echo "[$(date)] Building server..."
 npm run build -w server
