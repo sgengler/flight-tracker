@@ -32,6 +32,7 @@ git pull origin main
 
 echo "[$(date)] Installing dependencies..."
 npm install
+npm rebuild better-sqlite3
 
 echo "[$(date)] Building server..."
 npm run build -w server
