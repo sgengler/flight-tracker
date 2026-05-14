@@ -31,8 +31,13 @@ echo "[$(date)] New commits found — pulling and rebuilding..."
 git pull origin main
 
 echo "[$(date)] Installing dependencies..."
+LOCK_BEFORE=$(git show HEAD~1:package-lock.json 2>/dev/null | md5sum || echo "none")
+LOCK_AFTER=$(md5sum package-lock.json)
 npm install
-npm rebuild better-sqlite3
+if [ "$LOCK_BEFORE" != "$LOCK_AFTER" ]; then
+  echo "[$(date)] package-lock.json changed — rebuilding native modules..."
+  npm rebuild better-sqlite3
+fi
 
 echo "[$(date)] Building server..."
 npm run build -w server
