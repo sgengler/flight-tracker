@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.5.1',
+    date: '2026-05-13',
+    changes: [
+      'Stats tab now shows the number of unique cached routes instead of cumulative cache-hit count.',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-05-12',
     changes: [

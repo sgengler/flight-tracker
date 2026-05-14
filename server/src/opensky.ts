@@ -373,6 +373,10 @@ export function getApiStats(): DailyCount[] {
   return [...faHistory].sort((a, b) => b.date.localeCompare(a.date));
 }
 
+export function getCacheSize(): number {
+  return routeCache.size;
+}
+
 // Speed record — fastest flight ever seen, persisted across restarts
 export interface SpeedRecord {
   velocityMs: number;

@@ -421,6 +421,7 @@ interface SpeedRecord {
 interface StatsResponse {
   faHistory: { date: string; fresh: number; cached: number }[];
   speedRecord: SpeedRecord | null;
+  cacheSize: number;
 }
 
 function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
@@ -470,13 +471,11 @@ function StatsTab() {
 
   if (!stats) return <div className="px-3 py-3 text-xs text-slate-500">Loading…</div>;
 
-  const { faHistory, speedRecord } = stats;
+  const { faHistory, speedRecord, cacheSize } = stats;
   const today = new Date().toISOString().slice(0, 10);
   const todayEntry = faHistory.find(d => d.date === today);
   const todayFresh = todayEntry?.fresh ?? 0;
-  const todayCached = todayEntry?.cached ?? 0;
   const totalFresh = faHistory.reduce((sum, d) => sum + d.fresh, 0);
-  const totalCached = faHistory.reduce((sum, d) => sum + d.cached, 0);
 
   return (
     <div className="p-3 flex flex-col gap-3">
@@ -494,16 +493,12 @@ function StatsTab() {
             <div className="text-2xl font-mono font-semibold text-white">{todayFresh.toLocaleString()}</div>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Cached</div>
-            <div className="text-2xl font-mono font-semibold text-slate-400">{todayCached.toLocaleString()}</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cached Routes</div>
+            <div className="text-2xl font-mono font-semibold text-slate-400">{cacheSize.toLocaleString()}</div>
           </div>
-          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+          <div className="col-span-2 rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Fresh</div>
             <div className="text-xl font-mono font-semibold text-white">{totalFresh.toLocaleString()}</div>
-          </div>
-          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Cached</div>
-            <div className="text-xl font-mono font-semibold text-slate-400">{totalCached.toLocaleString()}</div>
           </div>
         </div>
       </div>
