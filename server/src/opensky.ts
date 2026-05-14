@@ -421,8 +421,12 @@ export function getSpeedRecord(): SpeedRecord | null {
   return speedRecord;
 }
 
+// 1,000 kts in m/s — filters transponder glitches while allowing any real aircraft
+const MAX_PLAUSIBLE_SPEED_MS = 1000 * 0.514444;
+
 export function maybeUpdateSpeedRecord(flight: FlightState) {
   if (flight.velocity == null) return;
+  if (flight.velocity > MAX_PLAUSIBLE_SPEED_MS) return;
   if (speedRecord && flight.velocity <= speedRecord.velocityMs) return;
   speedRecord = {
     velocityMs: flight.velocity,
