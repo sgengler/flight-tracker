@@ -31,10 +31,10 @@ echo "[$(date)] New commits found — pulling and rebuilding..."
 git pull origin main
 
 echo "[$(date)] Installing dependencies..."
-npm install
+npm install --ignore-scripts
 
-echo "[$(date)] Building server and client..."
-npm run build
+echo "[$(date)] Building server..."
+npm run build -w server
 
 echo "[$(date)] Restarting server..."
 pm2 restart flight-tracker
