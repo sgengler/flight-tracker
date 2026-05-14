@@ -532,14 +532,14 @@ function routeResultToInfo(r: RouteResult): RouteInfo | null {
   };
 }
 
-function routeCacheKey(icao24: string, callsign: string): string {
-  return `${icao24.toLowerCase()}:${callsign.trim().toUpperCase()}`;
+function routeCacheKey(callsign: string): string {
+  return callsign.trim().toUpperCase();
 }
 
 // Returns a cached route if present, else null. Never makes a network call —
 // used for non-closest flights where we don't want to spend FlightAware quota.
-export function getRouteFromCacheOnly(icao24: string, callsign: string): RouteInfo | null {
-  const key = routeCacheKey(icao24, callsign);
+export function getRouteFromCacheOnly(_icao24: string, callsign: string): RouteInfo | null {
+  const key = routeCacheKey(callsign);
   const cached = dbGet(key);
   if (!cached) return null;
   return routeResultToInfo(cached.route);
@@ -561,22 +561,22 @@ function devDummyRoute(callsign: string): RouteInfo {
   return DEV_DUMMY_ROUTES[idx];
 }
 
-export async function getCachedRoute(callsign: string, icao24: string, opts: { interactive?: boolean; dev?: boolean; force?: boolean } = {}): Promise<RouteInfo | null> {
+export async function getCachedRoute(callsign: string, _icao24: string, opts: { interactive?: boolean; dev?: boolean; force?: boolean } = {}): Promise<RouteInfo | null> {
   if (opts.dev) return devDummyRoute(callsign);
-  const key = routeCacheKey(icao24, callsign);
+  const key = routeCacheKey(callsign);
   if (opts.force) {
     stmtDelete.run(key);
-    console.log(`[route] cache busted: ${callsign ?? icao24}`);
+    console.log(`[route] cache busted: ${callsign}`);
   } else {
     const cached = dbGet(key);
     if (cached) {
       cacheHitConsume();
       const r = cached.route;
       if (!r.departure || !r.arrival) {
-        console.log(`[route] cache hit (no route): ${callsign ?? icao24}`);
+        console.log(`[route] cache hit (no route): ${callsign}`);
         return null;
       }
-      console.log(`[route] cache hit: ${callsign ?? icao24} → ${r.departure}→${r.arrival}`);
+      console.log(`[route] cache hit: ${callsign} → ${r.departure}→${r.arrival}`);
       return routeResultToInfo(r);
     }
   }
