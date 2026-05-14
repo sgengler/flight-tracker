@@ -288,6 +288,19 @@ const stmtUpsert = db.prepare(
 const stmtDelete = db.prepare('DELETE FROM routes WHERE key = ?');
 const stmtCount  = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM routes');
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS fa_misses (
+    ts     INTEGER,
+    key    TEXT,
+    reason TEXT
+  )
+`);
+const stmtMiss = db.prepare('INSERT INTO fa_misses (ts, key, reason) VALUES (?, ?, ?)');
+
+function logMiss(key: string, reason: string) {
+  stmtMiss.run(Date.now(), key, reason);
+}
+
 function dbGet(key: string): { route: RouteResult; fetchedAt: number } | undefined {
   const row = stmtGet.get(key);
   if (!row) return undefined;
@@ -472,6 +485,7 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
 
   if (looksLikeRegistration(key)) {
     console.log(`[route] FlightAware ${key}: skipped (looks like registration)`);
+    logMiss(key, 'registration');
     return empty;
   }
 
@@ -490,6 +504,7 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
       console.log(`[route] FlightAware ${key}: HTTP ${res.status} (${todayCount()} used today)`);
       // Don't cache transient errors — return null so the caller skips caching and retries later.
       if (res.status === 429 || res.status >= 500) return null;
+      logMiss(key, `http_${res.status}`);
       return empty;
     }
 
@@ -503,6 +518,7 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
 
     if (!depCode || !arrCode) {
       console.log(`[route] FlightAware ${key}: no origin/dest in ${flights.length} result(s)`, JSON.stringify(flight?.origin), JSON.stringify(flight?.destination));
+      logMiss(key, flights.length === 0 ? 'no_flights' : 'no_route');
       return empty;
     }
 
