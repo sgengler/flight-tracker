@@ -701,17 +701,23 @@ async function fetchWikipediaThumbnail(title: string): Promise<string | null> {
   }
 }
 
-export async function fetchPlanePhoto(icao24: string, typeName?: string | null): Promise<string | null> {
-  // Try planespotters.net first (specific photo of this aircraft)
-  try {
-    const res = await fetch(`https://api.planespotters.net/pub/photos/hex/${icao24.toLowerCase()}`);
-    if (res.ok) {
-      const data = await res.json() as { photos: Array<{ thumbnail_large: { src: string } }> };
-      const url = data.photos?.[0]?.thumbnail_large?.src ?? null;
-      if (url) return url;
+export async function fetchPlanePhoto(icao24: string, typeName?: string | null, registration?: string | null): Promise<string | null> {
+  // Try planespotters.net by hex first, then by registration (helps military/unusual aircraft)
+  const planespottersTargets = [
+    `https://api.planespotters.net/pub/photos/hex/${icao24.toLowerCase()}`,
+    ...(registration ? [`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(registration)}`] : []),
+  ];
+  for (const url of planespottersTargets) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json() as { photos: Array<{ thumbnail_large: { src: string } }> };
+        const photoUrl = data.photos?.[0]?.thumbnail_large?.src ?? null;
+        if (photoUrl) return photoUrl;
+      }
+    } catch {
+      // fall through to next source
     }
-  } catch {
-    // fall through to next source
   }
 
   // Wikipedia type-photo fallback. Try in order:

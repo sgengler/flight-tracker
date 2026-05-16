@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.5.4',
+    date: '2026-05-16',
+    changes: [
+      'Aircraft photos now fall back to a registration-based lookup on Planespotters, improving coverage for military and other aircraft not indexed by hex code.',
+      'Added Cessna 206 / T206 Stationair to the type name table so it resolves a Wikipedia photo.',
+    ],
+  },
+  {
     version: '0.5.3',
     date: '2026-05-16',
     changes: [

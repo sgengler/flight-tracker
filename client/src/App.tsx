@@ -520,7 +520,7 @@ interface StatsResponse {
 
 function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
   const typeName = aircraftTypeName(speedRecord.aircraftType) ?? null;
-  const info = useFlightInfo(speedRecord.icao24, typeName);
+  const info = useFlightInfo(speedRecord.icao24, typeName, speedRecord.callsign);
   const speedMph = Math.round(msToMph(speedRecord.velocityMs)).toLocaleString();
   const speedKts = Math.round(speedRecord.velocityMs * 1.94384).toLocaleString();
   const speedLabel = typeName ?? speedRecord.aircraftType ?? speedRecord.callsign ?? speedRecord.icao24;
@@ -1060,7 +1060,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
     return () => { cancelled = true; };
   }, [selectedIcao, baseSelectedFlight?.icao24, baseSelectedFlight?.callsign, baseSelectedFlight?.route]);
 
-  const info = useFlightInfo(selectedFlight?.icao24 ?? null, selectedFlight?.aircraftType ? (aircraftTypeName(selectedFlight.aircraftType) ?? null) : null);
+  const info = useFlightInfo(selectedFlight?.icao24 ?? null, selectedFlight?.aircraftType ? (aircraftTypeName(selectedFlight.aircraftType) ?? null) : null, selectedFlight?.callsign ?? null);
 
   return (
     <div className="h-full flex flex-col bg-slate-900 relative">

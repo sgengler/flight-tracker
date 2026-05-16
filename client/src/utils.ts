@@ -160,6 +160,7 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   C172: 'Cessna 172 Skyhawk', C177: 'Cessna 177 Cardinal',
   C182: 'Cessna 182 Skylane', C82R: 'Cessna 182RG Skylane',
   C208: 'Cessna 208 Caravan', C210: 'Cessna 210 Centurion',
+  C206: 'Cessna 206 Stationair', T206: 'Cessna 206 Stationair',
   C310: 'Cessna 310', C402: 'Cessna 402',
   P28A: 'Piper PA-28 Cherokee', P28B: 'Piper PA-28 Arrow',
   PA30: 'Piper PA-30 Twin Comanche', PA31: 'Piper PA-31 Navajo',
