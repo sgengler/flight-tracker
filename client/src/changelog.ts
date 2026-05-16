@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.5.3',
+    date: '2026-05-16',
+    changes: [
+      'Warbird / vintage aircraft are now identified and shown in orange with a WWII fighter silhouette — P-51, B-17, Corsair, Spitfire, and 30+ others.',
+      'A "Warbird Spotted" sidebar alert appears when a vintage aircraft enters the area.',
+      'Warbirds have their own filter toggle and legend entry.',
+      'Speed record now requires 3 consistent readings before updating — filters out transponder glitches.',
+    ],
+  },
+  {
     version: '0.5.2',
     date: '2026-05-14',
     changes: [

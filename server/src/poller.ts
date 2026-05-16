@@ -3,6 +3,21 @@ import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedR
 
 const POLL_INTERVAL_MS = 15_000;
 
+// Vintage warbird type codes — no commercial routes
+const WARBIRD_TYPE_CODES = new Set([
+  'P51','P51D','P38','P38L','P40','P40N','P47','P47D',
+  'F4U','F4U1','F6F','FM2','ZERO',
+  'ME09','FW19','SPIT','HURI','YAK3','YAK9',
+  'AT6','SNJ','PT17','B17','B25','SBD','TBF','A26',
+  'DC3','C47','BE18',
+  'F86','F86D','F86F','MIG15',
+  'T28','T28A','T34',
+]);
+
+function isWarbirdType(typeCode: string | null): boolean {
+  return typeCode != null && WARBIRD_TYPE_CODES.has(typeCode.toUpperCase());
+}
+
 // Military-only type codes — FlightAware has no commercial routes for these
 const MILITARY_TYPE_CODES = new Set([
   'F14','F15','F16','F18','FA18','F22','F35','F117','F5',
@@ -103,7 +118,7 @@ async function poll(session: Session) {
 
     // Top 10 flights may trigger FlightAware lookups
     await Promise.all(flights.slice(0, 10).map(async f => {
-      if (!f.callsign || f.isPolice || isMilitaryType(f.aircraftType) || isHelicopterType(f.aircraftType) || isMilitaryIcao(f.icao24)) {
+      if (!f.callsign || f.isPolice || isMilitaryType(f.aircraftType) || isWarbirdType(f.aircraftType) || isHelicopterType(f.aircraftType) || isMilitaryIcao(f.icao24)) {
         if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
         return;
       }
@@ -244,6 +259,22 @@ export function broadcastTopGunDismiss() {
   for (const session of sessions.values()) {
     for (const client of session.clients) {
       client.write('event: topgun-dismiss\ndata: {}\n\n');
+    }
+  }
+}
+
+export function broadcastWarbird() {
+  for (const session of sessions.values()) {
+    for (const client of session.clients) {
+      client.write('event: warbird\ndata: {}\n\n');
+    }
+  }
+}
+
+export function broadcastWarbirdDismiss() {
+  for (const session of sessions.values()) {
+    for (const client of session.clients) {
+      client.write('event: warbird-dismiss\ndata: {}\n\n');
     }
   }
 }

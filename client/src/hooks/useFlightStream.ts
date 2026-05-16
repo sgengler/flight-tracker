@@ -10,7 +10,7 @@ interface UseFlightStreamResult {
 
 const MAX_BACKOFF_MS = 30_000;
 
-export function useFlightStream(lat: number | null, lon: number | null, mode: 'normal' | 'military' = 'normal', dev = false, onTopGun?: () => void, onTopGunDismiss?: () => void): UseFlightStreamResult {
+export function useFlightStream(lat: number | null, lon: number | null, mode: 'normal' | 'military' = 'normal', dev = false, onTopGun?: () => void, onTopGunDismiss?: () => void, onWarbird?: () => void, onWarbirdDismiss?: () => void): UseFlightStreamResult {
   const [flight, setFlight] = useState<FlightState | null>(null);
   const [flights, setFlights] = useState<FlightState[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
@@ -78,6 +78,16 @@ export function useFlightStream(lat: number | null, lon: number | null, mode: 'n
       es.addEventListener('topgun-dismiss', () => {
         if (unmountedRef.current) return;
         onTopGunDismiss?.();
+      });
+
+      es.addEventListener('warbird', () => {
+        if (unmountedRef.current) return;
+        onWarbird?.();
+      });
+
+      es.addEventListener('warbird-dismiss', () => {
+        if (unmountedRef.current) return;
+        onWarbirdDismiss?.();
       });
 
       es.onerror = () => {

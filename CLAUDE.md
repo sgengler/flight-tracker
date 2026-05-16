@@ -28,3 +28,8 @@ Whenever the user asks you to commit code, decide — without prompting — whet
 6. Include the changelog edit in the same commit as the change it describes.
 
 If you're unsure whether a change is user-visible, lean toward bumping — a small extra entry is cheaper than a missing one.
+
+## Skills
+
+- **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
+  When the user types `/graphify`, invoke the Skill tool with `skill: "graphify"` before doing anything else.

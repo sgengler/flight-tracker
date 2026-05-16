@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
-import { FlightMap, categorizeAircraft, MILITARY_CATS, AircraftCategory } from './components/FlightMap';
+import { FlightMap, categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory } from './components/FlightMap';
 import { aircraftTypeName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
@@ -29,10 +29,10 @@ function useGeolocation(): GeoState {
 }
 
 
-type FilterCategory = 'jet' | 'prop' | 'small' | 'heli' | 'military' | 'police'
+type FilterCategory = 'jet' | 'prop' | 'small' | 'heli' | 'military' | 'police' | 'warbird'
   | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli';
 
-const NORMAL_CATEGORIES = new Set<FilterCategory>(['jet', 'prop', 'small', 'heli', 'military', 'police']);
+const NORMAL_CATEGORIES = new Set<FilterCategory>(['jet', 'prop', 'small', 'heli', 'military', 'police', 'warbird']);
 const MILITARY_CATEGORIES = new Set<FilterCategory>(['fighter', 'bomber', 'transport', 'attack', 'uav', 'mil-heli']);
 
 const LEGEND_ENTRIES: { category: FilterCategory; label: string; desc: string; svg: string }[] = [
@@ -71,6 +71,12 @@ const LEGEND_ENTRIES: { category: FilterCategory; label: string; desc: string; s
     label: 'Police / Law Enforcement',
     desc: 'Police, sheriff & public safety aircraft',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z" fill="#60a5fa" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+  },
+  {
+    category: 'warbird',
+    label: 'Warbird / Vintage',
+    desc: 'WWII-era aircraft: P-51, B-17, Corsair, Spitfire…',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52"><path d="M0,-22 L1.5,-14 L2.5,-5 L17,4 L15,8 L2.5,4 L3,12 L6,14 L5,17 L0,16 L-5,17 L-6,14 L-3,12 L-2.5,4 L-15,8 L-17,4 L-2.5,-5 L-1.5,-14 Z" fill="#fb923c" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
   },
 ];
 
@@ -122,6 +128,7 @@ const ICON_PATHS: Partial<Record<AircraftCategory, string>> = {
   jet:       'M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z',
   prop:      'M0,-18 L3,-8 L3,-4 L16,0 L16,4 L3,3 L3,14 L7,15 L7,18 L0,16 L-7,18 L-7,15 L-3,14 L-3,3 L-16,4 L-16,0 L-3,-4 L-3,-8 Z',
   small:     'M0,-17 L2.5,-13 L2.5,-4 L14,0 L14,3.5 L2.5,1.5 L2.5,12 L5.5,13 L5.5,16 L0,17 L-5.5,16 L-5.5,13 L-2.5,12 L-2.5,1.5 L-14,3.5 L-14,0 L-2.5,-4 L-2.5,-13 Z',
+  warbird:   'M0,-22 L1.5,-14 L2.5,-5 L17,4 L15,8 L2.5,4 L3,12 L6,14 L5,17 L0,16 L-5,17 L-6,14 L-3,12 L-2.5,4 L-15,8 L-17,4 L-2.5,-5 L-1.5,-14 Z',
   fighter:   'M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z',
   bomber:    'M0,-13 L2,-7 L3,-1 L22,6 L21,10 L3,5 L2.5,13 L5.5,14 L5.5,17 L0,15 L-5.5,17 L-5.5,14 L-2.5,13 L-3,5 L-21,10 L-22,6 L-3,-1 L-2,-7 Z',
   transport: 'M0,-17 L3,-9 L5,-6 L20,2 L20,7 L5,2 L4,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-4,14 L-5,2 L-20,7 L-20,2 L-5,-6 L-3,-9 Z',
@@ -131,7 +138,8 @@ const ICON_PATHS: Partial<Record<AircraftCategory, string>> = {
 
 function CategoryIcon({ category, isPolice }: { category: AircraftCategory; isPolice: boolean }) {
   const isMil = MILITARY_CATS.has(category);
-  const color = isPolice ? '#60a5fa' : isMil ? '#4ade80' : 'currentColor';
+  const isWarbird = WARBIRD_CATS.has(category);
+  const color = isPolice ? '#60a5fa' : isMil ? '#4ade80' : isWarbird ? '#fb923c' : 'currentColor';
   const isHeli = category === 'heli' || category === 'mil-heli';
   const path = ICON_PATHS[category] ?? ICON_PATHS.jet!;
   return (
@@ -410,6 +418,92 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
   );
 }
 
+const WARBIRD_QUIPS = [
+  "Tally-ho! Bandits at twelve.",
+  "She's a long way from the Pacific.",
+  "They don't make 'em like this anymore.",
+  "Gear up. It's showtime.",
+  "Full power — press the attack.",
+  "Flying for the love of it since '43.",
+  "Brought to you by 100LL and nostalgia.",
+  "Cleared hot. Good hunting.",
+  "One pass, haul ass.",
+  "Flame on — let's go hunting.",
+];
+
+function WarbirdAlert({ flights, selectedFlight, onTrack }: {
+  flights: FlightState[];
+  selectedFlight: FlightState | null;
+  onTrack: (icao24: string | null) => void;
+}) {
+  const primary = flights[0];
+  const quipIdx = primary.icao24.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % WARBIRD_QUIPS.length;
+  const typeName = primary.aircraftType
+    ? (aircraftTypeName(primary.aircraftType) ?? primary.aircraftType.toUpperCase())
+    : 'VINTAGE AIRCRAFT';
+  const isTracking = primary.icao24 === selectedFlight?.icao24;
+
+  return (
+    <div className="flex-shrink-0 rounded-xl border border-orange-400/60 bg-black overflow-hidden relative">
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(0deg,#f97316 0,transparent 1px,transparent 18px),repeating-linear-gradient(90deg,#f97316 0,transparent 1px,transparent 18px)' }} />
+      <div className="relative px-3 py-2.5">
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="relative flex h-2 w-2 flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-400" />
+          </span>
+          <span className="text-[10px] font-bold text-orange-400 uppercase tracking-[0.2em] font-mono flex-1">
+            Warbird Spotted{flights.length > 1 ? ` (${flights.length})` : ''}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center">
+            <svg width="40" height="40" viewBox="-26 -26 52 52" className="text-orange-500 animate-spin [animation-duration:2s]">
+              <ellipse cx="0" cy="-18" rx="6" ry="1" fill="currentColor" opacity="0.9"/>
+              <ellipse cx="0" cy="18" rx="6" ry="1" fill="currentColor" opacity="0.9"/>
+              <ellipse cx="-18" cy="0" rx="1" ry="6" fill="currentColor" opacity="0.9"/>
+              <ellipse cx="18" cy="0" rx="1" ry="6" fill="currentColor" opacity="0.9"/>
+              <circle cx="0" cy="0" r="4" fill="currentColor"/>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-orange-300 font-mono uppercase tracking-wide truncate leading-tight">
+              {typeName}
+            </div>
+            <div className="text-xs text-orange-500 font-mono mt-0.5">
+              {primary.callsign ?? primary.icao24.toUpperCase()} · {primary.distanceMiles.toFixed(1)} mi
+              {primary.velocity != null && ` · ${Math.round(primary.velocity * 1.944)} kts`}
+            </div>
+            {flights.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {flights.slice(1).map(f => (
+                  <button key={f.icao24} onClick={() => onTrack(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                    className="text-[10px] font-mono text-orange-700 hover:text-orange-500 transition-colors">
+                    {f.callsign ?? f.icao24.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="mt-2 text-[10px] text-orange-700 italic font-mono border-t border-orange-900/60 pt-1.5">
+          "{WARBIRD_QUIPS[quipIdx]}"
+        </div>
+        <button
+          onClick={() => onTrack(isTracking ? null : primary.icao24)}
+          className={`mt-2 w-full text-[11px] font-mono font-bold px-3 py-1.5 rounded border transition-all uppercase tracking-[0.15em] ${
+            isTracking
+              ? 'bg-orange-500/20 border-orange-400/60 text-orange-300'
+              : 'bg-orange-500/10 border-orange-500/30 text-orange-500 hover:bg-orange-500/20 hover:border-orange-400/50 hover:text-orange-300'
+          }`}
+        >
+          {isTracking ? '✓  Tracking' : '⊕  Track'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface SpeedRecord {
   velocityMs: number;
   callsign: string | null;
@@ -577,6 +671,7 @@ function routeSkipReason(f: { callsign?: string | null; isPolice?: boolean; airc
   if (f.isPolice) return 'Police';
   const cat = categorizeAircraft(f.aircraftType ?? null);
   if (MILITARY_CATS.has(cat)) return 'Military';
+  if (cat === 'warbird') return 'Warbird';
   if (cat === 'heli' || cat === 'mil-heli') return 'Helicopter';
   if (!f.callsign) return 'No callsign';
   if (/^N\d/.test(f.callsign) || /^[A-Z]{1,2}-[A-Z0-9]{2,5}$/.test(f.callsign)) return 'Private';
@@ -684,25 +779,62 @@ const TOPGUN_DUMMY: FlightState = {
   isPolice: false,
 };
 
-function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: boolean; topgun: boolean }) {
+const WARBIRD_DUMMY: FlightState = {
+  icao24: '000001',
+  callsign: 'HURI1',
+  originCountry: 'United Kingdom',
+  latitude: 0, // filled in at render time
+  longitude: 0,
+  baroAltitude: 1500,
+  onGround: false,
+  velocity: 130,
+  trueTrack: 90,
+  verticalRate: 0,
+  geoAltitude: 1600,
+  distanceMiles: 2.1,
+  bearingDeg: 120,
+  route: null,
+  aircraftType: 'HURI',
+  isPolice: false,
+};
+
+function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: number; dev: boolean; topgun: boolean; warbird: boolean }) {
   const [militaryMode, setMilitaryMode] = useState(false);
   const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog' | 'stats'>('nearby');
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
-  const { flights: rawFlights, status } = useFlightStream(homeLat, homeLon, militaryMode ? 'military' : 'normal', dev, () => setTopGunActive(true), () => setTopGunActive(false));
   // Delay injecting the dummy so the app looks normal for 5s before the alert fires
   const [topGunActive, setTopGunActive] = useState(false);
+  const [warbirdActive, setWarbirdActive] = useState(false);
+  const { flights: rawFlights, status } = useFlightStream(
+    homeLat, homeLon, militaryMode ? 'military' : 'normal', dev,
+    () => setTopGunActive(true), () => setTopGunActive(false),
+    () => setWarbirdActive(true), () => setWarbirdActive(false),
+  );
   useEffect(() => {
     if (!topgun) return;
     const t = setTimeout(() => setTopGunActive(true), 5000);
     return () => clearTimeout(t);
   }, [topgun]);
+  useEffect(() => {
+    if (!warbird) return;
+    const t = setTimeout(() => setWarbirdActive(true), 5000);
+    return () => clearTimeout(t);
+  }, [warbird]);
   const flights = useMemo(() => {
-    if (!topGunActive || militaryMode) return rawFlights;
-    const dummy = { ...TOPGUN_DUMMY, latitude: homeLat + 0.04, longitude: homeLon + 0.04 };
-    return [dummy, ...rawFlights.filter(f => f.icao24 !== dummy.icao24)];
-  }, [rawFlights, topGunActive, militaryMode, homeLat, homeLon]);
+    if (militaryMode) return rawFlights;
+    let result = rawFlights;
+    if (topGunActive) {
+      const dummy = { ...TOPGUN_DUMMY, latitude: homeLat + 0.04, longitude: homeLon + 0.04 };
+      result = [dummy, ...result.filter(f => f.icao24 !== dummy.icao24)];
+    }
+    if (warbirdActive) {
+      const dummy = { ...WARBIRD_DUMMY, latitude: homeLat + 0.03, longitude: homeLon - 0.04 };
+      result = [...result.filter(f => f.icao24 !== dummy.icao24), dummy];
+    }
+    return result;
+  }, [rawFlights, topGunActive, warbirdActive, militaryMode, homeLat, homeLon]);
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
@@ -775,6 +907,12 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
   // Police aircraft present in the full (unfiltered) flight list
   const policeFlights = useMemo(() =>
     flights.filter(f => f.isPolice),
+    [flights]
+  );
+
+  // Warbird aircraft present in the full (unfiltered) flight list
+  const warbirdFlights = useMemo(() =>
+    flights.filter(f => !f.isPolice && categorizeAircraft(f.aircraftType) === 'warbird'),
     [flights]
   );
 
@@ -1232,6 +1370,15 @@ function Dashboard({ lat, lon, dev, topgun }: { lat: number; lon: number; dev: b
             />
           )}
 
+          {/* Warbird alert — vintage aircraft in normal mode */}
+          {fullscreenPanel === null && !militaryMode && warbirdFlights.length > 0 && (
+            <WarbirdAlert
+              flights={warbirdFlights}
+              selectedFlight={selectedFlight}
+              onTrack={selectFlight}
+            />
+          )}
+
           {/* Police alert — hidden in card fullscreen */}
           {fullscreenPanel === null && policeFlights.length > 0 && (
             <div className="flex-shrink-0 rounded-xl border border-blue-400/40 bg-blue-500/10 px-3 py-2">
@@ -1391,6 +1538,7 @@ export default function App() {
   const params = new URLSearchParams(window.location.search);
   const dev = params.get('dev') === '1';
   const topgun = params.get('topgun') === '1';
+  const warbird = params.get('warbird') === '1';
 
-  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} topgun={topgun} />;
+  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} topgun={topgun} warbird={warbird} />;
 }

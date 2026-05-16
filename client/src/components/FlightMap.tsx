@@ -30,6 +30,8 @@ const TRANSPORT_PATH = 'M0,-18 L3,-10 L5,-4 L20,2 L20,7 L5,2 L4,13 L8,15 L8,18 L
 const ATTACK_PATH    = 'M0,-19 L2,-12 L2.5,-2 L20,2 L20,6 L2.5,4 L4,12 L8,13 L7,16 L0,15 L-7,16 L-8,13 L-4,12 L-2.5,4 L-20,6 L-20,2 L-2.5,-2 L-2,-12 Z';
 // UAV (MQ-9/RQ-4 style): very high aspect ratio wings, V-tail
 const UAV_PATH       = 'M0,-11 L1,-6 L1.5,0 L25,4 L25,7 L1.5,3 L2,11 L5,13 L4,15 L0,14 L-4,15 L-5,13 L-2,11 L-1.5,3 L-25,7 L-25,4 L-1.5,0 L-1,-6 Z';
+// WWII fighter (P-51/Corsair style): long nose, moderately swept wings, single piston engine
+const WARBIRD_PATH   = 'M0,-22 L1.5,-14 L2.5,-5 L17,4 L15,8 L2.5,4 L3,12 L6,14 L5,17 L0,16 L-5,17 L-6,14 L-3,12 L-2.5,4 L-15,8 L-17,4 L-2.5,-5 L-1.5,-14 Z';
 
 function heliInnerSvg(color: string, filterAttr: string): string {
   const s = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
@@ -44,10 +46,12 @@ function heliInnerSvg(color: string, filterAttr: string): string {
   );
 }
 
-export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli';
+export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' | 'warbird';
 
 /** Military sub-categories used to pick icon shapes */
 export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 'bomber', 'transport', 'attack', 'uav', 'mil-heli']);
+/** Vintage/warbird aircraft category */
+export const WARBIRD_CATS: ReadonlySet<AircraftCategory> = new Set(['warbird']);
 
 function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' {
   if (['B52','B1B','B2'].includes(t)) return 'bomber';
@@ -67,7 +71,25 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
   if (!typeCode) return 'jet';
   const t = typeCode.toUpperCase();
 
-  // Military checked first so known military types (C17, H60, etc.) aren't
+  // Warbird checked first: HURI starts with 'H' and would otherwise be caught by
+  // the helicopter prefix check; other codes must be separated from military/civil.
+  const warbirdCodes = new Set([
+    // WWII fighters
+    'P51','P51D','P38','P38L','P40','P40N','P47','P47D',
+    'F4U','F4U1','F6F','FM2','ZERO',
+    'ME09','FW19','SPIT','HURI','YAK3','YAK9',
+    // WWII trainers & bombers
+    'AT6','SNJ','PT17','B17','B25','SBD','TBF','A26',
+    // WWII transports (civilian-registered warbirds)
+    'DC3','C47','BE18',
+    // Korean War & post-WWII classics
+    'F86','F86D','F86F','MIG15',
+    // Classic piston warbird trainers
+    'T28','T28A','T34',
+  ]);
+  if (warbirdCodes.has(t)) return 'warbird';
+
+  // Military checked next so known military types (C17, H60, etc.) aren't
   // misidentified as civilian Cessna 172 / generic H* helicopter prefixes.
   const militaryCodes = new Set([
     'F14','F15','F16','F18','FA18','F22','F35','F117','F5', // fighters / strike
@@ -147,18 +169,21 @@ export function categorizeAircraft(typeCode: string | null): AircraftCategory {
 function aircraftIcon(heading: number, selected: boolean, aircraftType: string | null, isPolice: boolean): L.DivIcon {
   const cat = categorizeAircraft(aircraftType);
   const isMil = MILITARY_CATS.has(cat);
-  const color = selected ? '#ef4444'
-    : isPolice ? '#60a5fa'   // blue-400
-    : isMil    ? '#4ade80'   // green-400
+  const isWarbird = cat === 'warbird';
+  const color = selected    ? '#ef4444'
+    : isPolice  ? '#60a5fa'   // blue-400
+    : isMil     ? '#4ade80'   // green-400
+    : isWarbird ? '#fb923c'   // orange-400
     : '#facc15';
-  const glowColor = selected ? 'rgba(239,68,68,0.8)'
-    : isPolice ? 'rgba(96,165,250,0.8)'
-    : isMil    ? 'rgba(74,222,128,0.8)'
+  const glowColor = selected    ? 'rgba(239,68,68,0.8)'
+    : isPolice  ? 'rgba(96,165,250,0.8)'
+    : isMil     ? 'rgba(74,222,128,0.8)'
+    : isWarbird ? 'rgba(251,146,60,0.8)'
     : 'rgba(0,0,0,0)';
-  const glow = (selected || isPolice || isMil)
+  const glow = (selected || isPolice || isMil || isWarbird)
     ? `<filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${glowColor}"/></filter>`
     : '';
-  const filterAttr = (selected || isPolice || isMil) ? 'filter="url(#glow)"' : '';
+  const filterAttr = (selected || isPolice || isMil || isWarbird) ? 'filter="url(#glow)"' : '';
   const shadow =
     '<filter id="sh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="6" dy="6" stdDeviation="0.5" flood-color="rgba(0,0,0,0.28)"/></filter>' +
     '<filter id="sh2" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="6" dy="6" stdDeviation="0.5" flood-color="rgba(0,0,0,0.28)"/></filter>';
@@ -175,6 +200,7 @@ function aircraftIcon(heading: number, selected: boolean, aircraftType: string |
       cat === 'transport' ? TRANSPORT_PATH :
       cat === 'attack'    ? ATTACK_PATH :
       cat === 'uav'       ? UAV_PATH :
+      cat === 'warbird'   ? WARBIRD_PATH :
       cat === 'fighter'   ? FIGHTER_PATH :
       JET_PATH;
     // Engine nacelle pods rendered on top of the wing fill for realistic silhouettes
@@ -202,6 +228,9 @@ function aircraftIcon(heading: number, selected: boolean, aircraftType: string |
     } else if (cat === 'attack') {
       // Twin rear-fuselage turbofan pods (A-10 style)
       nacelles = pod(5, 9, 1.3, 3) + pod(-5, 9, 1.3, 3);
+    } else if (cat === 'warbird') {
+      // Single radial/inline engine — spinning prop disc at nose tip
+      nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${color}" ${ns}/>`;
     }
     // Shadow on outer (unrotated) group so dx/dy stay fixed in screen space
     body = `<g filter="url(#${shadowId})"><g transform="rotate(${heading})"><path d="${planePath}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round" ${filterAttr}/>${nacelles}</g></g>`;
