@@ -39,6 +39,9 @@ if [ "$LOCK_BEFORE" != "$LOCK_AFTER" ]; then
   npm rebuild better-sqlite3
 fi
 
+echo "[$(date)] Building client..."
+npm run build -w client
+
 echo "[$(date)] Building server..."
 npm run build -w server
 
