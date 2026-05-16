@@ -3,7 +3,7 @@ import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory } from './components/FlightMap';
-import { aircraftTypeName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
+import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
 import { RouteInfo, FlightState } from './types';
@@ -234,7 +234,7 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
 }) {
   const primary = flights[0];
   const quipIdx = primary.icao24.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % TOP_GUN_QUIPS.length;
-  const typeName = primary.aircraftType ? (aircraftTypeName(primary.aircraftType) ?? primary.aircraftType.toUpperCase()) : 'UNKNOWN BOGEY';
+  const typeName = wellKnownAircraftName(primary.icao24) ?? (primary.aircraftType ? (aircraftTypeName(primary.aircraftType) ?? primary.aircraftType.toUpperCase()) : 'UNKNOWN BOGEY');
   const isTracking = primary.icao24 === selectedFlight?.icao24;
   const [countdown, setCountdown] = useState(10);
   const [exiting, setExiting] = useState(false);
@@ -446,9 +446,9 @@ function WarbirdAlert({ flights, selectedFlight, onTrack }: {
 }) {
   const primary = flights[0];
   const quipIdx = primary.icao24.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % WARBIRD_QUIPS.length;
-  const typeName = primary.aircraftType
+  const typeName = wellKnownAircraftName(primary.icao24) ?? (primary.aircraftType
     ? (aircraftTypeName(primary.aircraftType) ?? primary.aircraftType.toUpperCase())
-    : 'VINTAGE AIRCRAFT';
+    : 'VINTAGE AIRCRAFT');
   const isTracking = primary.icao24 === selectedFlight?.icao24;
 
   return (
@@ -527,7 +527,7 @@ interface StatsResponse {
 }
 
 function SpeedRecordCard({ speedRecord }: { speedRecord: SpeedRecord }) {
-  const typeName = aircraftTypeName(speedRecord.aircraftType) ?? null;
+  const typeName = wellKnownAircraftName(speedRecord.icao24) ?? aircraftTypeName(speedRecord.aircraftType) ?? null;
   const info = useFlightInfo(speedRecord.icao24, typeName, speedRecord.callsign);
   const speedMph = Math.round(msToMph(speedRecord.velocityMs)).toLocaleString();
   const speedKts = Math.round(speedRecord.velocityMs * 1.94384).toLocaleString();

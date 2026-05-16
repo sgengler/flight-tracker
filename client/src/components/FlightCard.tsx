@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlightState, RouteInfo } from '../types';
-import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, getCountryFromIcao } from '../utils';
+import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, wellKnownAircraftName, getCountryFromIcao } from '../utils';
 
 interface Props {
   flight: FlightState;
@@ -113,7 +113,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
               <span className="text-xs text-slate-400 font-mono">{flight.icao24.toUpperCase()}</span>
               {flight.aircraftType && (
                 <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
-                  {aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}
+                  {wellKnownAircraftName(flight.icao24) ?? aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}
                 </span>
               )}
               {flight.isPolice && (
@@ -252,7 +252,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono flex-wrap">
             {country && <><span className="text-base leading-none not-italic">{country.flag}</span><span className="font-sans not-italic text-slate-400">{country.name}</span><span className="text-slate-600">·</span></>}
             <span>{flight.icao24.toUpperCase()}</span>
-            {flight.aircraftType && <span className="not-italic font-sans text-slate-300"> · {aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
+            {flight.aircraftType && <span className="not-italic font-sans text-slate-300"> · {wellKnownAircraftName(flight.icao24) ?? aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
           </div>
         </div>
         {flight.trueTrack != null && (

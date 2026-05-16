@@ -263,6 +263,17 @@ export function aircraftTypeName(typeCode: string | null | undefined): string | 
   return AIRCRAFT_TYPE_NAMES[typeCode.toUpperCase()] ?? null;
 }
 
+// Colloquial names for specific individual aircraft, keyed by lowercase ICAO24 hex.
+const WELL_KNOWN_AIRCRAFT: Record<string, string> = {
+  'a00002': 'Wingfoot One',   // N1A  — Goodyear Blimp
+  'adfdf9': 'Air Force One',  // 92-9000 VC-25A
+};
+
+export function wellKnownAircraftName(icao24: string | null | undefined): string | null {
+  if (!icao24) return null;
+  return WELL_KNOWN_AIRCRAFT[icao24.toLowerCase()] ?? null;
+}
+
 // --- Country from ICAO 24-bit hex address ---
 // Countries are assigned contiguous blocks of the 24-bit address space by ICAO.
 // Ranges sorted ascending; first match wins.

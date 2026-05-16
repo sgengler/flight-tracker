@@ -840,6 +840,13 @@ async function fetchWikipediaThumbnail(title: string): Promise<string | null> {
   }
 }
 
+// Well-known individual aircraft: icao24 hex → Wikipedia article title for photo lookup.
+// The display name lives client-side in utils.ts; this table drives the photo.
+const WELL_KNOWN_AIRCRAFT_WIKI: Record<string, string> = {
+  'a00002': 'Goodyear Blimp',   // N1A  — Wingfoot One
+  'adfdf9': 'Air Force One',    // 92-9000 VC-25A
+};
+
 export async function fetchPlanePhoto(icao24: string, typeName?: string | null, registration?: string | null): Promise<string | null> {
   // Try planespotters.net by hex first, then by registration (helps military/unusual aircraft)
   const planespottersTargets = [
@@ -859,11 +866,14 @@ export async function fetchPlanePhoto(icao24: string, typeName?: string | null, 
     }
   }
 
-  // Wikipedia type-photo fallback. Try in order:
-  //   1. Client-supplied typeName (mapped from ICAO type code on the client)
-  //   2. hexdb's "{Manufacturer} {Type}" — handles type codes the client doesn't map
-  //   3. Same with the trailing variant suffix stripped — e.g. "Beech 1900 D" → "Beech 1900"
+  // Wikipedia photo fallback. Priority order:
+  //   1. Well-known individual aircraft title (e.g. "Goodyear Blimp", "Air Force One")
+  //   2. Client-supplied typeName (mapped from ICAO type code on the client)
+  //   3. hexdb's "{Manufacturer} {Type}" — handles type codes the client doesn't map
+  //   4. Same with the trailing variant suffix stripped — e.g. "Beech 1900 D" → "Beech 1900"
   const candidates: string[] = [];
+  const wellKnownWiki = WELL_KNOWN_AIRCRAFT_WIKI[icao24.toLowerCase()];
+  if (wellKnownWiki) candidates.push(wellKnownWiki);
   if (typeName) candidates.push(typeName);
 
   const entry = await getCachedAircraftEntry(icao24);
