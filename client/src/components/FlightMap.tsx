@@ -48,6 +48,25 @@ function heliInnerSvg(color: string, filterAttr: string): string {
 
 export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' | 'warbird' | 'airship';
 
+// Simple rotor cross for helicopters — two perpendicular bars
+const HELI_ICON_PATH = 'M-22,-2.5 L22,-2.5 L22,2.5 L-22,2.5 Z M-2.5,-22 L2.5,-22 L2.5,22 L-2.5,22 Z';
+
+/** Returns the SVG path and whether the icon should rotate with heading. ViewBox: "-28 -28 56 56" */
+export function getAircraftSvgInfo(category: AircraftCategory): { path: string; rotates: boolean } {
+  switch (category) {
+    case 'heli': case 'mil-heli': return { path: HELI_ICON_PATH, rotates: false };
+    case 'prop':      return { path: PROP_PATH,      rotates: true };
+    case 'small':     return { path: SMALL_PATH,     rotates: true };
+    case 'fighter':   return { path: FIGHTER_PATH,   rotates: true };
+    case 'bomber':    return { path: BOMBER_PATH,    rotates: true };
+    case 'transport': return { path: TRANSPORT_PATH, rotates: true };
+    case 'attack':    return { path: ATTACK_PATH,    rotates: true };
+    case 'uav':       return { path: UAV_PATH,       rotates: true };
+    case 'warbird':   return { path: WARBIRD_PATH,   rotates: true };
+    default:          return { path: JET_PATH,       rotates: true };
+  }
+}
+
 /** Military sub-categories used to pick icon shapes */
 export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 'bomber', 'transport', 'attack', 'uav', 'mil-heli']);
 /** Vintage/warbird aircraft category */

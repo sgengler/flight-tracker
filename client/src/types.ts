@@ -26,6 +26,8 @@ export interface StreamMessage {
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error';
 
+export type AircraftWikiInfo = Record<string, string>;
+
 export interface RouteInfo {
   origin: string;
   originCity: string;

@@ -4,6 +4,8 @@ html, body, #root {
   height: 100%;
   margin: 0;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Hide cursor on touch/coarse-pointer devices (e.g. Pi touchscreen) */

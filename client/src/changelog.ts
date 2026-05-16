@@ -9,6 +9,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.0',
+    date: '2026-05-16',
+    changes: [
+      'Flight card now shows a Wikipedia info modal (ⓘ button) with article summary and structured stats.',
+      'Aircraft photos now use Wikipedia as the primary source at full resolution; Planespotters is the fallback.',
+      'Fullscreen flight card redesigned: photo fills the entire card with a gradient overlay and all data at the bottom.',
+      'Flight card now shows a type-specific aircraft silhouette icon (jet, prop, small, fighter, helicopter, etc.) that rotates with the aircraft\'s heading.',
+      'Icon and distance/direction indicator repositioned to the bottom-right of the photo; info button moved to top-right.',
+      'Fixed photos not loading for aircraft type variants (e.g. "Beechcraft Bonanza 36") by also trying the base model name.',
+      'Gray sub-identity text and route city names made brighter in fullscreen mode.',
+    ],
+  },
+  {
     version: '0.5.5',
     date: '2026-05-16',
     changes: [
