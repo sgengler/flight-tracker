@@ -36,7 +36,7 @@ npm install
 LOCK_AFTER=$(md5sum package-lock.json | awk '{print $1}')
 if [ "$LOCK_BEFORE" != "$LOCK_AFTER" ]; then
   echo "[$(date)] package-lock.json changed — rebuilding native modules..."
-  npm rebuild better-sqlite3
+  npm rebuild better-sqlite3 || echo "[$(date)] WARNING: better-sqlite3 rebuild failed — keeping existing binary"
 fi
 
 echo "[$(date)] Building client..."
