@@ -848,7 +848,7 @@ export async function fetchPlanePhoto(icao24: string, typeName?: string | null, 
   ];
   for (const url of planespottersTargets) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: { 'User-Agent': 'gina-flights/1.0 (+https://github.com/stevegengler/gina-flights)' } });
       if (res.ok) {
         const data = await res.json() as { photos: Array<{ thumbnail_large: { src: string } }> };
         const photoUrl = data.photos?.[0]?.thumbnail_large?.src ?? null;

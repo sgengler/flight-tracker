@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.5.5',
+    date: '2026-05-16',
+    changes: [
+      'Fixed aircraft photos not loading — Planespotters was rejecting requests with 403 due to a missing User-Agent header.',
+    ],
+  },
+  {
     version: '0.5.4',
     date: '2026-05-16',
     changes: [
