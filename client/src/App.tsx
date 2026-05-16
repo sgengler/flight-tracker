@@ -141,10 +141,18 @@ function CategoryIcon({ category, isPolice }: { category: AircraftCategory; isPo
   const isWarbird = WARBIRD_CATS.has(category);
   const color = isPolice ? '#60a5fa' : isMil ? '#4ade80' : isWarbird ? '#fb923c' : 'currentColor';
   const isHeli = category === 'heli' || category === 'mil-heli';
+  const isAirship = category === 'airship';
   const path = ICON_PATHS[category] ?? ICON_PATHS.jet!;
   return (
     <svg width="14" height="14" viewBox="-26 -26 52 52" fill={color} className="flex-shrink-0 opacity-80">
-      {isHeli ? (
+      {isAirship ? (
+        <>
+          <ellipse cx="0" cy="-3" rx="7" ry="18" />
+          <rect x="-3" y="8" width="6" height="5" rx="1.5" />
+          <path d="M-7,10 L-13,21 L-3,14 Z" />
+          <path d="M7,10 L13,21 L3,14 Z" />
+        </>
+      ) : isHeli ? (
         <>
           <rect x="-20" y="-2" width="40" height="4" rx="2" />
           <rect x="-2" y="-20" width="4" height="40" rx="2" />
@@ -966,6 +974,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
     return flights.filter(f => {
       if (f.isPolice) return activeCategories.has('police');
       const raw = categorizeAircraft(f.aircraftType);
+      if (raw === 'airship') return true; // always show — not in the legend/filter UI
       const cat: FilterCategory = militaryMode
         ? raw as FilterCategory
         : MILITARY_CATS.has(raw) ? 'military' : raw as FilterCategory;

@@ -253,6 +253,9 @@ export const AIRCRAFT_TYPE_NAMES: Record<string, string> = {
   F86: 'F-86 Sabre',
   T28: 'North American T-28 Trojan',
   T34: 'Beechcraft T-34 Mentor',
+  // Airships
+  SHIP: 'Airship',
+  ZNTH: 'Zeppelin NT',
 };
 
 export function aircraftTypeName(typeCode: string | null | undefined): string | null {

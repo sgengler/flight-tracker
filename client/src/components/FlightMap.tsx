@@ -46,7 +46,7 @@ function heliInnerSvg(color: string, filterAttr: string): string {
   );
 }
 
-export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' | 'warbird';
+export type AircraftCategory = 'jet' | 'prop' | 'small' | 'heli' | 'fighter' | 'bomber' | 'transport' | 'attack' | 'uav' | 'mil-heli' | 'warbird' | 'airship';
 
 /** Military sub-categories used to pick icon shapes */
 export const MILITARY_CATS: ReadonlySet<AircraftCategory> = new Set(['fighter', 'bomber', 'transport', 'attack', 'uav', 'mil-heli']);
@@ -70,6 +70,8 @@ function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'at
 export function categorizeAircraft(typeCode: string | null): AircraftCategory {
   if (!typeCode) return 'jet';
   const t = typeCode.toUpperCase();
+
+  if (['SHIP', 'ZNTH'].includes(t)) return 'airship';
 
   // Warbird checked first: HURI starts with 'H' and would otherwise be caught by
   // the helicopter prefix check; other codes must be separated from military/civil.
@@ -190,7 +192,16 @@ function aircraftIcon(heading: number, selected: boolean, aircraftType: string |
 
   let body: string;
   const shadowId = selected ? 'sh2' : 'sh';
-  if (cat === 'heli' || cat === 'mil-heli') {
+  if (cat === 'airship') {
+    // Blimp: vertical envelope + gondola + tail fins, rotates with heading
+    const st = `fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5"`;
+    const blimpInner =
+      `<ellipse cx="0" cy="-3" rx="7" ry="18" ${st} ${filterAttr}/>` +
+      `<rect x="-3" y="8" width="6" height="5" rx="1.5" ${st}/>` +
+      `<path d="M-7,10 L-13,21 L-3,14 Z" ${st}/>` +
+      `<path d="M7,10 L13,21 L3,14 Z" ${st}/>`;
+    body = `<g filter="url(#${shadowId})"><g transform="rotate(${heading})">${blimpInner}</g></g>`;
+  } else if (cat === 'heli' || cat === 'mil-heli') {
     body = `<g filter="url(#${shadowId})">${heliInnerSvg(color, filterAttr)}</g>`;  // heli doesn't rotate
   } else {
     const planePath =
