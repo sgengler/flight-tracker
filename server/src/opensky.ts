@@ -245,8 +245,25 @@ const AIRPORT_CITIES: Record<string, string> = {
   MMMX: 'Mexico City', SBGR: 'São Paulo', FAOR: 'Johannesburg',
 };
 
+let airportDb: Map<string, string> | null = null;
+
+function buildAirportDb(): Map<string, string> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const raw = require('airports-json') as { airports: Array<{ ident?: string; municipality?: string; name?: string }> };
+  const map = new Map<string, string>();
+  for (const a of raw.airports) {
+    if (a.ident && /^[A-Z]{4}$/.test(a.ident)) {
+      map.set(a.ident, a.municipality ?? a.name ?? a.ident);
+    }
+  }
+  return map;
+}
+
 function airportCity(icao: string): string {
-  return AIRPORT_CITIES[icao.toUpperCase()] ?? icao;
+  const code = icao.toUpperCase();
+  if (AIRPORT_CITIES[code]) return AIRPORT_CITIES[code];
+  if (!airportDb) airportDb = buildAirportDb();
+  return airportDb.get(code) ?? icao;
 }
 
 export interface RouteInfo {
@@ -280,10 +297,19 @@ db.exec(`
   )
 `);
 
-const stmtGet    = db.prepare<[string], { departure: string | null; dep_city: string | null; arrival: string | null; arr_city: string | null; airline: string | null; fetched_at: number }>
-  ('SELECT departure, dep_city, arrival, arr_city, airline, fetched_at FROM routes WHERE key = ?');
+// Schema migrations — keyed by PRAGMA user_version so each runs exactly once.
+const schemaVersion = db.pragma('user_version', { simple: true }) as number;
+if (schemaVersion < 1) {
+  db.exec('ALTER TABLE routes ADD COLUMN source TEXT');
+  db.exec("UPDATE routes SET source = 'flightaware' WHERE source IS NULL");
+  db.pragma('user_version = 1');
+}
+
+
+const stmtGet    = db.prepare<[string], { departure: string | null; dep_city: string | null; arrival: string | null; arr_city: string | null; airline: string | null; fetched_at: number; source: string | null }>
+  ('SELECT departure, dep_city, arrival, arr_city, airline, fetched_at, source FROM routes WHERE key = ?');
 const stmtUpsert = db.prepare(
-  'INSERT OR REPLACE INTO routes (key, departure, dep_city, arrival, arr_city, airline, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  'INSERT OR REPLACE INTO routes (key, departure, dep_city, arrival, arr_city, airline, fetched_at, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
 );
 const stmtDelete = db.prepare('DELETE FROM routes WHERE key = ?');
 const stmtCount  = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM routes');
@@ -301,17 +327,19 @@ function logMiss(key: string, reason: string) {
   stmtMiss.run(Date.now(), key, reason);
 }
 
-function dbGet(key: string): { route: RouteResult; fetchedAt: number } | undefined {
+
+function dbGet(key: string): { route: RouteResult; fetchedAt: number; source: string | null } | undefined {
   const row = stmtGet.get(key);
   if (!row) return undefined;
   return {
     route: { departure: row.departure, departureCity: row.dep_city, arrival: row.arrival, arrivalCity: row.arr_city, airline: row.airline },
     fetchedAt: row.fetched_at,
+    source: row.source,
   };
 }
 
-function dbSet(key: string, route: RouteResult, fetchedAt: number) {
-  stmtUpsert.run(key, route.departure, route.departureCity, route.arrival, route.arrivalCity, route.airline, fetchedAt);
+function dbSet(key: string, route: RouteResult, fetchedAt: number, source: 'flightaware' | 'airlabs') {
+  stmtUpsert.run(key, route.departure, route.departureCity, route.arrival, route.arrivalCity, route.airline, fetchedAt, source);
 }
 
 console.log(`[route cache] SQLite DB open, ${stmtCount.get()!.n} entries`);
@@ -484,6 +512,28 @@ function cacheHitConsume() {
 
 loadQuota();
 
+// AirLabs rate-limit state — driven entirely by error responses from the API.
+// minute_limit_exceeded / hour_limit_exceeded → backoff until the window resets.
+// month_limit_exceeded → skip AirLabs until the calendar month rolls over.
+let airlabsBackoffUntil = 0;        // epoch ms; 0 = not backed off
+let airlabsMonthExhausted = '';     // 'YYYY-MM' of the month when limit was hit; '' = not exhausted
+
+// Returns the start date of the current AirLabs billing cycle (resets on the 4th of each month).
+function billingCycleKey(): string {
+  const now = new Date();
+  const day = now.getUTCDate();
+  const cycleStart = day >= 4
+    ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 4))
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 4));
+  return cycleStart.toISOString().slice(0, 10); // YYYY-MM-04
+}
+
+function airlabsIsAvailable(): boolean {
+  if (Date.now() < airlabsBackoffUntil) return false;
+  if (airlabsMonthExhausted && airlabsMonthExhausted === billingCycleKey()) return false;
+  return true;
+}
+
 // Callsigns that look like a registration/tail (e.g. "N12345", "G-ABCD") rarely
 // resolve to a scheduled route on FlightAware — skip the lookup.
 function looksLikeRegistration(callsign: string): boolean {
@@ -556,6 +606,83 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
   }
 }
 
+// AirLabs API response shape
+interface AirlabsResponse {
+  response?: {
+    dep_icao?: string | null; dep_iata?: string | null;
+    arr_icao?: string | null; arr_iata?: string | null;
+    airline_icao?: string | null; airline_iata?: string | null;
+    status?: string;
+  };
+  error?: { message: string; code: string };
+}
+
+// Returns null when the lookup was skipped or should be retried — caller must NOT cache null.
+// Returns a RouteResult when AirLabs was actually contacted — caller should cache it.
+async function lookupAirlabsRoute(callsign: string): Promise<RouteResult | null> {
+  const apiKey = process.env.AIRLABS_API_KEY;
+  if (!apiKey || !airlabsIsAvailable() || looksLikeRegistration(callsign)) return null;
+
+  try {
+    const res = await fetch(
+      `https://airlabs.co/api/v9/flight?flight_icao=${encodeURIComponent(callsign)}&api_key=${apiKey}`
+    );
+
+    if (!res.ok) {
+      if (res.status >= 500) return null; // transient — retry next time
+      // Other HTTP errors: fall through to parse the JSON error body below
+    }
+
+    const data = await res.json() as AirlabsResponse;
+
+    if (data.error) {
+      const code = data.error.code;
+      if (code === 'not_found') {
+        console.log(`[route] AirLabs ${callsign}: not found`);
+        return null; // FA may know it — don't cache
+      }
+      if (code === 'minute_limit_exceeded') {
+        airlabsBackoffUntil = Date.now() + 60_000;
+        console.warn('[route] AirLabs: minute limit hit — pausing 60s, falling back to FlightAware');
+        return null;
+      }
+      if (code === 'hour_limit_exceeded') {
+        airlabsBackoffUntil = Date.now() + 60 * 60_000;
+        console.warn('[route] AirLabs: hour limit hit — pausing 1h, falling back to FlightAware');
+        return null;
+      }
+      if (code === 'month_limit_exceeded') {
+        airlabsMonthExhausted = billingCycleKey();
+        console.warn(`[route] AirLabs: monthly limit hit — falling back to FlightAware until ${billingCycleKey()} ends`);
+        return null;
+      }
+      // unknown_api_key, expired_api_key, internal_error, etc. — skip silently, FA handles it
+      console.log(`[route] AirLabs ${callsign}: error ${code} — ${data.error.message}`);
+      return null;
+    }
+
+    const r = data.response;
+    if (!r) return null;
+
+    const dep = (r.dep_icao ?? r.dep_iata ?? null)?.toUpperCase() ?? null;
+    const arr = (r.arr_icao ?? r.arr_iata ?? null)?.toUpperCase() ?? null;
+    const airline = (r.airline_icao ?? r.airline_iata ?? null)?.toUpperCase() ?? null;
+
+    const result: RouteResult = {
+      departure: dep,
+      departureCity: dep ? airportCity(dep) : null,
+      arrival: arr,
+      arrivalCity: arr ? airportCity(arr) : null,
+      airline,
+    };
+    console.log(`[route] AirLabs ${callsign}: ${dep ?? 'null'}(${result.departureCity}) → ${arr ?? 'null'}(${result.arrivalCity})`);
+    return result;
+  } catch (err) {
+    console.log(`[route] AirLabs ${callsign}: exception – ${err}`);
+    return null; // network/parse failure — retry next time
+  }
+}
+
 function routeResultToInfo(r: RouteResult): RouteInfo | null {
   if (!r.departure || !r.arrival) return null;
   return {
@@ -572,7 +699,7 @@ function routeCacheKey(callsign: string): string {
 }
 
 // Returns a cached route if present, else null. Never makes a network call —
-// used for non-closest flights where we don't want to spend FlightAware quota.
+// used for non-closest flights where we don't want to spend any API quota.
 export function getRouteFromCacheOnly(_icao24: string, callsign: string): RouteInfo | null {
   const key = routeCacheKey(callsign);
   const cached = dbGet(key);
@@ -611,19 +738,31 @@ export async function getCachedRoute(callsign: string, _icao24: string, opts: { 
         console.log(`[route] cache hit (no route): ${callsign}`);
         return null;
       }
-      console.log(`[route] cache hit: ${callsign} → ${r.departure}→${r.arrival}`);
+      console.log(`[route] cache hit [${cached.source ?? 'legacy'}]: ${callsign} → ${r.departure}→${r.arrival}`);
       return routeResultToInfo(r);
     }
   }
 
-  const route = callsign ? await fetchFlightAwareRoute(callsign, opts) : null;
-
-  // Only cache when FA was actually contacted. null means lookup was skipped
-  // (quota hit, no API key, backoff) — don't poison the cache in that case.
-  if (route !== null) {
-    dbSet(key, route, Date.now());
+  // Try AirLabs first (free, callsign-based, schedule data)
+  if (callsign) {
+    const alRoute = await lookupAirlabsRoute(callsign);
+    if (alRoute !== null) {
+      // AirLabs was contacted — cache the result to prevent future calls
+      dbSet(key, alRoute, Date.now(), 'airlabs');
+      if (alRoute.departure && alRoute.arrival) {
+        return routeResultToInfo(alRoute);
+      }
+      // AirLabs returned a definitive empty — fall through to FA
+      console.log(`[route] AirLabs ${callsign}: no route, trying FlightAware`);
+    }
   }
-  return route !== null ? routeResultToInfo(route) : null;
+
+  // Fall back to FlightAware — always works when AirLabs quota is exhausted or flight not found
+  const faRoute = callsign ? await fetchFlightAwareRoute(callsign, opts) : null;
+  if (faRoute !== null) {
+    dbSet(key, faRoute, Date.now(), 'flightaware');
+  }
+  return faRoute !== null ? routeResultToInfo(faRoute) : null;
 }
 
 // hexdb.io — used for police detection (RegisteredOwners) and as a Wikipedia-photo
