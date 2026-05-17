@@ -2,7 +2,7 @@ node_modules/
 logs/
 cache/
 dist/
+client/dist/
 server/.env
 .env
 *.env
-# client/dist/ intentionally tracked — Pi cannot build Tailwind v4 (requires Node 20)
