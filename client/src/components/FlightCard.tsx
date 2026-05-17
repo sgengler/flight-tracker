@@ -60,7 +60,10 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
   }
 
   const displayRoute = refreshedRoute !== undefined ? refreshedRoute : flight.route;
-  const photoUrl = (isFullscreen ? (info?.photoUrlLarge ?? info?.photoUrl) : info?.photoUrl) ?? null;
+  const photoUrl = info?.photoUrl ?? null;
+  const photoSrcSet = info?.photoUrlLarge && info.photoUrlLarge !== photoUrl
+    ? `${photoUrl} 480w, ${info.photoUrlLarge} 1200w`
+    : undefined;
   const imgRef = useRef<HTMLImageElement>(null);
   // Handle cached images that fire onLoad before React renders
   useEffect(() => {
@@ -134,6 +137,8 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
           <img
             ref={imgRef}
             src={renderUrl}
+            srcSet={photoSrcSet}
+            sizes="100vw"
             alt="Aircraft"
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${photoVisible ? 'opacity-100' : 'opacity-0'}`}
             onLoad={() => setLoadedPhotoUrl(renderUrl)}
@@ -247,6 +252,8 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
           <img
             ref={imgRef}
             src={renderUrl}
+            srcSet={photoSrcSet}
+            sizes="480px"
             alt="Aircraft"
             className={`w-full h-auto block transition-opacity duration-500 ${photoVisible ? 'opacity-100' : 'opacity-0'}`}
             onLoad={() => setLoadedPhotoUrl(renderUrl)}

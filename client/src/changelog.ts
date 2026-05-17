@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.2',
+    date: '2026-05-16',
+    changes: [
+      'Aircraft photos now use srcSet so retina and high-DPI displays automatically load the full-resolution image.',
+    ],
+  },
+  {
     version: '0.6.1',
     date: '2026-05-16',
     changes: [
