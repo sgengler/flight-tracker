@@ -123,7 +123,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
       style: 'https://tiles.openfreemap.org/styles/liberty',
       center: [userLon, userLat],
       zoom: 9,
-      pitch: 60,
+      pitch: 65,
       bearing: 0,
       maxPitch: 85,
       attributionControl: { compact: true },
@@ -134,7 +134,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
 
     // Ensure pitch is applied after the style loads (some styles reset the camera)
     map.once('styledata', () => {
-      map.setPitch(60);
+      map.setPitch(65);
     });
 
     map.on('load', () => {
