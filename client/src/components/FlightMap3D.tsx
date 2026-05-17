@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { FlightState } from '../types';
 import { categorizeAircraft, getAircraftSvgInfo, MILITARY_CATS, WARBIRD_CATS, heliInnerSvg } from './FlightMap';
@@ -106,9 +106,12 @@ function buildGroundShadowElement(baroAltitudeM: number | null): HTMLDivElement 
   return el;
 }
 
+const DEFAULT_PITCH = 62;
+
 export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight, militaryMode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const [pitch, setPitch] = useState(DEFAULT_PITCH);
   type MarkerPair = { icon: maplibregl.Marker; shadow: maplibregl.Marker };
   const markersRef = useRef<Map<string, MarkerPair>>(new Map());
   const onSelectRef = useRef(onSelectFlight);
@@ -123,7 +126,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
       style: 'https://tiles.openfreemap.org/styles/liberty',
       center: [userLon, userLat],
       zoom: 9,
-      pitch: 62,
+      pitch: DEFAULT_PITCH,
       bearing: 0,
       maxPitch: 85,
       attributionControl: { compact: true },
@@ -134,7 +137,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
 
     // Ensure pitch is applied after the style loads (some styles reset the camera)
     map.once('styledata', () => {
-      map.setPitch(65);
+      map.setPitch(DEFAULT_PITCH);
     });
 
     map.on('load', () => {
@@ -230,5 +233,29 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
     return () => { pin.remove(); };
   }, [userLat, userLon, militaryMode]);
 
-  return <div ref={containerRef} className="h-full w-full rounded-2xl overflow-hidden" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full rounded-2xl overflow-hidden" />
+      {/* Pitch slider — vertical, left side */}
+      <div className="absolute left-3 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 z-10">
+        <span className="text-white text-xs font-bold tabular-nums bg-black/50 rounded px-1.5 py-0.5 select-none">
+          {pitch}°
+        </span>
+        <input
+          type="range"
+          min="0"
+          max="85"
+          step="1"
+          value={pitch}
+          onChange={e => {
+            const v = Number(e.target.value);
+            setPitch(v);
+            mapRef.current?.setPitch(v);
+          }}
+          className="accent-white cursor-pointer"
+          style={{ writingMode: 'vertical-lr', direction: 'rtl', height: '140px' }}
+        />
+      </div>
+    </div>
+  );
 }
