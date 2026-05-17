@@ -106,7 +106,7 @@ function buildGroundShadowElement(baroAltitudeM: number | null): HTMLDivElement 
   return el;
 }
 
-const DEFAULT_PITCH = 62;
+const DEFAULT_PITCH = 72;
 
 export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight, militaryMode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
