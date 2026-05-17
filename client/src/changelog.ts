@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.3',
+    date: '2026-05-17',
+    changes: [
+      'Added 3D terrain map mode — press the "3D" button to switch to a tilted perspective view with real elevation.',
+      'Aircraft in 3D mode cast altitude-scaled shadows and have a subtle 3D sheen on their icons.',
+    ],
+  },
+  {
     version: '0.6.2',
     date: '2026-05-16',
     changes: [
