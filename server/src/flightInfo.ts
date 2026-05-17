@@ -105,14 +105,16 @@ function parseInfoboxFromHtml(html: string): AircraftWikiInfo {
 
 const wikiDataCache = new Map<string, { thumb: { normal: string; large: string }; infobox: AircraftWikiInfo; articleTitle: string; extract: string } | null>();
 
+const WIKI_UA = 'gina-flights/1.0 (https://github.com/sgengler/flight-tracker; stevegengler@gmail.com) node-fetch';
+
 async function fetchWikipediaData(title: string): Promise<{ thumb: { normal: string; large: string }; infobox: AircraftWikiInfo; articleTitle: string; extract: string } | null> {
   const t = title.trim().replace(/\s+/g, '_');
   if (!t) return null;
   if (wikiDataCache.has(t)) return wikiDataCache.get(t)!;
   try {
     const [summaryRes, parseRes] = await Promise.all([
-      fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t)}`),
-      fetch(`https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(t)}&prop=text&format=json&section=0&redirects`),
+      fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t)}`, { headers: { 'User-Agent': WIKI_UA } }),
+      fetch(`https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(t)}&prop=text&format=json&section=0&redirects`, { headers: { 'User-Agent': WIKI_UA } }),
     ]);
     if (!summaryRes.ok) { wikiDataCache.set(t, null); return null; }
     const summary = await summaryRes.json() as { type?: string; thumbnail?: { source: string }; extract?: string };
@@ -127,6 +129,9 @@ async function fetchWikipediaData(title: string): Promise<{ thumb: { normal: str
       articleTitle = parsed.parse?.title ?? title;
       const html = parsed.parse?.text?.['*'] ?? '';
       if (html) infobox = parseInfoboxFromHtml(html);
+    } else if (parseRes.status === 429 || parseRes.status >= 500) {
+      // Transient failure — return partial result without caching so the next request retries
+      return { thumb: { normal: src, large: wikiThumbAtWidth(src, 1920) }, infobox, articleTitle, extract };
     }
     const result = { thumb: { normal: src, large: wikiThumbAtWidth(src, 1920) }, infobox, articleTitle, extract };
     wikiDataCache.set(t, result);
