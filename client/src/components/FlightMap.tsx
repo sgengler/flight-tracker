@@ -343,17 +343,18 @@ function AnimatedFlightLayer({ flights, selectedIcao, onSelectFlight }: Animated
   const lastPollTimeRef = useRef<number>(Date.now());
   useEffect(() => { onSelectRef.current = onSelectFlight; });
 
-  // During zoom Leaflet repositions all markers; disable transition so they
-  // don't drift to new screen coordinates. On zoomend, snap to the current
-  // dead-reckoned position and restart the transition for remaining time.
+  // During any map movement (zoom, pan, drag, flyTo, fitBounds) Leaflet
+  // repositions all markers; disable transitions so they don't drift to new
+  // screen coordinates. On moveend, snap to the current dead-reckoned position
+  // and restart the transition for the remaining poll interval.
   useEffect(() => {
-    const onZoomStart = () => {
+    const onMoveStart = () => {
       for (const { marker } of entriesRef.current.values()) {
         const el = marker.getElement();
         if (el) el.style.transition = 'none';
       }
     };
-    const onZoomEnd = () => {
+    const onMoveEnd = () => {
       const elapsed = (Date.now() - lastPollTimeRef.current) / 1000;
       const remaining = Math.max(0, POLL_S - elapsed);
       for (const e of entriesRef.current.values()) {
@@ -380,11 +381,11 @@ function AnimatedFlightLayer({ flights, selectedIcao, onSelectFlight }: Animated
         }
       }
     };
-    map.on('zoomstart', onZoomStart);
-    map.on('zoomend', onZoomEnd);
+    map.on('movestart', onMoveStart);
+    map.on('moveend', onMoveEnd);
     return () => {
-      map.off('zoomstart', onZoomStart);
-      map.off('zoomend', onZoomEnd);
+      map.off('movestart', onMoveStart);
+      map.off('moveend', onMoveEnd);
     };
   }, [map]);
 

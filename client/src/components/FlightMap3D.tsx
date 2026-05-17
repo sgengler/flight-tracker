@@ -227,8 +227,9 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
   pitchRef.current = pitch;
   const bearingRef = useRef(0);
   const introCompleteRef = useRef(false);
+  const lastPollTimeRef = useRef<number>(Date.now());
 
-  type MarkerPair = { icon: mapboxgl.Marker; shadow: mapboxgl.Marker; altM: number };
+  type MarkerPair = { icon: mapboxgl.Marker; shadow: mapboxgl.Marker; altM: number; flight: FlightState };
   const markersRef = useRef<Map<string, MarkerPair>>(new Map());
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
@@ -322,7 +323,10 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       map.once('pitchend', () => { introCompleteRef.current = true; });
     });
 
-    // Disable CSS transitions while the map is panning so markers track instantly.
+    // Disable CSS transitions while the map is moving (pan, zoom, rotate, pitch)
+    // so markers track the viewport instantly. On moveend, snap each marker to
+    // its current dead-reckoned position and resume the transition for the
+    // remaining time in the poll interval.
     map.on('movestart', () => {
       for (const [, pair] of markersRef.current) {
         pair.icon.getElement().style.transition = 'none';
@@ -331,10 +335,35 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
     });
     map.on('moveend', () => {
       if (!introCompleteRef.current) return;
+      const elapsed = (Date.now() - lastPollTimeRef.current) / 1000;
+      const remaining = Math.max(0, POLL_S - elapsed);
       requestAnimationFrame(() => {
         for (const [, pair] of markersRef.current) {
-          pair.icon.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
-          pair.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+          const f = pair.flight;
+          const v = f.velocity ?? 0;
+          const h = f.trueTrack ?? 0;
+          const iconEl = pair.icon.getElement();
+          const shadowEl = pair.shadow.getElement();
+          if (v <= 0.5) {
+            iconEl.style.transition = 'none';
+            shadowEl.style.transition = 'none';
+            continue;
+          }
+          // Snap to where the plane is right now
+          const [curLa, curLo] = deadReckon(f.latitude, f.longitude, h, v, elapsed);
+          iconEl.style.transition = 'none';
+          shadowEl.style.transition = 'none';
+          pair.icon.setLngLat([curLo, curLa]);
+          pair.shadow.setLngLat([curLo, curLa]);
+          void iconEl.getBoundingClientRect();
+          // Resume transition for the time remaining in this poll interval
+          if (remaining > 0) {
+            const [futLa, futLo] = deadReckon(f.latitude, f.longitude, h, v, POLL_S);
+            iconEl.style.transition = `transform ${remaining * 1000}ms linear`;
+            shadowEl.style.transition = `transform ${remaining * 1000}ms linear`;
+            pair.icon.setLngLat([futLo, futLa]);
+            pair.shadow.setLngLat([futLo, futLa]);
+          }
         }
       });
     });
@@ -349,6 +378,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
 
   // Sync markers whenever flights or selection changes
   useEffect(() => {
+    lastPollTimeRef.current = Date.now();
     const map = mapRef.current;
     if (!map) return;
 
@@ -400,7 +430,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
         existing.icon.setLngLat(futureLngLat);
         existing.shadow.setLngLat(futureLngLat);
 
-        markersRef.current.set(f.icao24, { icon: existing.icon, shadow: existing.shadow, altM });
+        markersRef.current.set(f.icao24, { icon: existing.icon, shadow: existing.shadow, altM, flight: f });
       } else {
         const shadowEl = buildGroundShadowElement(f);
         const shadow = new mapboxgl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
@@ -417,7 +447,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
         }).setLngLat(lngLat).addTo(map);
         (icon as any).setAltitude(altM); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-        markersRef.current.set(f.icao24, { icon, shadow, altM });
+        markersRef.current.set(f.icao24, { icon, shadow, altM, flight: f });
 
         if (v > 0.5) {
           if (introCompleteRef.current) {

@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.7',
+    date: '2026-05-17',
+    changes: [
+      'Planes no longer slide in the wrong direction during map pan, zoom, rotate, or pitch — transitions are now frozen for the duration of any map movement and resume cleanly once the map settles.',
+    ],
+  },
+  {
     version: '0.6.6',
     date: '2026-05-17',
     changes: [
