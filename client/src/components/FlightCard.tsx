@@ -111,7 +111,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
         <div className="p-3 grid grid-cols-3 gap-1.5">
           {wikiEntries.map(([key, value]) => (
             <div key={key} className="bg-slate-800/60 rounded-lg px-2 py-1.5">
-              <div className="text-[9px] text-slate-500 uppercase tracking-wider leading-none mb-0.5">{key}</div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider leading-none mb-0.5">{key}</div>
               <div className="text-xs font-mono text-white">{value}</div>
             </div>
           ))}
