@@ -80,10 +80,15 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="-26 -26 52 52">${body}</svg>`;
 
+  // Outer div: MapLibre uses this for positioning (sets its own transform on it — don't touch).
   const el = document.createElement('div');
-  // CSS drop-shadow scales with altitude so high-flying aircraft cast a more offset shadow
-  el.style.cssText = `cursor:pointer; filter:drop-shadow(${dx}px ${dy}px ${blur}px rgba(0,0,0,0.55)); z-index:2; line-height:0;`;
-  el.innerHTML = svg;
+  el.style.cssText = 'cursor:pointer; z-index:2; line-height:0;';
+
+  // Inner div: safe to apply our tilt transform without clobbering MapLibre's translate.
+  const inner = document.createElement('div');
+  inner.style.cssText = `filter:drop-shadow(${dx}px ${dy}px ${blur}px rgba(0,0,0,0.55)); line-height:0;`;
+  inner.innerHTML = svg;
+  el.appendChild(inner);
   return el;
 }
 
@@ -207,7 +212,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
         existing.shadow.setLngLat(lngLat);
         // Rebuild icon element to reflect selection change (color/glow)
         const newEl = buildAircraftElement(f, isSelected);
-        newEl.style.transform = iconTiltTransform(pitchRef.current);
+        (newEl.firstElementChild as HTMLElement).style.transform = iconTiltTransform(pitchRef.current);
         newEl.addEventListener('click', () => onSelectRef.current(f.icao24));
         existing.icon.remove();
         const altM = Math.max(0, f.baroAltitude ?? 0);
@@ -224,7 +229,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
           .addTo(map);
 
         const iconEl = buildAircraftElement(f, isSelected);
-        iconEl.style.transform = iconTiltTransform(pitchRef.current);
+        (iconEl.firstElementChild as HTMLElement).style.transform = iconTiltTransform(pitchRef.current);
         iconEl.addEventListener('click', () => onSelectRef.current(f.icao24));
         const icon = new maplibregl.Marker({ element: iconEl, anchor: 'center', pitchAlignment: 'viewport', rotationAlignment: 'viewport', offset: computeIconOffset(f.baroAltitude, pitchRef.current) })
           .setLngLat(lngLat)
@@ -240,7 +245,8 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
     const tilt = iconTiltTransform(pitch);
     for (const [, pair] of markersRef.current) {
       pair.icon.setOffset(computeIconOffset(pair.altM, pitch));
-      pair.icon.getElement().style.transform = tilt;
+      const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
+      if (inner) inner.style.transform = tilt;
     }
   }, [pitch]);
 
