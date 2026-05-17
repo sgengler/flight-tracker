@@ -90,13 +90,13 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
 function buildGroundShadowElement(baroAltitudeM: number | null): HTMLDivElement {
   const altM = Math.max(0, baroAltitudeM ?? 0);
   const altKm = altM / 1000;
-  const blurPx = Math.round(2 + altKm * 1.5);
-  const opacity = Math.max(0.06, 0.38 - altKm * 0.025).toFixed(2);
+  const blurPx = Math.round(3 + altKm * 2);
+  const opacity = Math.max(0.15, 0.65 - altKm * 0.04).toFixed(2);
 
   const el = document.createElement('div');
   el.style.cssText = [
-    'width:22px', 'height:9px',
-    'background:radial-gradient(ellipse,rgba(0,0,0,0.75) 0%,transparent 70%)',
+    'width:38px', 'height:16px',
+    'background:radial-gradient(ellipse,rgba(0,0,0,0.9) 0%,transparent 70%)',
     'border-radius:50%',
     `filter:blur(${blurPx}px)`,
     `opacity:${opacity}`,
