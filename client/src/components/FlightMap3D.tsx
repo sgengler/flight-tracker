@@ -190,20 +190,20 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
         const newEl = buildAircraftElement(f, isSelected);
         newEl.addEventListener('click', () => onSelectRef.current(f.icao24));
         existing.icon.remove();
-        const newIcon = new maplibregl.Marker({ element: newEl, anchor: 'center' })
+        const newIcon = new maplibregl.Marker({ element: newEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
           .setLngLat(lngLat)
           .addTo(map);
         markersRef.current.set(f.icao24, { icon: newIcon, shadow: existing.shadow });
       } else {
         // Create ground shadow first (renders below the icon)
         const shadowEl = buildGroundShadowElement(f.baroAltitude);
-        const shadow = new maplibregl.Marker({ element: shadowEl, anchor: 'center' })
+        const shadow = new maplibregl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
           .setLngLat(lngLat)
           .addTo(map);
 
         const iconEl = buildAircraftElement(f, isSelected);
         iconEl.addEventListener('click', () => onSelectRef.current(f.icao24));
-        const icon = new maplibregl.Marker({ element: iconEl, anchor: 'center' })
+        const icon = new maplibregl.Marker({ element: iconEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
           .setLngLat(lngLat)
           .addTo(map);
 
