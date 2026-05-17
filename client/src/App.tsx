@@ -3,6 +3,7 @@ import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
 import { FlightMap, categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory, TILE_OPTIONS, TileId } from './components/FlightMap';
+import { FlightMap3D } from './components/FlightMap3D';
 import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
@@ -849,6 +850,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
   const [tileId, setTileId] = useState<TileId>('stamen_terrain');
   const [tilePickerOpen, setTilePickerOpen] = useState(false);
+  const [map3D, setMap3D] = useState(false);
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
   const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
   const flightHistoryRef = useRef<Map<string, [number, number, number?][]>>(new Map());
@@ -1083,8 +1085,19 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
           {/* Map — hidden when flights is fullscreen */}
           {fullscreenPanel !== 'flights' && (
           <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
-            <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} tileId={tileId} />
-            <div className="absolute bottom-2 right-2 z-[1000]">
+            {map3D
+              ? <FlightMap3D userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
+              : <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} tileId={tileId} />
+            }
+            <div className="absolute bottom-2 right-2 z-[1000] flex items-center gap-1">
+              {/* 3D terrain toggle */}
+              <button
+                onClick={() => { setMap3D(m => !m); setTilePickerOpen(false); }}
+                className={`px-2 py-1 rounded-md text-xs font-bold transition-colors backdrop-blur-sm ${map3D ? 'bg-sky-500 text-white' : 'bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900'}`}
+                title={map3D ? 'Switch to 2D map' : 'Switch to 3D terrain map'}
+              >3D</button>
+              {/* Style picker — hidden in 3D mode */}
+              {!map3D && (
               <div className="relative">
                 <button onClick={() => setTilePickerOpen(o => !o)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors backdrop-blur-sm" title={`Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1103,6 +1116,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
                   </div>
                 )}
               </div>
+              )}
             </div>
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'

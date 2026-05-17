@@ -33,7 +33,7 @@ const UAV_PATH       = 'M0,-11 L1,-6 L1.5,0 L25,4 L25,7 L1.5,3 L2,11 L5,13 L4,15
 // WWII fighter (P-51/Corsair style): long nose, moderately swept wings, single piston engine
 const WARBIRD_PATH   = 'M0,-22 L1.5,-14 L2.5,-5 L17,4 L15,8 L2.5,4 L3,12 L6,14 L5,17 L0,16 L-5,17 L-6,14 L-3,12 L-2.5,4 L-15,8 L-17,4 L-2.5,-5 L-1.5,-14 Z';
 
-function heliInnerSvg(color: string, filterAttr: string): string {
+export function heliInnerSvg(color: string, filterAttr: string): string {
   const s = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
   return (
     `<rect x="-20" y="-2" width="40" height="4" rx="2" fill="${color}" ${s}/>` +
