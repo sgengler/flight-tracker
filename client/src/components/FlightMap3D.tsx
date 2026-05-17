@@ -108,11 +108,22 @@ function buildGroundShadowElement(baroAltitudeM: number | null): HTMLDivElement 
 
 const DEFAULT_PITCH = 72;
 
+// Returns a screen-space [x, y] offset that lifts the icon above its shadow.
+// sin(pitch) → 0 when overhead, ~1 when near-horizontal; altitude scales the gap.
+function computeIconOffset(baroAltitudeM: number | null, pitchDeg: number): [number, number] {
+  const altM = Math.max(0, baroAltitudeM ?? 0);
+  const altFactor = Math.min(1, altM / 12000);
+  const pitchFactor = Math.sin(pitchDeg * Math.PI / 180);
+  return [0, -Math.round(altFactor * pitchFactor * 44)];
+}
+
 export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight, militaryMode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
-  type MarkerPair = { icon: maplibregl.Marker; shadow: maplibregl.Marker };
+  const pitchRef = useRef(DEFAULT_PITCH);
+  pitchRef.current = pitch;
+  type MarkerPair = { icon: maplibregl.Marker; shadow: maplibregl.Marker; altM: number };
   const markersRef = useRef<Map<string, MarkerPair>>(new Map());
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
@@ -134,6 +145,9 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
     mapRef.current = map;
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // Keep React pitch state in sync when user tilts via navigation control
+    map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
 
     // Ensure pitch is applied after the style loads (some styles reset the camera)
     map.once('styledata', () => {
@@ -190,11 +204,13 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
         const newEl = buildAircraftElement(f, isSelected);
         newEl.addEventListener('click', () => onSelectRef.current(f.icao24));
         existing.icon.remove();
-        const newIcon = new maplibregl.Marker({ element: newEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
+        const altM = Math.max(0, f.baroAltitude ?? 0);
+        const newIcon = new maplibregl.Marker({ element: newEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport', offset: computeIconOffset(f.baroAltitude, pitchRef.current) })
           .setLngLat(lngLat)
           .addTo(map);
-        markersRef.current.set(f.icao24, { icon: newIcon, shadow: existing.shadow });
+        markersRef.current.set(f.icao24, { icon: newIcon, shadow: existing.shadow, altM });
       } else {
+        const altM = Math.max(0, f.baroAltitude ?? 0);
         // Create ground shadow first (renders below the icon)
         const shadowEl = buildGroundShadowElement(f.baroAltitude);
         const shadow = new maplibregl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
@@ -203,14 +219,21 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
 
         const iconEl = buildAircraftElement(f, isSelected);
         iconEl.addEventListener('click', () => onSelectRef.current(f.icao24));
-        const icon = new maplibregl.Marker({ element: iconEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
+        const icon = new maplibregl.Marker({ element: iconEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport', offset: computeIconOffset(f.baroAltitude, pitchRef.current) })
           .setLngLat(lngLat)
           .addTo(map);
 
-        markersRef.current.set(f.icao24, { icon, shadow });
+        markersRef.current.set(f.icao24, { icon, shadow, altM });
       }
     }
   }, [flights, flight]);
+
+  // Update icon screen-space offsets whenever pitch changes
+  useEffect(() => {
+    for (const [, pair] of markersRef.current) {
+      pair.icon.setOffset(computeIconOffset(pair.altM, pitch));
+    }
+  }, [pitch]);
 
   // Fly to selected flight when it changes
   useEffect(() => {
