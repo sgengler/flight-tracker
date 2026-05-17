@@ -26,13 +26,6 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
   const color = iconColor(flight, isSelected);
   const heading = (cat === 'heli' || cat === 'mil-heli') ? 0 : (flight.trueTrack ?? 0);
 
-  // Altitude-scaled drop shadow — higher altitude = larger offset + softer blur
-  const altM = Math.max(0, flight.baroAltitude ?? 0);
-  const t = Math.min(1, altM / 11000); // 0→1 across typical cruise altitudes
-  const dx = (2 + t * 7).toFixed(1);
-  const dy = (3 + t * 8).toFixed(1);
-  const blur = (1.5 + t * 3.5).toFixed(1);
-
   const ns = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
   const pod = (cx: number, cy: number, rx: number, ry: number) =>
     `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${color}" ${ns}/>`;
@@ -78,7 +71,7 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
       `</g>` + highlight;
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="-26 -26 52 52">${body}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="-26 -26 52 52">${body}</svg>`;
 
   // Outer div: MapLibre uses this for positioning (sets its own transform on it — don't touch).
   const el = document.createElement('div');
@@ -86,32 +79,89 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
 
   // Inner div: safe to apply our tilt transform without clobbering MapLibre's translate.
   const inner = document.createElement('div');
-  inner.style.cssText = `filter:drop-shadow(${dx}px ${dy}px ${blur}px rgba(0,0,0,0.55)); line-height:0;`;
+  inner.style.cssText = `filter:drop-shadow(0px 1px 2px rgba(0,0,0,0.5)); line-height:0;`;
   inner.innerHTML = svg;
   el.appendChild(inner);
   return el;
 }
 
-function buildGroundShadowElement(baroAltitudeM: number | null): HTMLDivElement {
-  const altM = Math.max(0, baroAltitudeM ?? 0);
-  const altKm = altM / 1000;
-  const blurPx = Math.round(3 + altKm * 2);
-  const opacity = Math.max(0.15, 0.65 - altKm * 0.04).toFixed(2);
+function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
+  const cat = categorizeAircraft(flight.aircraftType);
+  const blurPx = 2;
+  const opacity = 0.55;
+  const heading = (cat === 'heli' || cat === 'mil-heli') ? 0 : (flight.trueTrack ?? 0);
 
+  const fill = 'rgba(0,0,0,0.9)';
+  const pod = (cx: number, cy: number, rx: number, ry: number) =>
+    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`;
+
+  let body: string;
+  if (cat === 'airship') {
+    body = `<g transform="rotate(${heading})">` +
+      `<ellipse cx="0" cy="-3" rx="7" ry="18" fill="${fill}"/>` +
+      `<rect x="-3" y="8" width="6" height="5" rx="1.5" fill="${fill}"/>` +
+      `<path d="M-7,10 L-13,21 L-3,14 Z" fill="${fill}"/>` +
+      `<path d="M7,10 L13,21 L3,14 Z" fill="${fill}"/>` +
+      `</g>`;
+  } else if (cat === 'heli' || cat === 'mil-heli') {
+    body = heliInnerSvg(fill, '');
+  } else {
+    const { path } = getAircraftSvgInfo(cat);
+    let nacelles = '';
+    if (cat === 'jet') {
+      nacelles = pod(13, 5, 1.5, 3) + pod(-13, 5, 1.5, 3);
+    } else if (cat === 'prop') {
+      nacelles = pod(10, 0.5, 1.5, 3) + pod(-10, 0.5, 1.5, 3) +
+        `<ellipse cx="10" cy="-4" rx="5" ry="0.7" fill="${fill}"/>` +
+        `<ellipse cx="-10" cy="-4" rx="5" ry="0.7" fill="${fill}"/>`;
+    } else if (cat === 'transport') {
+      nacelles = pod(10, 1, 1.5, 2.5) + pod(16, 3.5, 1.5, 2.5) +
+                 pod(-10, 1, 1.5, 2.5) + pod(-16, 3.5, 1.5, 2.5);
+    } else if (cat === 'bomber') {
+      nacelles = pod(9, 4, 1.5, 2.5) + pod(16, 6.5, 1.5, 2.5) +
+                 pod(-9, 4, 1.5, 2.5) + pod(-16, 6.5, 1.5, 2.5);
+    } else if (cat === 'attack') {
+      nacelles = pod(5, 9, 1.3, 3) + pod(-5, 9, 1.3, 3);
+    } else if (cat === 'warbird') {
+      nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${fill}"/>`;
+    }
+    body = `<g transform="rotate(${heading})">` +
+      `<path d="${path}" fill="${fill}"/>` +
+      nacelles +
+      `</g>`;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="-26 -26 52 52">${body}</svg>`;
+
+  // Outer div: MapLibre adds maplibregl-marker class and resets opacity to 1 on this element.
+  // Keep it style-free so MapLibre doesn't clobber our opacity.
   const el = document.createElement('div');
-  el.style.cssText = [
-    'width:38px', 'height:16px',
-    'background:radial-gradient(ellipse,rgba(0,0,0,0.9) 0%,transparent 70%)',
-    'border-radius:50%',
-    `filter:blur(${blurPx}px)`,
-    `opacity:${opacity}`,
-    'pointer-events:none',
-    'z-index:1',
-  ].join(';');
+  el.style.cssText = 'pointer-events:none;line-height:0;';
+
+  // Inner div: MapLibre never touches this, so opacity and blur are stable here.
+  const inner = document.createElement('div');
+  inner.style.cssText = `opacity:${opacity};filter:blur(${blurPx}px);line-height:0;`;
+  inner.innerHTML = svg;
+  el.appendChild(inner);
   return el;
 }
 
-const DEFAULT_PITCH = 72;
+const DEFAULT_PITCH = 62;
+const POLL_S = 10;
+
+function deadReckon(
+  lat: number, lon: number,
+  headingDeg: number, velocityMs: number,
+  dtSeconds: number,
+): [number, number] {
+  const dt = Math.min(dtSeconds, 20);
+  const distM = velocityMs * dt;
+  const headingRad = (headingDeg * Math.PI) / 180;
+  const R = 6_371_000;
+  const dLat = (distM * Math.cos(headingRad)) / R;
+  const dLon = (distM * Math.sin(headingRad)) / (R * Math.cos((lat * Math.PI) / 180));
+  return [lat + (dLat * 180) / Math.PI, lon + (dLon * 180) / Math.PI];
+}
 
 // Counter-rotation applied to the inner SVG div to soften the full map-alignment tilt.
 // pitchAlignment:'map' rotates the marker 100% — this cancels ~50%, leaving a half-pitch lean.
@@ -123,9 +173,9 @@ function iconTiltTransform(pitchDeg: number): string {
 // sin(pitch) → 0 when overhead, ~1 when near-horizontal; altitude scales the gap.
 function computeIconOffset(baroAltitudeM: number | null, pitchDeg: number): [number, number] {
   const altM = Math.max(0, baroAltitudeM ?? 0);
-  const altFactor = Math.min(1, altM / 12000);
+  const altFactor = Math.min(1, 0.18 + (altM / 12000) * 0.82);
   const pitchFactor = Math.sin(pitchDeg * Math.PI / 180);
-  return [0, -Math.round(altFactor * pitchFactor * 44)];
+  return [0, -Math.round(altFactor * pitchFactor * 56)];
 }
 
 export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight, militaryMode }: Props) {
@@ -145,7 +195,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: 'https://tiles.openfreemap.org/styles/liberty',
+      style: 'https://tiles.stadiamaps.com/styles/alidade_smooth.json',
       center: [userLon, userLat],
       zoom: 9,
       pitch: DEFAULT_PITCH,
@@ -176,6 +226,24 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
       map.setTerrain({ source: 'terrarium', exaggeration: 2.0 });
     });
 
+    // Disable CSS position transitions while the map is moving so markers
+    // track the viewport instantly instead of lagging behind the pan.
+    const enableTransitions = () => {
+      requestAnimationFrame(() => {
+        for (const [, pair] of markersRef.current) {
+          pair.icon.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+          pair.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+        }
+      });
+    };
+    map.on('movestart', () => {
+      for (const [, pair] of markersRef.current) {
+        pair.icon.getElement().style.transition = 'none';
+        pair.shadow.getElement().style.transition = 'none';
+      }
+    });
+    map.on('moveend', enableTransitions);
+
     return () => {
       markersRef.current.forEach(({ icon, shadow }) => { icon.remove(); shadow.remove(); });
       markersRef.current.clear();
@@ -205,26 +273,50 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
     for (const f of flights) {
       const isSelected = f.icao24 === selectedIcao;
       const lngLat: [number, number] = [f.longitude, f.latitude];
+      const altM = Math.max(0, f.baroAltitude ?? 0);
+      const v = f.velocity ?? 0;
+      const h = f.trueTrack ?? 0;
+
+      // Dead-reckon one poll interval ahead — CSS transition animates the marker
+      // from its current screen position to this future position over POLL_S seconds.
+      const futureLngLat: [number, number] = v > 0.5
+        ? (() => { const [la, lo] = deadReckon(f.latitude, f.longitude, h, v, POLL_S); return [lo, la]; })()
+        : lngLat;
+
       const existing = markersRef.current.get(f.icao24);
 
       if (existing) {
-        // Update position
-        existing.icon.setLngLat(lngLat);
-        existing.shadow.setLngLat(lngLat);
-        // Rebuild icon element to reflect selection change (color/glow)
-        const newEl = buildAircraftElement(f, isSelected);
-        (newEl.firstElementChild as HTMLElement).style.transform = iconTiltTransform(pitchRef.current);
-        newEl.addEventListener('click', () => onSelectRef.current(f.icao24));
-        existing.icon.remove();
-        const altM = Math.max(0, f.baroAltitude ?? 0);
-        const newIcon = new maplibregl.Marker({ element: newEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport', offset: computeIconOffset(f.baroAltitude, pitchRef.current) })
-          .setLngLat(lngLat)
-          .addTo(map);
-        markersRef.current.set(f.icao24, { icon: newIcon, shadow: existing.shadow, altM });
+        // Update icon appearance in-place — no remove/re-add, no flicker.
+        const outerEl = existing.icon.getElement();
+        const innerEl = outerEl.firstElementChild as HTMLElement;
+        const tempEl = buildAircraftElement(f, isSelected);
+        const tempInner = tempEl.firstElementChild as HTMLElement;
+        innerEl.innerHTML = tempInner.innerHTML;
+        innerEl.style.filter = tempInner.style.filter;
+        innerEl.style.transform = iconTiltTransform(pitchRef.current);
+
+        // Update shadow in-place
+        const tempShadow = buildGroundShadowElement(f);
+        const tempShadowInner = tempShadow.firstElementChild as HTMLElement;
+        const shadowInner = existing.shadow.getElement().firstElementChild as HTMLElement;
+        shadowInner.style.opacity = tempShadowInner.style.opacity;
+        shadowInner.style.filter = tempShadowInner.style.filter;
+        shadowInner.innerHTML = tempShadowInner.innerHTML;
+
+        if (altM !== existing.altM) {
+          existing.icon.setOffset(computeIconOffset(f.baroAltitude, pitchRef.current));
+        }
+
+        // CSS picks up from the current animated position — no visible snap.
+        outerEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
+        existing.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+        existing.icon.setLngLat(futureLngLat);
+        existing.shadow.setLngLat(futureLngLat);
+
+        markersRef.current.set(f.icao24, { icon: existing.icon, shadow: existing.shadow, altM });
       } else {
-        const altM = Math.max(0, f.baroAltitude ?? 0);
-        // Create ground shadow first (renders below the icon)
-        const shadowEl = buildGroundShadowElement(f.baroAltitude);
+        // New flight — place at server position, then start transition next frame.
+        const shadowEl = buildGroundShadowElement(f);
         const shadow = new maplibregl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
           .setLngLat(lngLat)
           .addTo(map);
@@ -237,18 +329,41 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
           .addTo(map);
 
         markersRef.current.set(f.icao24, { icon, shadow, altM });
+
+        // Snap committed — start transition toward future position next frame.
+        if (v > 0.5) {
+          requestAnimationFrame(() => {
+            void iconEl.getBoundingClientRect();
+            iconEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
+            shadowEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
+            icon.setLngLat(futureLngLat);
+            shadow.setLngLat(futureLngLat);
+          });
+        }
       }
     }
   }, [flights, flight]);
 
-  // Update icon offsets and tilt whenever pitch changes
+  // Update icon offsets and tilt whenever pitch changes.
+  // Disable position transition during the offset write so the new elevation
+  // snaps instantly rather than animating over 10 seconds.
   useEffect(() => {
     const tilt = iconTiltTransform(pitch);
     for (const [, pair] of markersRef.current) {
+      const iconEl = pair.icon.getElement();
+      const shadowEl = pair.shadow.getElement();
+      iconEl.style.transition = 'none';
+      shadowEl.style.transition = 'none';
       pair.icon.setOffset(computeIconOffset(pair.altM, pitch));
-      const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
+      const inner = iconEl.firstElementChild as HTMLElement | null;
       if (inner) inner.style.transform = tilt;
     }
+    requestAnimationFrame(() => {
+      for (const [, pair] of markersRef.current) {
+        pair.icon.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+        pair.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+      }
+    });
   }, [pitch]);
 
   // Fly to selected flight when it changes
