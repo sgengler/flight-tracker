@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
-import { FlightMap, categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory } from './components/FlightMap';
+import { FlightMap, categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory, TILE_OPTIONS, TileId } from './components/FlightMap';
 import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
@@ -847,6 +847,8 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
+  const [tileId, setTileId] = useState<TileId>('stamen_terrain');
+  const [tilePickerOpen, setTilePickerOpen] = useState(false);
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
   const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
   const flightHistoryRef = useRef<Map<string, [number, number, number?][]>>(new Map());
@@ -1081,7 +1083,27 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
           {/* Map — hidden when flights is fullscreen */}
           {fullscreenPanel !== 'flights' && (
           <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
-            <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} />
+            <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} tileId={tileId} />
+            <div className="absolute bottom-2 right-2 z-[1000]">
+              <div className="relative">
+                <button onClick={() => setTilePickerOpen(o => !o)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors backdrop-blur-sm" title={`Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+                    <line x1="9" y1="3" x2="9" y2="18"/>
+                    <line x1="15" y1="6" x2="15" y2="21"/>
+                  </svg>
+                </button>
+                {tilePickerOpen && (
+                  <div className="absolute bottom-full right-0 mb-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg overflow-hidden text-xs min-w-[120px]">
+                    {TILE_OPTIONS.map(opt => (
+                      <button key={opt.id} onClick={() => { setTileId(opt.id); setTilePickerOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 transition-colors ${opt.id === tileId ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'
                 ? (

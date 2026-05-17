@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.1',
+    date: '2026-05-16',
+    changes: [
+      'Map now uses Stamen Terrain tiles (via Stadia Maps) with retina support for sharper rendering.',
+      'Added a map style picker button (bottom-right, matching the fullscreen button) to switch between Stadia tile styles.',
+      'Slightly reduced map tile darkening to better suit the new terrain style.',
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-05-16',
     changes: [

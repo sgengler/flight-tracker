@@ -662,6 +662,20 @@ function InvalidateSizeOnResize() {
   return null;
 }
 
+export const TILE_OPTIONS = [
+  { id: 'stamen_terrain',      label: 'Terrain' },
+  { id: 'alidade_smooth',      label: 'Smooth' },
+  { id: 'alidade_smooth_dark', label: 'Smooth Dark' },
+  { id: 'alidade_bright',      label: 'Bright' },
+  { id: 'alidade_satellite',   label: 'Satellite' },
+  { id: 'stamen_toner',        label: 'Toner' },
+  { id: 'stamen_toner_lite',   label: 'Toner Lite' },
+  { id: 'stamen_watercolor',   label: 'Watercolor' },
+  { id: 'osm_bright',          label: 'OSM Bright' },
+  { id: 'outdoors',            label: 'Outdoors' },
+] as const;
+export type TileId = typeof TILE_OPTIONS[number]['id'];
+
 interface Props {
   userLat: number;
   userLon: number;
@@ -671,21 +685,24 @@ interface Props {
   onSelectFlight: (icao24: string) => void;
   militaryMode?: boolean;
   focusPoint?: [number, number, number?] | null;
+  tileId: TileId;
 }
 
-export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode, focusPoint }: Props) {
+export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode, focusPoint, tileId }: Props) {
   const displayFlights = flights.length > 0 ? flights : (flight ? [flight] : []);
 
   return (
     <MapContainer
       center={[userLat, userLon]}
-      zoom={8}
+      zoom={7}
       className="h-full w-full rounded-2xl overflow-hidden"
       zoomControl={true}
     >
       <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        key={tileId}
+        url={`https://tiles.stadiamaps.com/tiles/${tileId}/{z}/{x}/{y}{r}.png`}
+        attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>'
+        detectRetina={true}
       />
 
       <InvalidateSizeOnResize />
