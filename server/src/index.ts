@@ -7,7 +7,10 @@ import cors from 'cors';
 import compression from 'compression';
 import { exec, spawn } from 'child_process';
 import { subscribe, subscribeMilitary, broadcastTopGun, broadcastTopGunDismiss, broadcastWarbird, broadcastWarbirdDismiss } from './poller';
-import { fetchPlanePhoto, fetchAircraftTrace, getCachedRoute, getApiStats, getCacheSize, getSpeedRecord } from './opensky';
+import { fetchAircraftTrace } from './opensky';
+import { getCachedRoute, getApiStats, getCacheSize } from './routeCache';
+import { fetchPlanePhoto } from './flightInfo';
+import { getSpeedRecord } from './speedRecord';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);

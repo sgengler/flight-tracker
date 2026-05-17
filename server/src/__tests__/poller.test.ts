@@ -2,13 +2,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Response } from 'express';
 import type { FlightState } from '../opensky';
 
-// Mock the opensky module before importing poller
 vi.mock('../opensky', () => ({
   fetchNearbyFlights: vi.fn(),
+  fetchMilitaryFlights: vi.fn(),
   findClosestFlight: vi.fn(),
+  adsbFiIsRateLimited: vi.fn().mockReturnValue(false),
+}));
+
+vi.mock('../routeCache', () => ({
   getCachedRoute: vi.fn().mockResolvedValue(null),
   getRouteFromCacheOnly: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock('../flightInfo', () => ({
   getCachedAircraftType: vi.fn().mockResolvedValue({ typeCode: null, isPolice: false }),
+}));
+
+vi.mock('../speedRecord', () => ({
+  maybeUpdateSpeedRecord: vi.fn(),
 }));
 
 import { subscribe } from '../poller';
@@ -94,7 +105,7 @@ describe('poller subscribe', () => {
     mockFetch
       .mockResolvedValueOnce([])    // 75mi — empty
       .mockResolvedValueOnce([])    // 150mi — empty
-      .mockResolvedValueOnce([MOCK_FLIGHT]); // 300mi — found
+      .mockResolvedValueOnce([MOCK_FLIGHT]); // 250mi — found
 
     const res = makeRes();
     const unsub = subscribe(41.88, -87.63, res);
@@ -105,8 +116,8 @@ describe('poller subscribe', () => {
     const radii = mockFetch.mock.calls.map((c) => c[2]);
     expect(radii).toContain(75);
     expect(radii).toContain(150);
-    expect(radii).toContain(300);
-    // Should not have gone further since 300mi found something
+    expect(radii).toContain(250);
+    // Should not have gone further since 250mi found something
     expect(radii).not.toContain(600);
   });
 
@@ -132,7 +143,7 @@ describe('poller subscribe', () => {
     await flushPromises();
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(15_000);
     await flushPromises();
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -146,7 +157,7 @@ describe('poller subscribe', () => {
     cleanups.push(unsub1, unsub2);
 
     await flushPromises();
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(15_000);
     await flushPromises();
 
     // 2 polls total (1 immediate + 1 interval), not 4
@@ -176,7 +187,7 @@ describe('poller subscribe', () => {
 
     unsub(); // unsubscribe before the next interval
 
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(15_000);
     await flushPromises();
 
     // Only the initial poll write; interval fires but client is gone
@@ -209,7 +220,7 @@ describe('poller subscribe', () => {
     unsub1(); // remove only res1
 
     mockFetch.mockClear();
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(15_000);
     await flushPromises();
 
     expect(mockFetch).toHaveBeenCalledTimes(1); // session still polling for res2

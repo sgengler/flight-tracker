@@ -234,6 +234,10 @@ describe('fetchNearbyFlights', () => {
   });
 
   it('throws when the adsb.fi API returns a non-ok status', async () => {
+    // adsb.fi returns 429 → falls through to adsb.lol, which also returns 429
+    vi.mocked(fetch).mockResolvedValueOnce(
+      { ok: false, status: 429, statusText: 'Too Many Requests' } as Response
+    );
     vi.mocked(fetch).mockResolvedValueOnce(
       { ok: false, status: 429, statusText: 'Too Many Requests' } as Response
     );

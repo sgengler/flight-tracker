@@ -1,5 +1,8 @@
 import { Response } from 'express';
-import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, getCachedRoute, getRouteFromCacheOnly, getCachedAircraftType, adsbFiIsRateLimited, maybeUpdateSpeedRecord, FlightState } from './opensky';
+import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, adsbFiIsRateLimited, FlightState } from './opensky';
+import { getCachedRoute, getRouteFromCacheOnly } from './routeCache';
+import { getCachedAircraftType } from './flightInfo';
+import { maybeUpdateSpeedRecord } from './speedRecord';
 
 const POLL_INTERVAL_MS = 15_000;
 
