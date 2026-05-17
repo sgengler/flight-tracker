@@ -4,7 +4,7 @@ import type { GeoJSONSource } from 'mapbox-gl';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 import { FlightState } from '../types';
-import { categorizeAircraft, getAircraftSvgInfo, MILITARY_CATS, WARBIRD_CATS, heliInnerSvg } from './FlightMap';
+import { categorizeAircraft, getAircraftSvgInfo, MILITARY_CATS, WARBIRD_CATS, heliInnerSvg, haversineDist, trailColor, deadReckon } from './FlightMap';
 
 interface Props {
   userLat: number;
@@ -21,34 +21,6 @@ const POLL_S = 10;
 const DEFAULT_PITCH = 62;
 
 // ── Utilities ────────────────────────────────────────────────────────────────
-
-function haversineDist(a: [number, number], b: [number, number]): number {
-  const R = 6_371_000;
-  const φ1 = (a[0] * Math.PI) / 180, φ2 = (b[0] * Math.PI) / 180;
-  const Δφ = ((b[0] - a[0]) * Math.PI) / 180;
-  const Δλ = ((b[1] - a[1]) * Math.PI) / 180;
-  const x = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
-
-function lerpColor(a: string, b: string, t: number): string {
-  const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
-  const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
-  const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
-  const r = Math.round(ar + (br - ar) * t);
-  const g = Math.round(ag + (bg - ag) * t);
-  const bl = Math.round(ab + (bb - ab) * t);
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`;
-}
-
-function trailColor(speedMs: number): string {
-  const kts = speedMs * 1.94384;
-  if (kts <= 30)  return '#a855f7';
-  if (kts >= 550) return '#facc15';
-  if (kts < 100)  return lerpColor('#a855f7', '#38bdf8', (kts - 30) / 70);
-  if (kts < 350)  return lerpColor('#38bdf8', '#4ade80', (kts - 100) / 250);
-  return lerpColor('#4ade80', '#facc15', (kts - 350) / 200);
-}
 
 function applyTrailData(map: mapboxgl.Map, trail: [number, number, number?, number?][]) {
   const source = map.getSource('trail-ground') as GeoJSONSource | undefined;
@@ -201,20 +173,6 @@ function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
 // so the icon reads as upright rather than fully flat on the tilted map plane.
 function iconTransform(pitchDeg: number, bearingDeg: number): string {
   return `rotate(${(-bearingDeg).toFixed(1)}deg) rotateX(${(-(pitchDeg * 0.5)).toFixed(1)}deg)`;
-}
-
-function deadReckon(
-  lat: number, lon: number,
-  headingDeg: number, velocityMs: number,
-  dtSeconds: number,
-): [number, number] {
-  const dt = Math.min(dtSeconds, 20);
-  const distM = velocityMs * dt;
-  const headingRad = (headingDeg * Math.PI) / 180;
-  const R = 6_371_000;
-  const dLat = (distM * Math.cos(headingRad)) / R;
-  const dLon = (distM * Math.sin(headingRad)) / (R * Math.cos((lat * Math.PI) / 180));
-  return [lat + (dLat * 180) / Math.PI, lon + (dLon * 180) / Math.PI];
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────

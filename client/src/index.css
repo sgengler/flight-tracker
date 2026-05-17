@@ -20,28 +20,6 @@ html, body, #root {
   display: none; /* Chrome/Safari/Chromium */
 }
 
-.leaflet-container {
-  height: 100%;
-  width: 100%;
-}
-
-/* Darken map tiles so aircraft icons stand out.
-   Applied to .leaflet-layer (the tile container) rather than individual tiles
-   to avoid sub-pixel seams between tiles when a filter is active. */
-.leaflet-container .leaflet-tile-pane {
-  filter: brightness(0.85) saturate(0.9);
-}
-
-/* Rotate aircraft icon to match heading */
-.aircraft-icon {
-  transform-origin: center center;
-}
-
-
-.leaflet-control-attribution {
-  display: none;
-}
-
 /* Flight card swap animation — plays whenever the selected aircraft changes */
 @keyframes flight-card-in {
   0%   { opacity: 0; transform: translateY(10px) scale(0.97); }

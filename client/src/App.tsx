@@ -848,7 +848,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
-  const [tileId, setTileId] = useState<TileId>('stamen_terrain');
+  const [tileId, setTileId] = useState<TileId>('dark');
   const [tilePickerOpen, setTilePickerOpen] = useState(false);
   const [map3D, setMap3D] = useState(false);
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
