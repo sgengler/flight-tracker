@@ -235,14 +235,32 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
   onSelectRef.current = onSelectFlight;
   const trailRef = useRef<[number, number, number?, number?][]>([]);
   trailRef.current = trail;
+  const animFrameRef = useRef<number | null>(null);
 
   // Mount / unmount the map once
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Dead-reckon marker positions each frame instead of using CSS transitions,
+    // so Mapbox's internal _update() calls (triggered by tile loads) can't snap
+    // markers to their target and cancel the animation.
+    const tick = () => {
+      const elapsed = Math.min((Date.now() - lastPollTimeRef.current) / 1000, POLL_S);
+      for (const [, pair] of markersRef.current) {
+        const f = pair.flight;
+        const v = f.velocity ?? 0;
+        if (v > 0.5) {
+          const [la, lo] = deadReckon(f.latitude, f.longitude, f.trueTrack ?? 0, v, elapsed);
+          pair.icon.setLngLat([lo, la]);
+          pair.shadow.setLngLat([lo, la]);
+        }
+      }
+      animFrameRef.current = requestAnimationFrame(tick);
+    };
+
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: 'mapbox://styles/mapbox/standard',
+      style: 'mapbox://styles/mapbox/outdoors-v12',
       center: [userLon, userLat],
       zoom: 9,
       pitch: 0,
@@ -262,6 +280,8 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       for (const [, pair] of markersRef.current) {
         const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
         if (inner) inner.style.transform = t;
+        const shadowInner = pair.shadow.getElement().firstElementChild as HTMLElement | null;
+        if (shadowInner) shadowInner.style.transform = t;
       }
     });
     map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
@@ -272,6 +292,8 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       for (const [, pair] of markersRef.current) {
         const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
         if (inner) inner.style.transform = t;
+        const shadowInner = pair.shadow.getElement().firstElementChild as HTMLElement | null;
+        if (shadowInner) shadowInner.style.transform = t;
       }
     });
     map.on('style.load', () => {
@@ -320,55 +342,18 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
 
       applyTrailData(map, trailRef.current);
       map.easeTo({ pitch: DEFAULT_PITCH, duration: 1800, easing: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t });
-      map.once('pitchend', () => { introCompleteRef.current = true; });
-    });
-
-    // Disable CSS transitions while the map is moving (pan, zoom, rotate, pitch)
-    // so markers track the viewport instantly. On moveend, snap each marker to
-    // its current dead-reckoned position and resume the transition for the
-    // remaining time in the poll interval.
-    map.on('movestart', () => {
-      for (const [, pair] of markersRef.current) {
-        pair.icon.getElement().style.transition = 'none';
-        pair.shadow.getElement().style.transition = 'none';
-      }
-    });
-    map.on('moveend', () => {
-      if (!introCompleteRef.current) return;
-      const elapsed = (Date.now() - lastPollTimeRef.current) / 1000;
-      const remaining = Math.max(0, POLL_S - elapsed);
-      requestAnimationFrame(() => {
-        for (const [, pair] of markersRef.current) {
-          const f = pair.flight;
-          const v = f.velocity ?? 0;
-          const h = f.trueTrack ?? 0;
-          const iconEl = pair.icon.getElement();
-          const shadowEl = pair.shadow.getElement();
-          if (v <= 0.5) {
-            iconEl.style.transition = 'none';
-            shadowEl.style.transition = 'none';
-            continue;
-          }
-          // Snap to where the plane is right now
-          const [curLa, curLo] = deadReckon(f.latitude, f.longitude, h, v, elapsed);
-          iconEl.style.transition = 'none';
-          shadowEl.style.transition = 'none';
-          pair.icon.setLngLat([curLo, curLa]);
-          pair.shadow.setLngLat([curLo, curLa]);
-          void iconEl.getBoundingClientRect();
-          // Resume transition for the time remaining in this poll interval
-          if (remaining > 0) {
-            const [futLa, futLo] = deadReckon(f.latitude, f.longitude, h, v, POLL_S);
-            iconEl.style.transition = `transform ${remaining * 1000}ms linear`;
-            shadowEl.style.transition = `transform ${remaining * 1000}ms linear`;
-            pair.icon.setLngLat([futLo, futLa]);
-            pair.shadow.setLngLat([futLo, futLa]);
-          }
-        }
+      map.once('pitchend', () => {
+        introCompleteRef.current = true;
+        animFrameRef.current = requestAnimationFrame(tick);
       });
     });
 
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    if (containerRef.current) resizeObserver.observe(containerRef.current);
+
     return () => {
+      if (animFrameRef.current !== null) cancelAnimationFrame(animFrameRef.current);
+      resizeObserver.disconnect();
       markersRef.current.forEach(({ icon, shadow }) => { icon.remove(); shadow.remove(); });
       markersRef.current.clear();
       map.remove();
@@ -398,9 +383,6 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       const altM = Math.max(0, f.baroAltitude ?? 0);
       const v = f.velocity ?? 0;
       const h = f.trueTrack ?? 0;
-      const futureLngLat: [number, number] = v > 0.5
-        ? (() => { const [la, lo] = deadReckon(f.latitude, f.longitude, h, v, POLL_S); return [lo, la]; })()
-        : lngLat;
 
       const existing = markersRef.current.get(f.icao24);
       if (existing) {
@@ -417,22 +399,18 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
         const shadowInner = existing.shadow.getElement().firstElementChild as HTMLElement;
         shadowInner.style.opacity = tempShadowInner.style.opacity;
         shadowInner.style.filter = tempShadowInner.style.filter;
+        shadowInner.style.transform = iconTransform(pitchRef.current, bearingRef.current);
         shadowInner.innerHTML = tempShadowInner.innerHTML;
 
         if (altM !== existing.altM) {
           (existing.icon as any).setAltitude(altM); // eslint-disable-line @typescript-eslint/no-explicit-any
         }
 
-        if (introCompleteRef.current) {
-          outerEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
-          existing.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
-        }
-        existing.icon.setLngLat(futureLngLat);
-        existing.shadow.setLngLat(futureLngLat);
-
+        // rAF loop handles position; just refresh the stored flight data
         markersRef.current.set(f.icao24, { icon: existing.icon, shadow: existing.shadow, altM, flight: f });
       } else {
         const shadowEl = buildGroundShadowElement(f);
+        (shadowEl.firstElementChild as HTMLElement).style.transform = iconTransform(pitchRef.current, bearingRef.current);
         const shadow = new mapboxgl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
           .setLngLat(lngLat).addTo(map);
 
@@ -449,19 +427,12 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
 
         markersRef.current.set(f.icao24, { icon, shadow, altM, flight: f });
 
-        if (v > 0.5) {
-          if (introCompleteRef.current) {
-            requestAnimationFrame(() => {
-              void iconEl.getBoundingClientRect();
-              iconEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
-              shadowEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
-              icon.setLngLat(futureLngLat);
-              shadow.setLngLat(futureLngLat);
-            });
-          } else {
-            icon.setLngLat(futureLngLat);
-            shadow.setLngLat(futureLngLat);
-          }
+        // Before the rAF loop starts, pre-position at the estimated future location
+        // so the intro animation doesn't show planes snapping on reveal.
+        if (!introCompleteRef.current && v > 0.5) {
+          const [la, lo] = deadReckon(f.latitude, f.longitude, h, v, POLL_S);
+          icon.setLngLat([lo, la]);
+          shadow.setLngLat([lo, la]);
         }
       }
     }
@@ -473,6 +444,8 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
     for (const [, pair] of markersRef.current) {
       const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
       if (inner) inner.style.transform = t;
+      const shadowInner = pair.shadow.getElement().firstElementChild as HTMLElement | null;
+      if (shadowInner) shadowInner.style.transform = t;
     }
   }, [pitch]);
 

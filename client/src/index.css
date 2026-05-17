@@ -113,3 +113,8 @@ html, body, #root {
 .topgun-glitch {
   animation: topgun-glitch 6s ease-in-out infinite;
 }
+
+.mapboxgl-ctrl-logo,
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}

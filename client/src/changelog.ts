@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.8',
+    date: '2026-05-17',
+    changes: [
+      'Plane movement switched from CSS transitions to a requestAnimationFrame loop — icons now track smoothly at all times with no artifacts during pan, zoom, rotate, or pitch.',
+      'Map style changed to Outdoors (more terrain and road detail in 3D mode).',
+      'Mapbox attribution logo hidden.',
+      'Shadow icons now correctly rotate when the map pitch or bearing changes.',
+    ],
+  },
+  {
     version: '0.6.7',
     date: '2026-05-17',
     changes: [
