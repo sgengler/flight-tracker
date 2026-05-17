@@ -671,11 +671,8 @@ export const TILE_OPTIONS = [
   { id: 'alidade_smooth_dark', label: 'Smooth Dark' },
   { id: 'alidade_bright',      label: 'Bright' },
   { id: 'alidade_satellite',   label: 'Satellite' },
-  { id: 'stamen_toner',        label: 'Toner' },
   { id: 'stamen_toner_lite',   label: 'Toner Lite' },
   { id: 'stamen_watercolor',   label: 'Watercolor' },
-  { id: 'osm_bright',          label: 'OSM Bright' },
-  { id: 'outdoors',            label: 'Outdoors' },
 ] as const;
 export type TileId = typeof TILE_OPTIONS[number]['id'];
 
