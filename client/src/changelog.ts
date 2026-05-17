@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.5',
+    date: '2026-05-17',
+    changes: [
+      '3D map: aircraft icons now rotate correctly when the map is rotated.',
+      '3D map: aircraft altitude uses Mapbox setAltitude() to match the trail line exactly.',
+      '3D map: trail shadow line hugs the terrain below the elevated trail.',
+      '3D map: 3D mode is now selected from the map style picker instead of a separate button.',
+      '3D map: map animates from flat to 62° pitch on load; plane transitions wait until the animation finishes.',
+    ],
+  },
+  {
     version: '0.6.4',
     date: '2026-05-17',
     changes: [

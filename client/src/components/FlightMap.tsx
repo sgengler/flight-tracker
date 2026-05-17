@@ -614,7 +614,7 @@ const TRAIL_POLL_S = 15; // server poll interval used to estimate per-segment sp
 
 // Renders speed-coloured trail segments + position dots directly via Leaflet
 // (bypasses React-Leaflet components for performance with up to 300 segments).
-function TrailingLine({ positions }: { positions: [number, number, number?][] }) {
+function TrailingLine({ positions }: { positions: [number, number, number?, number?][] }) {
   const map = useMap();
   const lgRef = useRef<L.LayerGroup | null>(null);
 
@@ -638,7 +638,10 @@ function TrailingLine({ positions }: { positions: [number, number, number?][] })
       const color = trailColor(speedMs);
 
       // Coloured line segment
-      const seg = L.polyline([positions[i], positions[i + 1]], { color, weight: 3, opacity: 0.8 });
+      const seg = L.polyline(
+        [[positions[i][0], positions[i][1]], [positions[i + 1][0], positions[i + 1][1]]],
+        { color, weight: 3, opacity: 0.8 },
+      );
       seg.on('add', (e: L.LeafletEvent) => {
         const el = (e.target as L.Polyline).getElement() as HTMLElement | undefined;
         if (el) el.style.filter = 'drop-shadow(6px 6px 0.5px rgba(0,0,0,0.28))';
@@ -681,7 +684,7 @@ interface Props {
   userLon: number;
   flight: FlightState | null;
   flights: FlightState[];
-  trail: [number, number, number?][];
+  trail: [number, number, number?, number?][];
   onSelectFlight: (icao24: string) => void;
   militaryMode?: boolean;
   focusPoint?: [number, number, number?] | null;

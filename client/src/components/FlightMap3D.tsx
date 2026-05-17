@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
+import mapboxgl from 'mapbox-gl';
+import type { GeoJSONSource } from 'mapbox-gl';
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 import { FlightState } from '../types';
 import { categorizeAircraft, getAircraftSvgInfo, MILITARY_CATS, WARBIRD_CATS, heliInnerSvg } from './FlightMap';
 
@@ -8,14 +11,78 @@ interface Props {
   userLon: number;
   flight: FlightState | null;
   flights: FlightState[];
+  trail: [number, number, number?, number?][];
   onSelectFlight: (icao24: string) => void;
   militaryMode?: boolean;
 }
 
+const TRAIL_POLL_S = 15;
+const POLL_S = 10;
+const DEFAULT_PITCH = 62;
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+
+function haversineDist(a: [number, number], b: [number, number]): number {
+  const R = 6_371_000;
+  const φ1 = (a[0] * Math.PI) / 180, φ2 = (b[0] * Math.PI) / 180;
+  const Δφ = ((b[0] - a[0]) * Math.PI) / 180;
+  const Δλ = ((b[1] - a[1]) * Math.PI) / 180;
+  const x = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function lerpColor(a: string, b: string, t: number): string {
+  const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+  const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+  const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`;
+}
+
+function trailColor(speedMs: number): string {
+  const kts = speedMs * 1.94384;
+  if (kts <= 30)  return '#a855f7';
+  if (kts >= 550) return '#facc15';
+  if (kts < 100)  return lerpColor('#a855f7', '#38bdf8', (kts - 30) / 70);
+  if (kts < 350)  return lerpColor('#38bdf8', '#4ade80', (kts - 100) / 250);
+  return lerpColor('#4ade80', '#facc15', (kts - 350) / 200);
+}
+
+function applyTrailData(map: mapboxgl.Map, trail: [number, number, number?, number?][]) {
+  const source = map.getSource('trail-ground') as GeoJSONSource | undefined;
+  if (!source) return;
+  if (trail.length < 2) {
+    source.setData({ type: 'FeatureCollection', features: [] });
+    return;
+  }
+  const features = [];
+  for (let i = 0; i < trail.length - 1; i++) {
+    const speedMs = trail[i][2] ?? haversineDist(
+      [trail[i][0], trail[i][1]],
+      [trail[i + 1][0], trail[i + 1][1]],
+    ) / TRAIL_POLL_S;
+    const alt = ((trail[i][3] ?? 0) + (trail[i + 1][3] ?? 0)) / 2;
+    features.push({
+      type: 'Feature' as const,
+      properties: { color: trailColor(speedMs), alt },
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [trail[i][1], trail[i][0]],
+          [trail[i + 1][1], trail[i + 1][0]],
+        ],
+      },
+    });
+  }
+  source.setData({ type: 'FeatureCollection', features });
+}
+
 function iconColor(flight: FlightState, isSelected: boolean): string {
   const cat = categorizeAircraft(flight.aircraftType);
-  if (isSelected)       return '#ef4444';
-  if (flight.isPolice)  return '#60a5fa';
+  if (isSelected)          return '#ef4444';
+  if (flight.isPolice)     return '#60a5fa';
   if (MILITARY_CATS.has(cat)) return '#4ade80';
   if (WARBIRD_CATS.has(cat))  return '#fb923c';
   return '#facc15';
@@ -61,10 +128,7 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
     } else if (cat === 'warbird') {
       nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${color}" ${ns}/>`;
     }
-
-    // Leading-edge highlight for a 3D sheen — rotates with the aircraft
     const highlight = `<ellipse cx="-1" cy="-8" rx="4" ry="2.5" fill="rgba(255,255,255,0.32)" transform="rotate(${heading})"/>`;
-
     body = `<g transform="rotate(${heading})">` +
       `<path d="${path}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round"/>` +
       nacelles +
@@ -72,12 +136,8 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
   }
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="-26 -26 52 52">${body}</svg>`;
-
-  // Outer div: MapLibre uses this for positioning (sets its own transform on it — don't touch).
   const el = document.createElement('div');
   el.style.cssText = 'cursor:pointer; z-index:2; line-height:0;';
-
-  // Inner div: safe to apply our tilt transform without clobbering MapLibre's translate.
   const inner = document.createElement('div');
   inner.style.cssText = `filter:drop-shadow(0px 1px 2px rgba(0,0,0,0.5)); line-height:0;`;
   inner.innerHTML = svg;
@@ -87,10 +147,7 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
 
 function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
   const cat = categorizeAircraft(flight.aircraftType);
-  const blurPx = 2;
-  const opacity = 0.55;
   const heading = (cat === 'heli' || cat === 'mil-heli') ? 0 : (flight.trueTrack ?? 0);
-
   const fill = 'rgba(0,0,0,0.9)';
   const pod = (cx: number, cy: number, rx: number, ry: number) =>
     `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`;
@@ -126,28 +183,25 @@ function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
       nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${fill}"/>`;
     }
     body = `<g transform="rotate(${heading})">` +
-      `<path d="${path}" fill="${fill}"/>` +
-      nacelles +
-      `</g>`;
+      `<path d="${path}" fill="${fill}"/>` + nacelles + `</g>`;
   }
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="-26 -26 52 52">${body}</svg>`;
-
-  // Outer div: MapLibre adds maplibregl-marker class and resets opacity to 1 on this element.
-  // Keep it style-free so MapLibre doesn't clobber our opacity.
   const el = document.createElement('div');
   el.style.cssText = 'pointer-events:none;line-height:0;';
-
-  // Inner div: MapLibre never touches this, so opacity and blur are stable here.
   const inner = document.createElement('div');
-  inner.style.cssText = `opacity:${opacity};filter:blur(${blurPx}px);line-height:0;`;
+  inner.style.cssText = `opacity:0.55;filter:blur(2px);line-height:0;`;
   inner.innerHTML = svg;
   el.appendChild(inner);
   return el;
 }
 
-const DEFAULT_PITCH = 62;
-const POLL_S = 10;
+// CSS transform for the inner SVG: counter-rotates bearing so the icon points in the
+// correct compass direction regardless of map rotation, plus a partial pitch counter-tilt
+// so the icon reads as upright rather than fully flat on the tilted map plane.
+function iconTransform(pitchDeg: number, bearingDeg: number): string {
+  return `rotate(${(-bearingDeg).toFixed(1)}deg) rotateX(${(-(pitchDeg * 0.5)).toFixed(1)}deg)`;
+}
 
 function deadReckon(
   lat: number, lon: number,
@@ -163,86 +217,127 @@ function deadReckon(
   return [lat + (dLat * 180) / Math.PI, lon + (dLon * 180) / Math.PI];
 }
 
-// Counter-rotation applied to the inner SVG div to soften the full map-alignment tilt.
-// pitchAlignment:'map' rotates the marker 100% — this cancels ~50%, leaving a half-pitch lean.
-function iconTiltTransform(pitchDeg: number): string {
-  return `rotateX(${(-(pitchDeg * 0.5)).toFixed(1)}deg)`;
-}
+// ── Component ─────────────────────────────────────────────────────────────────
 
-// Returns a screen-space [x, y] offset that lifts the icon above its shadow.
-// sin(pitch) → 0 when overhead, ~1 when near-horizontal; altitude scales the gap.
-function computeIconOffset(baroAltitudeM: number | null, pitchDeg: number): [number, number] {
-  const altM = Math.max(0, baroAltitudeM ?? 0);
-  const altFactor = Math.min(1, 0.18 + (altM / 12000) * 0.82);
-  const pitchFactor = Math.sin(pitchDeg * Math.PI / 180);
-  return [0, -Math.round(altFactor * pitchFactor * 56)];
-}
-
-export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight, militaryMode }: Props) {
+export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
   const pitchRef = useRef(DEFAULT_PITCH);
   pitchRef.current = pitch;
-  type MarkerPair = { icon: maplibregl.Marker; shadow: maplibregl.Marker; altM: number };
+  const bearingRef = useRef(0);
+  const introCompleteRef = useRef(false);
+
+  type MarkerPair = { icon: mapboxgl.Marker; shadow: mapboxgl.Marker; altM: number };
   const markersRef = useRef<Map<string, MarkerPair>>(new Map());
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
+  const trailRef = useRef<[number, number, number?, number?][]>([]);
+  trailRef.current = trail;
 
   // Mount / unmount the map once
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const map = new maplibregl.Map({
+    const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: 'https://tiles.stadiamaps.com/styles/alidade_smooth.json',
+      style: 'mapbox://styles/mapbox/standard',
       center: [userLon, userLat],
       zoom: 9,
-      pitch: DEFAULT_PITCH,
+      pitch: 0,
       bearing: 0,
       maxPitch: 85,
-      attributionControl: { compact: true },
+      attributionControl: { compact: true } as any,
     });
     mapRef.current = map;
 
-    map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-    // Keep React pitch state in sync when user tilts via navigation control
-    map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
-
-    // Ensure pitch is applied after the style loads (some styles reset the camera)
-    map.once('styledata', () => {
-      map.setPitch(DEFAULT_PITCH);
+    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    // Update marker offsets every frame during pitch/zoom gestures so icons
+    // track the trail altitude in real time. *end events still flush React state.
+    map.on('pitch', () => {
+      const p = map.getPitch();
+      pitchRef.current = p;
+      const t = iconTransform(p, bearingRef.current);
+      for (const [, pair] of markersRef.current) {
+        const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
+        if (inner) inner.style.transform = t;
+      }
     });
-
-    map.on('load', () => {
-      map.addSource('terrarium', {
+    map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
+    map.on('rotate', () => {
+      const b = map.getBearing();
+      bearingRef.current = b;
+      const t = iconTransform(pitchRef.current, b);
+      for (const [, pair] of markersRef.current) {
+        const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
+        if (inner) inner.style.transform = t;
+      }
+    });
+    map.on('style.load', () => {
+      map.addSource('mapbox-dem', {
         type: 'raster-dem',
-        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        encoding: 'terrarium',
+        url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+        tileSize: 512,
         maxzoom: 14,
       });
-      map.setTerrain({ source: 'terrarium', exaggeration: 2.0 });
+      map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
+
+      map.addSource('trail-ground', {
+        type: 'geojson',
+        lineMetrics: true,
+        data: { type: 'FeatureCollection', features: [] },
+      });
+      map.addLayer({
+        id: 'trail-shadow-line',
+        type: 'line',
+        source: 'trail-ground',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#000000',
+          'line-width': 6,
+          'line-opacity': 0.3,
+          'line-blur': 3,
+        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      });
+      map.addLayer({
+        id: 'trail-ground-line',
+        type: 'line',
+        source: 'trail-ground',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+          'line-z-offset': ['get', 'alt'],
+          'line-elevation-reference': 'sea',
+        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        paint: {
+          'line-color': ['get', 'color'] as unknown as string,
+          'line-width': 4,
+          'line-opacity': 0.9,
+          'line-emissive-strength': 1.0,
+        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      });
+
+      applyTrailData(map, trailRef.current);
+      map.easeTo({ pitch: DEFAULT_PITCH, duration: 1800, easing: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t });
+      map.once('pitchend', () => { introCompleteRef.current = true; });
     });
 
-    // Disable CSS position transitions while the map is moving so markers
-    // track the viewport instantly instead of lagging behind the pan.
-    const enableTransitions = () => {
-      requestAnimationFrame(() => {
-        for (const [, pair] of markersRef.current) {
-          pair.icon.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
-          pair.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
-        }
-      });
-    };
+    // Disable CSS transitions while the map is panning so markers track instantly.
     map.on('movestart', () => {
       for (const [, pair] of markersRef.current) {
         pair.icon.getElement().style.transition = 'none';
         pair.shadow.getElement().style.transition = 'none';
       }
     });
-    map.on('moveend', enableTransitions);
+    map.on('moveend', () => {
+      if (!introCompleteRef.current) return;
+      requestAnimationFrame(() => {
+        for (const [, pair] of markersRef.current) {
+          pair.icon.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+          pair.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+        }
+      });
+    });
 
     return () => {
       markersRef.current.forEach(({ icon, shadow }) => { icon.remove(); shadow.remove(); });
@@ -260,42 +355,33 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
     const selectedIcao = flight?.icao24 ?? null;
     const incoming = new Map(flights.map(f => [f.icao24, f]));
 
-    // Remove stale markers
     for (const [icao, { icon, shadow }] of markersRef.current) {
       if (!incoming.has(icao)) {
-        icon.remove();
-        shadow.remove();
+        icon.remove(); shadow.remove();
         markersRef.current.delete(icao);
       }
     }
 
-    // Add or update markers
     for (const f of flights) {
       const isSelected = f.icao24 === selectedIcao;
       const lngLat: [number, number] = [f.longitude, f.latitude];
       const altM = Math.max(0, f.baroAltitude ?? 0);
       const v = f.velocity ?? 0;
       const h = f.trueTrack ?? 0;
-
-      // Dead-reckon one poll interval ahead — CSS transition animates the marker
-      // from its current screen position to this future position over POLL_S seconds.
       const futureLngLat: [number, number] = v > 0.5
         ? (() => { const [la, lo] = deadReckon(f.latitude, f.longitude, h, v, POLL_S); return [lo, la]; })()
         : lngLat;
 
       const existing = markersRef.current.get(f.icao24);
-
       if (existing) {
-        // Update icon appearance in-place — no remove/re-add, no flicker.
         const outerEl = existing.icon.getElement();
         const innerEl = outerEl.firstElementChild as HTMLElement;
         const tempEl = buildAircraftElement(f, isSelected);
         const tempInner = tempEl.firstElementChild as HTMLElement;
         innerEl.innerHTML = tempInner.innerHTML;
         innerEl.style.filter = tempInner.style.filter;
-        innerEl.style.transform = iconTiltTransform(pitchRef.current);
+        innerEl.style.transform = iconTransform(pitchRef.current, bearingRef.current);
 
-        // Update shadow in-place
         const tempShadow = buildGroundShadowElement(f);
         const tempShadowInner = tempShadow.firstElementChild as HTMLElement;
         const shadowInner = existing.shadow.getElement().firstElementChild as HTMLElement;
@@ -304,86 +390,86 @@ export function FlightMap3D({ userLat, userLon, flight, flights, onSelectFlight,
         shadowInner.innerHTML = tempShadowInner.innerHTML;
 
         if (altM !== existing.altM) {
-          existing.icon.setOffset(computeIconOffset(f.baroAltitude, pitchRef.current));
+          (existing.icon as any).setAltitude(altM); // eslint-disable-line @typescript-eslint/no-explicit-any
         }
 
-        // CSS picks up from the current animated position — no visible snap.
-        outerEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
-        existing.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+        if (introCompleteRef.current) {
+          outerEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
+          existing.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
+        }
         existing.icon.setLngLat(futureLngLat);
         existing.shadow.setLngLat(futureLngLat);
 
         markersRef.current.set(f.icao24, { icon: existing.icon, shadow: existing.shadow, altM });
       } else {
-        // New flight — place at server position, then start transition next frame.
         const shadowEl = buildGroundShadowElement(f);
-        const shadow = new maplibregl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
-          .setLngLat(lngLat)
-          .addTo(map);
+        const shadow = new mapboxgl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
+          .setLngLat(lngLat).addTo(map);
 
         const iconEl = buildAircraftElement(f, isSelected);
-        (iconEl.firstElementChild as HTMLElement).style.transform = iconTiltTransform(pitchRef.current);
+        (iconEl.firstElementChild as HTMLElement).style.transform = iconTransform(pitchRef.current, bearingRef.current);
         iconEl.addEventListener('click', () => onSelectRef.current(f.icao24));
-        const icon = new maplibregl.Marker({ element: iconEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport', offset: computeIconOffset(f.baroAltitude, pitchRef.current) })
-          .setLngLat(lngLat)
-          .addTo(map);
+        const icon = new mapboxgl.Marker({
+          element: iconEl,
+          anchor: 'center',
+          pitchAlignment: 'map',
+          rotationAlignment: 'viewport',
+        }).setLngLat(lngLat).addTo(map);
+        (icon as any).setAltitude(altM); // eslint-disable-line @typescript-eslint/no-explicit-any
 
         markersRef.current.set(f.icao24, { icon, shadow, altM });
 
-        // Snap committed — start transition toward future position next frame.
         if (v > 0.5) {
-          requestAnimationFrame(() => {
-            void iconEl.getBoundingClientRect();
-            iconEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
-            shadowEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
+          if (introCompleteRef.current) {
+            requestAnimationFrame(() => {
+              void iconEl.getBoundingClientRect();
+              iconEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
+              shadowEl.style.transition = `transform ${POLL_S * 1000}ms linear`;
+              icon.setLngLat(futureLngLat);
+              shadow.setLngLat(futureLngLat);
+            });
+          } else {
             icon.setLngLat(futureLngLat);
             shadow.setLngLat(futureLngLat);
-          });
+          }
         }
       }
     }
-  }, [flights, flight]);
+  }, [flights, flight, userLat]);
 
-  // Update icon offsets and tilt whenever pitch changes.
-  // Disable position transition during the offset write so the new elevation
-  // snaps instantly rather than animating over 10 seconds.
+  // Update icon transform when pitch changes (bearing is handled in real time via map.on('rotate')).
   useEffect(() => {
-    const tilt = iconTiltTransform(pitch);
+    const t = iconTransform(pitch, bearingRef.current);
     for (const [, pair] of markersRef.current) {
-      const iconEl = pair.icon.getElement();
-      const shadowEl = pair.shadow.getElement();
-      iconEl.style.transition = 'none';
-      shadowEl.style.transition = 'none';
-      pair.icon.setOffset(computeIconOffset(pair.altM, pitch));
-      const inner = iconEl.firstElementChild as HTMLElement | null;
-      if (inner) inner.style.transform = tilt;
+      const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
+      if (inner) inner.style.transform = t;
     }
-    requestAnimationFrame(() => {
-      for (const [, pair] of markersRef.current) {
-        pair.icon.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
-        pair.shadow.getElement().style.transition = `transform ${POLL_S * 1000}ms linear`;
-      }
-    });
   }, [pitch]);
 
-  // Fly to selected flight when it changes
+  // Sync trail
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    applyTrailData(map, trail);
+    map.triggerRepaint();
+  }, [trail]);
+
+  // Fly to selected flight
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !flight) return;
     map.flyTo({ center: [flight.longitude, flight.latitude], speed: 0.8 });
   }, [flight?.icao24]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hide user pin in military mode — non-military shows a home marker
+  // Home pin (hidden in military mode)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || militaryMode) return;
-
     const pinEl = document.createElement('div');
     pinEl.style.cssText = 'font-size:20px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));pointer-events:none;';
     pinEl.textContent = '📍';
-    const pin = new maplibregl.Marker({ element: pinEl, anchor: 'bottom' })
-      .setLngLat([userLon, userLat])
-      .addTo(map);
+    const pin = new mapboxgl.Marker({ element: pinEl, anchor: 'bottom' })
+      .setLngLat([userLon, userLat]).addTo(map);
     return () => { pin.remove(); };
   }, [userLat, userLon, militaryMode]);
 

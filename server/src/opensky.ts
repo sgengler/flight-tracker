@@ -213,9 +213,9 @@ export async function fetchMilitaryFlights(refLat: number, refLon: number): Prom
 
 // ── Globe.adsbexchange.com trace proxy ───────────────────────────────────────
 
-// Returns [lat, lon, speedMs][] for the current-day trace of an aircraft.
+// Returns [lat, lon, speedMs, altM][] for the current-day trace of an aircraft.
 // Proxies globe.adsbexchange.com which requires a Referer header.
-export async function fetchAircraftTrace(icao24: string): Promise<Array<[number, number, number]>> {
+export async function fetchAircraftTrace(icao24: string): Promise<Array<[number, number, number, number | null]>> {
   const hex = icao24.toLowerCase();
 
   const suffix = hex.slice(-2);
@@ -232,11 +232,12 @@ export async function fetchAircraftTrace(icao24: string): Promise<Array<[number,
     trace: Array<[number, number, number, string | number, number, ...unknown[]]>;
   };
 
-  // Each entry: [timeOffset, lat, lon, alt_or_"ground", groundspeedKts, ...]
-  const positions: Array<[number, number, number]> = data.trace.map(entry => [
-    entry[1],              // lat
-    entry[2],              // lon
-    (entry[4] ?? 0) / 1.94384, // knots → m/s
+  // Each entry: [timeOffset, lat, lon, alt_baro_ft_or_"ground", groundspeedKts, ...]
+  const positions: Array<[number, number, number, number | null]> = data.trace.map(entry => [
+    entry[1],                                                // lat
+    entry[2],                                                // lon
+    (entry[4] ?? 0) / 1.94384,                              // knots → m/s
+    typeof entry[3] === 'number' ? entry[3] * 0.3048 : null, // ft → m (null if "ground")
   ]);
 
   return positions;

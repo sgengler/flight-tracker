@@ -853,9 +853,9 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
   const [map3D, setMap3D] = useState(false);
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
   const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
-  const flightHistoryRef = useRef<Map<string, [number, number, number?][]>>(new Map());
+  const flightHistoryRef = useRef<Map<string, [number, number, number?, number?][]>>(new Map());
   const traceFetchedRef = useRef<Set<string>>(new Set());
-  const [selectedTrail, setSelectedTrail] = useState<[number, number, number?][]>([]);
+  const [selectedTrail, setSelectedTrail] = useState<[number, number, number?, number?][]>([]);
   // Routes fetched on-demand when the user selects a non-closest flight.
   // Merged into selectedFlight for display until the next SSE tick brings it in via cache.
   const [routeOverrides, setRouteOverrides] = useState<Record<string, RouteInfo | null>>({});
@@ -1010,7 +1010,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
       const prev = flightHistoryRef.current.get(f.icao24) ?? [];
       const last = prev[prev.length - 1];
       if (!last || last[0] !== f.latitude || last[1] !== f.longitude) {
-        const next = [...prev, [f.latitude, f.longitude, f.velocity ?? undefined] as [number, number, number?]];
+        const next = [...prev, [f.latitude, f.longitude, f.velocity ?? undefined, f.baroAltitude ?? undefined] as [number, number, number?, number?]];
         flightHistoryRef.current.set(f.icao24, next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next);
       }
     }
@@ -1037,13 +1037,17 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
     let cancelled = false;
     fetch(`/api/trace/${icao}`)
       .then(r => r.ok ? r.json() : null)
-      .then((positions: [number, number, number][] | null) => {
+      .then((positions: [number, number, number, number | null][] | null) => {
         if (cancelled || !positions || positions.length === 0) return;
         traceFetchedRef.current.add(icao);
         // Prepend historical data to any live positions already accumulated,
         // so the trail bridges from history all the way to the current position.
         const live = flightHistoryRef.current.get(icao) ?? [];
-        const merged = ([...positions, ...live] as [number, number, number?][]).slice(-MAX_HISTORY);
+        // Convert null altitudes to undefined to match the tuple type
+        const mapped: [number, number, number?, number?][] = positions.map(
+          ([lat, lon, spd, alt]) => [lat, lon, spd ?? undefined, alt ?? undefined],
+        );
+        const merged = ([...mapped, ...live] as [number, number, number?, number?][]).slice(-MAX_HISTORY);
         flightHistoryRef.current.set(icao, merged);
         setSelectedTrail(merged);
       })
@@ -1086,20 +1090,12 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
           {fullscreenPanel !== 'flights' && (
           <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
             {map3D
-              ? <FlightMap3D userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
+              ? <FlightMap3D userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
               : <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} tileId={tileId} />
             }
             <div className="absolute bottom-2 right-2 z-[1000] flex items-center gap-1">
-              {/* 3D terrain toggle */}
-              <button
-                onClick={() => { setMap3D(m => !m); setTilePickerOpen(false); }}
-                className={`px-2 py-1 rounded-md text-xs font-bold transition-colors backdrop-blur-sm ${map3D ? 'bg-sky-500 text-white' : 'bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900'}`}
-                title={map3D ? 'Switch to 2D map' : 'Switch to 3D terrain map'}
-              >3D</button>
-              {/* Style picker — hidden in 3D mode */}
-              {!map3D && (
               <div className="relative">
-                <button onClick={() => setTilePickerOpen(o => !o)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors backdrop-blur-sm" title={`Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
+                <button onClick={() => setTilePickerOpen(o => !o)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors backdrop-blur-sm" title={map3D ? '3D terrain map' : `Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
                     <line x1="9" y1="3" x2="9" y2="18"/>
@@ -1108,15 +1104,17 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
                 </button>
                 {tilePickerOpen && (
                   <div className="absolute bottom-full right-0 mb-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg overflow-hidden text-xs min-w-[120px]">
+                    <button onClick={() => { setMap3D(true); setTilePickerOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 transition-colors ${map3D ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
+                      3D
+                    </button>
                     {TILE_OPTIONS.map(opt => (
-                      <button key={opt.id} onClick={() => { setTileId(opt.id); setTilePickerOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 transition-colors ${opt.id === tileId ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
+                      <button key={opt.id} onClick={() => { setMap3D(false); setTileId(opt.id); setTilePickerOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 transition-colors ${!map3D && opt.id === tileId ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
                         {opt.label}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-              )}
             </div>
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'
