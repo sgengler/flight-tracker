@@ -1103,7 +1103,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
                   </svg>
                 </button>
                 {tilePickerOpen && (
-                  <div className="absolute bottom-full right-0 mb-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg overflow-hidden text-xs min-w-[120px]">
+                  <div className="absolute bottom-full right-0 mb-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg overflow-y-auto overflow-x-hidden text-xs min-w-[120px] max-h-60">
                     <button onClick={() => { setMap3D(true); setTilePickerOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 transition-colors ${map3D ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
                       3D
                     </button>

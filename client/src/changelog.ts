@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.6',
+    date: '2026-05-17',
+    changes: [
+      'Map style picker no longer gets clipped at the top — it now scrolls when there are more options than fit on screen.',
+    ],
+  },
+  {
     version: '0.6.5',
     date: '2026-05-17',
     changes: [
