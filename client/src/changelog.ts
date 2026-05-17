@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.4',
+    date: '2026-05-17',
+    changes: [
+      '3D map: aircraft now move smoothly using CSS transitions (same dead-reckoning approach as 2D map).',
+      '3D map: ground shadows now match the aircraft silhouette shape instead of a generic disc.',
+      '3D map: shadow opacity is now correctly controllable (was being silently overridden by MapLibre).',
+      '3D map: default pitch lowered to 62°, icons enlarged, minimum altitude separation raised.',
+    ],
+  },
+  {
     version: '0.6.3',
     date: '2026-05-17',
     changes: [
