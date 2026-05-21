@@ -55,7 +55,8 @@ function categorizeMilitary(t: string): 'fighter' | 'bomber' | 'transport' | 'at
   if (['B52','B1B','B2'].includes(t)) return 'bomber';
   if (['C130','C30J','C17','C5A','C5M','SW4','CN35','A400','DHC6','M28','IL76',
        'KC10','KC135','KC46','K35R',
-       'E3','E3TF','E8','E6','E2','P3','P8','W135','R135','GLF3','GLF5'].includes(t)) return 'transport';
+       'E3','E3TF','E8','E6','E2','P3','P8','W135','R135','GLF3','GLF5',
+       'V22'].includes(t)) return 'transport';
   if (['A10','AC13','AC130','TUCA'].includes(t)) return 'attack';
   if (['U2','SR71','RQ4','Q4','MQ9','MQ1','X47B','RQ180','BTB2'].includes(t)) return 'uav';
   if (['H60','S70','UH60','HH60','MH60','SH60','CH47','H47','AH64','UH1','UH1Y','AH1',

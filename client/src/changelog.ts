@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.12',
+    date: '2026-05-21',
+    changes: [
+      'V-22 Osprey no longer triggers the Top Gun alert — it is now correctly classified as a transport aircraft.',
+    ],
+  },
+  {
     version: '0.6.11',
     date: '2026-05-21',
     changes: [
