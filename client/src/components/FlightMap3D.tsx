@@ -18,7 +18,16 @@ interface Props {
 
 const TRAIL_POLL_S = 15;
 const POLL_S = 16;
+const TRANSITION_S = 2;
 const DEFAULT_PITCH = 62;
+
+function lerpAngle(a: number, b: number, t: number): number {
+  const diff = ((b - a + 540) % 360) - 180;
+  return (a + diff * t + 360) % 360;
+}
+function easeInOutQuad(t: number): number {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -63,7 +72,6 @@ function iconColor(flight: FlightState, isSelected: boolean): string {
 function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDivElement {
   const cat = categorizeAircraft(flight.aircraftType);
   const color = iconColor(flight, isSelected);
-  const heading = (cat === 'heli' || cat === 'mil-heli') ? 0 : (flight.trueTrack ?? 0);
 
   const ns = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
   const pod = (cx: number, cy: number, rx: number, ry: number) =>
@@ -72,7 +80,7 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
   let body: string;
   if (cat === 'airship') {
     const st = `fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5"`;
-    body = `<g transform="rotate(${heading})">` +
+    body = `<g>` +
       `<ellipse cx="0" cy="-3" rx="7" ry="18" ${st}/>` +
       `<rect x="-3" y="8" width="6" height="5" rx="1.5" ${st}/>` +
       `<path d="M-7,10 L-13,21 L-3,14 Z" ${st}/>` +
@@ -100,8 +108,8 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
     } else if (cat === 'warbird') {
       nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${color}" ${ns}/>`;
     }
-    const highlight = `<ellipse cx="-1" cy="-8" rx="4" ry="2.5" fill="rgba(255,255,255,0.32)" transform="rotate(${heading})"/>`;
-    body = `<g transform="rotate(${heading})">` +
+    const highlight = `<ellipse cx="-1" cy="-8" rx="4" ry="2.5" fill="rgba(255,255,255,0.32)"/>`;
+    body = `<g>` +
       `<path d="${path}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round"/>` +
       nacelles +
       `</g>` + highlight;
@@ -119,14 +127,13 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
 
 function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
   const cat = categorizeAircraft(flight.aircraftType);
-  const heading = (cat === 'heli' || cat === 'mil-heli') ? 0 : (flight.trueTrack ?? 0);
   const fill = 'rgba(0,0,0,0.9)';
   const pod = (cx: number, cy: number, rx: number, ry: number) =>
     `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`;
 
   let body: string;
   if (cat === 'airship') {
-    body = `<g transform="rotate(${heading})">` +
+    body = `<g>` +
       `<ellipse cx="0" cy="-3" rx="7" ry="18" fill="${fill}"/>` +
       `<rect x="-3" y="8" width="6" height="5" rx="1.5" fill="${fill}"/>` +
       `<path d="M-7,10 L-13,21 L-3,14 Z" fill="${fill}"/>` +
@@ -154,7 +161,7 @@ function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
     } else if (cat === 'warbird') {
       nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${fill}"/>`;
     }
-    body = `<g transform="rotate(${heading})">` +
+    body = `<g>` +
       `<path d="${path}" fill="${fill}"/>` + nacelles + `</g>`;
   }
 
@@ -168,11 +175,10 @@ function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
   return el;
 }
 
-// CSS transform for the inner SVG: counter-rotates bearing so the icon points in the
-// correct compass direction regardless of map rotation, plus a partial pitch counter-tilt
-// so the icon reads as upright rather than fully flat on the tilted map plane.
-function iconTransform(pitchDeg: number, bearingDeg: number): string {
-  return `rotate(${(-bearingDeg).toFixed(1)}deg) rotateX(${(-(pitchDeg * 0.5)).toFixed(1)}deg)`;
+// CSS transform: rotates icon to correct compass heading, counter-rotates map bearing,
+// and partially counter-tilts for pitch so icons read as upright on the tilted map plane.
+function iconTransform(pitchDeg: number, bearingDeg: number, headingDeg = 0): string {
+  return `rotate(${(headingDeg - bearingDeg).toFixed(1)}deg) rotateX(${(-(pitchDeg * 0.5)).toFixed(1)}deg)`;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -187,7 +193,10 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
   const introCompleteRef = useRef(false);
   const lastPollTimeRef = useRef<number>(Date.now());
 
-  type MarkerPair = { icon: mapboxgl.Marker; shadow: mapboxgl.Marker; altM: number; flight: FlightState };
+  type MarkerPair = {
+    icon: mapboxgl.Marker; shadow: mapboxgl.Marker; altM: number; flight: FlightState;
+    blendFrom?: [number, number]; blendStart?: number; headingFrom?: number;
+  };
   const markersRef = useRef<Map<string, MarkerPair>>(new Map());
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
@@ -199,19 +208,46 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Dead-reckon marker positions each frame instead of using CSS transitions,
-    // so Mapbox's internal _update() calls (triggered by tile loads) can't snap
-    // markers to their target and cancel the animation.
+    // Dead-reckon + blend marker positions each frame. Using rAF (not CSS transitions)
+    // so Mapbox's internal _update() calls can't snap markers mid-animation.
     const tick = () => {
-      const elapsed = Math.min((Date.now() - lastPollTimeRef.current) / 1000, POLL_S);
-      for (const [, pair] of markersRef.current) {
-        const f = pair.flight;
+      const now = Date.now();
+      const elapsed = Math.min((now - lastPollTimeRef.current) / 1000, POLL_S);
+      const pitch = pitchRef.current;
+      const bearing = bearingRef.current;
+      for (const [, state] of markersRef.current) {
+        const f = state.flight;
         const v = f.velocity ?? 0;
+        const newHeading = f.trueTrack ?? 0;
+        let displayLat = f.latitude, displayLon = f.longitude, displayHeading = newHeading;
         if (v > 0.5) {
-          const [la, lo] = deadReckon(f.latitude, f.longitude, f.trueTrack ?? 0, v, elapsed);
-          pair.icon.setLngLat([lo, la]);
-          pair.shadow.setLngLat([lo, la]);
+          [displayLat, displayLon] = deadReckon(f.latitude, f.longitude, newHeading, v, elapsed);
         }
+        if (state.blendStart !== undefined) {
+          const bt = Math.min((now - state.blendStart) / (TRANSITION_S * 1000), 1);
+          const ease = easeInOutQuad(bt);
+          if (state.blendFrom && v > 0.5) {
+            displayLat = state.blendFrom[0] * (1 - ease) + displayLat * ease;
+            displayLon = state.blendFrom[1] * (1 - ease) + displayLon * ease;
+          }
+          if (state.headingFrom !== undefined) {
+            displayHeading = lerpAngle(state.headingFrom, newHeading, ease);
+          }
+          if (bt >= 1) {
+            state.blendStart = undefined;
+            state.blendFrom = undefined;
+            state.headingFrom = undefined;
+          }
+        }
+        if (v > 0.5) {
+          state.icon.setLngLat([displayLon, displayLat]);
+          state.shadow.setLngLat([displayLon, displayLat]);
+        }
+        const t = iconTransform(pitch, bearing, displayHeading);
+        const inner = state.icon.getElement().firstElementChild as HTMLElement | null;
+        if (inner) inner.style.transform = t;
+        const shadowInner = state.shadow.getElement().firstElementChild as HTMLElement | null;
+        if (shadowInner) shadowInner.style.transform = t;
       }
       animFrameRef.current = requestAnimationFrame(tick);
     };
@@ -229,31 +265,9 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
     mapRef.current = map;
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    // Update marker offsets every frame during pitch/zoom gestures so icons
-    // track the trail altitude in real time. *end events still flush React state.
-    map.on('pitch', () => {
-      const p = map.getPitch();
-      pitchRef.current = p;
-      const t = iconTransform(p, bearingRef.current);
-      for (const [, pair] of markersRef.current) {
-        const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
-        if (inner) inner.style.transform = t;
-        const shadowInner = pair.shadow.getElement().firstElementChild as HTMLElement | null;
-        if (shadowInner) shadowInner.style.transform = t;
-      }
-    });
+    map.on('pitch', () => { pitchRef.current = map.getPitch(); });
     map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
-    map.on('rotate', () => {
-      const b = map.getBearing();
-      bearingRef.current = b;
-      const t = iconTransform(pitchRef.current, b);
-      for (const [, pair] of markersRef.current) {
-        const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
-        if (inner) inner.style.transform = t;
-        const shadowInner = pair.shadow.getElement().firstElementChild as HTMLElement | null;
-        if (shadowInner) shadowInner.style.transform = t;
-      }
-    });
+    map.on('rotate', () => { bearingRef.current = map.getBearing(); });
     map.on('style.load', () => {
       map.addSource('mapbox-dem', {
         type: 'raster-dem',
@@ -343,6 +357,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       const h = f.trueTrack ?? 0;
 
       const existing = markersRef.current.get(f.icao24);
+      const now = Date.now();
       if (existing) {
         const outerEl = existing.icon.getElement();
         const innerEl = outerEl.firstElementChild as HTMLElement;
@@ -350,30 +365,39 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
         const tempInner = tempEl.firstElementChild as HTMLElement;
         innerEl.innerHTML = tempInner.innerHTML;
         innerEl.style.filter = tempInner.style.filter;
-        innerEl.style.transform = iconTransform(pitchRef.current, bearingRef.current);
 
         const tempShadow = buildGroundShadowElement(f);
         const tempShadowInner = tempShadow.firstElementChild as HTMLElement;
         const shadowInner = existing.shadow.getElement().firstElementChild as HTMLElement;
         shadowInner.style.opacity = tempShadowInner.style.opacity;
         shadowInner.style.filter = tempShadowInner.style.filter;
-        shadowInner.style.transform = iconTransform(pitchRef.current, bearingRef.current);
         shadowInner.innerHTML = tempShadowInner.innerHTML;
 
         if (altM !== existing.altM) {
           (existing.icon as any).setAltitude(altM); // eslint-disable-line @typescript-eslint/no-explicit-any
         }
 
-        // rAF loop handles position; just refresh the stored flight data
-        markersRef.current.set(f.icao24, { icon: existing.icon, shadow: existing.shadow, altM, flight: f });
+        const lngLatNow = existing.icon.getLngLat();
+        let headingFrom = existing.flight.trueTrack ?? 0;
+        if (existing.blendStart !== undefined && existing.headingFrom !== undefined) {
+          const bt = Math.min((now - existing.blendStart) / (TRANSITION_S * 1000), 1);
+          headingFrom = lerpAngle(existing.headingFrom, existing.flight.trueTrack ?? 0, easeInOutQuad(bt));
+        }
+        markersRef.current.set(f.icao24, {
+          icon: existing.icon, shadow: existing.shadow, altM, flight: f,
+          blendFrom: [lngLatNow.lat, lngLatNow.lng],
+          blendStart: now,
+          headingFrom,
+        });
       } else {
+        const initialTransform = iconTransform(pitchRef.current, bearingRef.current, f.trueTrack ?? 0);
         const shadowEl = buildGroundShadowElement(f);
-        (shadowEl.firstElementChild as HTMLElement).style.transform = iconTransform(pitchRef.current, bearingRef.current);
+        (shadowEl.firstElementChild as HTMLElement).style.transform = initialTransform;
         const shadow = new mapboxgl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
           .setLngLat(lngLat).addTo(map);
 
         const iconEl = buildAircraftElement(f, isSelected);
-        (iconEl.firstElementChild as HTMLElement).style.transform = iconTransform(pitchRef.current, bearingRef.current);
+        (iconEl.firstElementChild as HTMLElement).style.transform = initialTransform;
         iconEl.addEventListener('click', () => onSelectRef.current(f.icao24));
         const icon = new mapboxgl.Marker({
           element: iconEl,
@@ -395,17 +419,6 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       }
     }
   }, [flights, flight, userLat]);
-
-  // Update icon transform when pitch changes (bearing is handled in real time via map.on('rotate')).
-  useEffect(() => {
-    const t = iconTransform(pitch, bearingRef.current);
-    for (const [, pair] of markersRef.current) {
-      const inner = pair.icon.getElement().firstElementChild as HTMLElement | null;
-      if (inner) inner.style.transform = t;
-      const shadowInner = pair.shadow.getElement().firstElementChild as HTMLElement | null;
-      if (shadowInner) shadowInner.style.transform = t;
-    }
-  }, [pitch]);
 
   // Sync trail
   useEffect(() => {

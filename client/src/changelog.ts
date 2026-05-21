@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.11',
+    date: '2026-05-21',
+    changes: [
+      'Plane icons now ease smoothly into position and heading on each data refresh — speed changes, turns, and course corrections blend over 2 seconds instead of snapping.',
+    ],
+  },
+  {
     version: '0.6.10',
     date: '2026-05-21',
     changes: [

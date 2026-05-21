@@ -214,6 +214,15 @@ export function deadReckon(
   return [lat + (dLat * 180) / Math.PI, lon + (dLon * 180) / Math.PI];
 }
 
+function lerpAngle(a: number, b: number, t: number): number {
+  const diff = ((b - a + 540) % 360) - 180;
+  return (a + diff * t + 360) % 360;
+}
+
+function easeInOutQuad(t: number): number {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
 // ── Aircraft marker element ──────────────────────────────────────────────────
 
 function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDivElement {
@@ -223,8 +232,6 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
     : MILITARY_CATS.has(cat)      ? '#4ade80'
     : WARBIRD_CATS.has(cat)       ? '#fb923c'
     : '#facc15';
-  const heading = (cat === 'heli' || cat === 'mil-heli') ? 0 : (flight.trueTrack ?? 0);
-
   const ns = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
   const pod = (cx: number, cy: number, rx: number, ry: number) =>
     `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${color}" ${ns}/>`;
@@ -232,7 +239,7 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
   let body: string;
   if (cat === 'airship') {
     const st = `fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5"`;
-    body = `<g transform="rotate(${heading})">` +
+    body = `<g>` +
       `<ellipse cx="0" cy="-3" rx="7" ry="18" ${st}/>` +
       `<rect x="-3" y="8" width="6" height="5" rx="1.5" ${st}/>` +
       `<path d="M-7,10 L-13,21 L-3,14 Z" ${st}/>` +
@@ -260,7 +267,7 @@ function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDiv
     } else if (cat === 'warbird') {
       nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${color}" ${ns}/>`;
     }
-    body = `<g transform="rotate(${heading})">` +
+    body = `<g>` +
       `<path d="${path}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round"/>` +
       nacelles + `</g>`;
   }
@@ -328,6 +335,7 @@ function applyDestData(map: mapboxgl.Map, flight: FlightState | null) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const POLL_S = 16;
+const TRANSITION_S = 2;
 
 interface Props {
   userLat: number;
@@ -344,7 +352,13 @@ interface Props {
 export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode, focusPoint, tileId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Map<string, { icon: mapboxgl.Marker; flight: FlightState }>>(new Map());
+  const markersRef = useRef<Map<string, {
+    icon: mapboxgl.Marker;
+    flight: FlightState;
+    blendFrom?: [number, number];
+    blendStart?: number;
+    headingFrom?: number;
+  }>>(new Map());
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
   const trailRef = useRef(trail);
@@ -364,13 +378,36 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
     if (!containerRef.current) return;
 
     const tick = () => {
-      const elapsed = Math.min((Date.now() - lastPollTimeRef.current) / 1000, POLL_S);
-      for (const [, { icon, flight: f }] of markersRef.current) {
+      const now = Date.now();
+      const elapsed = Math.min((now - lastPollTimeRef.current) / 1000, POLL_S);
+      const bearing = bearingRef.current;
+      for (const [, state] of markersRef.current) {
+        const { icon, flight: f } = state;
         const v = f.velocity ?? 0;
+        const newHeading = f.trueTrack ?? 0;
+        let displayLat = f.latitude, displayLon = f.longitude, displayHeading = newHeading;
         if (v > 0.5) {
-          const [la, lo] = deadReckon(f.latitude, f.longitude, f.trueTrack ?? 0, v, elapsed);
-          icon.setLngLat([lo, la]);
+          [displayLat, displayLon] = deadReckon(f.latitude, f.longitude, newHeading, v, elapsed);
         }
+        if (state.blendStart !== undefined) {
+          const bt = Math.min((now - state.blendStart) / (TRANSITION_S * 1000), 1);
+          const ease = easeInOutQuad(bt);
+          if (state.blendFrom && v > 0.5) {
+            displayLat = state.blendFrom[0] * (1 - ease) + displayLat * ease;
+            displayLon = state.blendFrom[1] * (1 - ease) + displayLon * ease;
+          }
+          if (state.headingFrom !== undefined) {
+            displayHeading = lerpAngle(state.headingFrom, newHeading, ease);
+          }
+          if (bt >= 1) {
+            state.blendStart = undefined;
+            state.blendFrom = undefined;
+            state.headingFrom = undefined;
+          }
+        }
+        if (v > 0.5) icon.setLngLat([displayLon, displayLat]);
+        const inner = icon.getElement().firstElementChild as HTMLElement | null;
+        if (inner) inner.style.transform = `rotate(${(displayHeading - bearing).toFixed(1)}deg)`;
       }
       animFrameRef.current = requestAnimationFrame(tick);
     };
@@ -387,15 +424,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.on('dragstart', () => { userDraggedRef.current = true; });
-    map.on('rotate', () => {
-      const b = map.getBearing();
-      bearingRef.current = b;
-      const t = b === 0 ? '' : `rotate(${(-b).toFixed(1)}deg)`;
-      for (const [, { icon }] of markersRef.current) {
-        const inner = icon.getElement().firstElementChild as HTMLElement | null;
-        if (inner) inner.style.transform = t;
-      }
-    });
+    map.on('rotate', () => { bearingRef.current = map.getBearing(); });
 
     map.on('style.load', () => {
       if (animFrameRef.current !== null) {
@@ -474,7 +503,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
     }
 
     const bearing = bearingRef.current;
-    const bearingTransform = bearing === 0 ? '' : `rotate(${(-bearing).toFixed(1)}deg)`;
+    const now = Date.now();
 
     for (const f of flights) {
       const isSelected = f.icao24 === selectedIcao;
@@ -488,12 +517,25 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
         const tempInner = tempEl.firstElementChild as HTMLElement;
         innerEl.innerHTML = tempInner.innerHTML;
         innerEl.style.filter = tempInner.style.filter;
-        if (bearingTransform) innerEl.style.transform = bearingTransform;
-        markersRef.current.set(f.icao24, { icon: existing.icon, flight: f });
+
+        // Capture current displayed position and heading as blend origin
+        const lngLatNow = existing.icon.getLngLat();
+        let headingFrom = existing.flight.trueTrack ?? 0;
+        if (existing.blendStart !== undefined && existing.headingFrom !== undefined) {
+          const bt = Math.min((now - existing.blendStart) / (TRANSITION_S * 1000), 1);
+          headingFrom = lerpAngle(existing.headingFrom, existing.flight.trueTrack ?? 0, easeInOutQuad(bt));
+        }
+        markersRef.current.set(f.icao24, {
+          icon: existing.icon,
+          flight: f,
+          blendFrom: [lngLatNow.lat, lngLatNow.lng],
+          blendStart: now,
+          headingFrom,
+        });
       } else {
         const el = buildAircraftElement(f, isSelected);
         const inner = el.firstElementChild as HTMLElement;
-        if (bearingTransform) inner.style.transform = bearingTransform;
+        inner.style.transform = `rotate(${((f.trueTrack ?? 0) - bearing).toFixed(1)}deg)`;
         el.addEventListener('click', () => onSelectRef.current(f.icao24));
         const icon = new mapboxgl.Marker({ element: el, anchor: 'center', rotationAlignment: 'viewport' })
           .setLngLat(lngLat)
