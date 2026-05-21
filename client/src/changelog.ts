@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.10',
+    date: '2026-05-21',
+    changes: [
+      'Fixed plane animation stutter: planes no longer freeze mid-cycle and jump when new data arrives — dead reckoning now runs for the full 15-second poll interval.',
+    ],
+  },
+  {
     version: '0.6.9',
     date: '2026-05-17',
     changes: [

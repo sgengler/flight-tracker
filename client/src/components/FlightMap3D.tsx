@@ -17,7 +17,7 @@ interface Props {
 }
 
 const TRAIL_POLL_S = 15;
-const POLL_S = 10;
+const POLL_S = 16;
 const DEFAULT_PITCH = 62;
 
 // ── Utilities ────────────────────────────────────────────────────────────────

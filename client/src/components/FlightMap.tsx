@@ -327,7 +327,7 @@ function applyDestData(map: mapboxgl.Map, flight: FlightState | null) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const POLL_S = 10;
+const POLL_S = 16;
 
 interface Props {
   userLat: number;
