@@ -94,14 +94,8 @@ function sessionKey(lat: number, lon: number): string {
 async function poll(session: Session) {
   if (adsbFiIsRateLimited()) return; // silently wait out the backoff; interval resumes automatically
   try {
-    let flights = await fetchNearbyFlights(session.lat, session.lon, 50);
+    const flights = await fetchNearbyFlights(session.lat, session.lon, 50);
     console.log(`[poller] ${session.lat},${session.lon} → ${flights.length} flights at 50mi`);
-    // Cap at 250 mi (~217 nm) to stay under adsb.fi's distance limit; adsb.lol handles larger radii
-    for (const radius of [150, 250]) {
-      if (flights.length > 0) break;
-      flights = await fetchNearbyFlights(session.lat, session.lon, radius);
-      console.log(`[poller] expanded to ${radius}mi → ${flights.length} flights`);
-    }
     // Enrich top 20 flights with aircraft types (cached, hexdb is free)
     const CONCURRENCY = 3;
     const queue = [...flights.slice(0, 20)];

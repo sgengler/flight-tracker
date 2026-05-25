@@ -101,11 +101,8 @@ describe('poller subscribe', () => {
     expect(typeof payload.timestamp).toBe('number');
   });
 
-  it('expands search radius when 50mi returns no flights', async () => {
-    mockFetch
-      .mockResolvedValueOnce([])    // 50mi — empty
-      .mockResolvedValueOnce([])    // 150mi — empty
-      .mockResolvedValueOnce([MOCK_FLIGHT]); // 250mi — found
+  it('only searches at 50mi with no expansion', async () => {
+    mockFetch.mockResolvedValueOnce([]);
 
     const res = makeRes();
     const unsub = subscribe(41.88, -87.63, res);
@@ -114,11 +111,7 @@ describe('poller subscribe', () => {
     await flushPromises();
 
     const radii = mockFetch.mock.calls.map((c) => c[2]);
-    expect(radii).toContain(50);
-    expect(radii).toContain(150);
-    expect(radii).toContain(250);
-    // Should not have gone further since 250mi found something
-    expect(radii).not.toContain(600);
+    expect(radii).toEqual([50]);
   });
 
   it('writes error payload when fetchNearbyFlights rejects', async () => {
