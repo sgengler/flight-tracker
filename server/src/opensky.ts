@@ -136,7 +136,7 @@ async function fetchAdsbData(path: string): Promise<{ ac?: AdsbFiAircraft[] }> {
   throw new Error('all ADS-B sources rate limited');
 }
 
-export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 75): Promise<FlightState[]> {
+export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 50): Promise<FlightState[]> {
   const radiusNm = Math.round(radiusMiles * MILES_TO_NM);
   const data = await fetchAdsbData(`/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`);
   const aircraft = data.ac ?? [];

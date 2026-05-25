@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.13',
+    date: '2026-05-25',
+    changes: [
+      'Initial flight search radius reduced from 75 miles to 50 miles for more relevant nearby results.',
+    ],
+  },
+  {
     version: '0.6.12',
     date: '2026-05-21',
     changes: [

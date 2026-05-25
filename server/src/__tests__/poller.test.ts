@@ -83,7 +83,7 @@ describe('poller subscribe', () => {
 
     await flushPromises();
 
-    expect(mockFetch).toHaveBeenCalledWith(41.88, -87.63, 75);
+    expect(mockFetch).toHaveBeenCalledWith(41.88, -87.63, 50);
   });
 
   it('writes an SSE data event to the response after the initial poll', async () => {
@@ -101,9 +101,9 @@ describe('poller subscribe', () => {
     expect(typeof payload.timestamp).toBe('number');
   });
 
-  it('expands search radius when 75mi returns no flights', async () => {
+  it('expands search radius when 50mi returns no flights', async () => {
     mockFetch
-      .mockResolvedValueOnce([])    // 75mi — empty
+      .mockResolvedValueOnce([])    // 50mi — empty
       .mockResolvedValueOnce([])    // 150mi — empty
       .mockResolvedValueOnce([MOCK_FLIGHT]); // 250mi — found
 
@@ -114,7 +114,7 @@ describe('poller subscribe', () => {
     await flushPromises();
 
     const radii = mockFetch.mock.calls.map((c) => c[2]);
-    expect(radii).toContain(75);
+    expect(radii).toContain(50);
     expect(radii).toContain(150);
     expect(radii).toContain(250);
     // Should not have gone further since 250mi found something

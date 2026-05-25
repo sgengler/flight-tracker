@@ -149,11 +149,11 @@ describe('fetchNearbyFlights', () => {
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValueOnce(mockAdsbResponse([]));
 
-    await fetchNearbyFlights(41.88, -87.63, 75);
+    await fetchNearbyFlights(41.88, -87.63, 50);
 
     const url = mockFetch.mock.calls[0][0] as string;
-    // 75 statute miles ≈ 65 NM
-    expect(url).toContain('/dist/65');
+    // 50 statute miles ≈ 43 NM
+    expect(url).toContain('/dist/43');
   });
 
   it('returns an empty array when ac is empty', async () => {
