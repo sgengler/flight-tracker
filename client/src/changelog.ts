@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.6.14',
+    date: '2026-05-26',
+    changes: [
+      'FlightAware route lookups are now capped at 50 per day; AirLabs and cached routes are unaffected.',
+    ],
+  },
+  {
     version: '0.6.13',
     date: '2026-05-25',
     changes: [

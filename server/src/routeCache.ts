@@ -255,6 +255,8 @@ function looksLikeRegistration(callsign: string): boolean {
   return false;
 }
 
+const FA_DAILY_CAP = 50;
+
 // Returns null when the lookup was skipped (quota, no key, backoff) — caller must NOT cache null.
 // Returns a RouteResult when FA was actually contacted — caller should cache it (even if empty).
 async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boolean } = {}): Promise<RouteResult | null> {
@@ -263,6 +265,11 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
   if (!apiKey) return null;
 
   const key = callsign.trim().toUpperCase();
+
+  if (todayCount() >= FA_DAILY_CAP) {
+    console.log(`[route] FlightAware ${key}: skipped (daily cap of ${FA_DAILY_CAP} reached — ${todayCount()} used today)`);
+    return null;
+  }
 
   if (looksLikeRegistration(key)) {
     console.log(`[route] FlightAware ${key}: skipped (looks like registration)`);
