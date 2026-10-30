@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
-import { FlightMap, categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory, TILE_OPTIONS, TileId } from './components/FlightMap';
+import { FlightMap, TILE_OPTIONS, TileId } from './components/FlightMap';
+import { categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory } from './components/aircraft';
 import { FlightMap3D } from './components/FlightMap3D';
 import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
@@ -999,9 +1000,12 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
   // Use manually selected flight if still visible, otherwise fall back to closest visible
   const baseSelectedFlight = (selectedIcao ? displayFlights.find(f => f.icao24 === selectedIcao) : null) ?? displayFlights[0] ?? null;
   // Apply on-demand route override (from /api/route fetch) if the stream hasn't filled it in yet
-  const selectedFlight = baseSelectedFlight && !baseSelectedFlight.route && routeOverrides[baseSelectedFlight.icao24]
-    ? { ...baseSelectedFlight, route: routeOverrides[baseSelectedFlight.icao24] }
-    : baseSelectedFlight;
+  // Memoized so the map doesn't see a new flight object on every render
+  const selectedFlight = useMemo(() =>
+    baseSelectedFlight && !baseSelectedFlight.route && routeOverrides[baseSelectedFlight.icao24]
+      ? { ...baseSelectedFlight, route: routeOverrides[baseSelectedFlight.icao24] }
+      : baseSelectedFlight,
+    [baseSelectedFlight, routeOverrides]);
 
   // Accumulate position history for every flight on each poll
   useEffect(() => {
@@ -1095,7 +1099,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
             }
             <div className="absolute bottom-2 right-2 z-[1000] flex items-center gap-1">
               <div className="relative">
-                <button onClick={() => setTilePickerOpen(o => !o)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors backdrop-blur-sm" title={map3D ? '3D terrain map' : `Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
+                <button onClick={() => setTilePickerOpen(o => !o)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors" title={map3D ? '3D terrain map' : `Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
                     <line x1="9" y1="3" x2="9" y2="18"/>
@@ -1103,7 +1107,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
                   </svg>
                 </button>
                 {tilePickerOpen && (
-                  <div className="absolute bottom-full right-0 mb-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg overflow-y-auto overflow-x-hidden text-xs min-w-[120px] max-h-60">
+                  <div className="absolute bottom-full right-0 mb-1 bg-white/95 rounded-lg shadow-lg overflow-y-auto overflow-x-hidden text-xs min-w-[120px] max-h-60">
                     <button onClick={() => { setMap3D(true); setTilePickerOpen(false); }} className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 transition-colors ${map3D ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
                       3D
                     </button>
@@ -1119,14 +1123,14 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
             <div className="absolute bottom-2 left-2 z-[1000]">
               {fullscreenPanel === 'map'
                 ? (
-                  <button onClick={() => setFullscreenPanel(null)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors backdrop-blur-sm" title="Exit fullscreen">
+                  <button onClick={() => setFullscreenPanel(null)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors" title="Exit fullscreen">
                     <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor">
                       <path d="M3.5 0H5v5H0V3.5h3.5V0zM7 0h1.5v3.5H12V5H7V0zM0 7h5v5H3.5V8.5H0V7zm7 0h5v1.5H8.5V12H7V7z"/>
                     </svg>
                   </button>
                 )
                 : (
-                  <button onClick={() => setFullscreenPanel('map')} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors backdrop-blur-sm" title="Expand map">
+                  <button onClick={() => setFullscreenPanel('map')} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors" title="Expand map">
                     <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor">
                       <path d="M0 0h4v1.5H1.5V4H0V0zm8 0h4v4h-1.5V1.5H8V0zM0 8h1.5v2.5H4V12H0V8zm10.5 2.5V8H12v4H8v-1.5h2.5z"/>
                     </svg>

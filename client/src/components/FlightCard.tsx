@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FlightState, RouteInfo, AircraftWikiInfo } from '../types';
 import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, wellKnownAircraftName, getCountryFromIcao } from '../utils';
-import { categorizeAircraft, getAircraftSvgInfo } from './FlightMap';
+import { categorizeAircraft, getAircraftSvgInfo } from './aircraft';
 
 interface Props {
   flight: FlightState;

@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.0',
+    date: '2026-10-30',
+    changes: [
+      'Aircraft are now drawn directly by the map engine, making the map much smoother on the Raspberry Pi, especially with many planes on screen.',
+      'Selecting a plane no longer makes other aircraft briefly slide backwards.',
+      'In 3D mode, aircraft now lie in the map\'s perspective and point the same way as their ground shadows.',
+      'Fixed the flight trail and aircraft sometimes disappearing after the map first loads or when switching map styles.',
+      'Faster startup: removed an unused external stylesheet.',
+    ],
+  },
+  {
     version: '0.6.14',
     date: '2026-05-26',
     changes: [

@@ -4,7 +4,8 @@ import type { GeoJSONSource } from 'mapbox-gl';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 import { FlightState } from '../types';
-import { categorizeAircraft, getAircraftSvgInfo, MILITARY_CATS, WARBIRD_CATS, heliInnerSvg, haversineDist, trailColor, deadReckon } from './FlightMap';
+import { haversineDist, trailColor } from './aircraft';
+import { AircraftRenderer, addAircraftLayers, bindAircraftClicks } from './aircraftLayer';
 
 interface Props {
   userLat: number;
@@ -17,17 +18,7 @@ interface Props {
 }
 
 const TRAIL_POLL_S = 15;
-const POLL_S = 16;
-const TRANSITION_S = 2;
 const DEFAULT_PITCH = 62;
-
-function lerpAngle(a: number, b: number, t: number): number {
-  const diff = ((b - a + 540) % 360) - 180;
-  return (a + diff * t + 360) % 360;
-}
-function easeInOutQuad(t: number): number {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-}
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -60,197 +51,21 @@ function applyTrailData(map: mapboxgl.Map, trail: [number, number, number?, numb
   source.setData({ type: 'FeatureCollection', features });
 }
 
-function iconColor(flight: FlightState, isSelected: boolean): string {
-  const cat = categorizeAircraft(flight.aircraftType);
-  if (isSelected)          return '#ef4444';
-  if (flight.isPolice)     return '#60a5fa';
-  if (MILITARY_CATS.has(cat)) return '#4ade80';
-  if (WARBIRD_CATS.has(cat))  return '#fb923c';
-  return '#facc15';
-}
-
-function buildAircraftElement(flight: FlightState, isSelected: boolean): HTMLDivElement {
-  const cat = categorizeAircraft(flight.aircraftType);
-  const color = iconColor(flight, isSelected);
-
-  const ns = `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"`;
-  const pod = (cx: number, cy: number, rx: number, ry: number) =>
-    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${color}" ${ns}/>`;
-
-  let body: string;
-  if (cat === 'airship') {
-    const st = `fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5"`;
-    body = `<g>` +
-      `<ellipse cx="0" cy="-3" rx="7" ry="18" ${st}/>` +
-      `<rect x="-3" y="8" width="6" height="5" rx="1.5" ${st}/>` +
-      `<path d="M-7,10 L-13,21 L-3,14 Z" ${st}/>` +
-      `<path d="M7,10 L13,21 L3,14 Z" ${st}/>` +
-      `</g>`;
-  } else if (cat === 'heli' || cat === 'mil-heli') {
-    body = heliInnerSvg(color, '');
-  } else {
-    const { path } = getAircraftSvgInfo(cat);
-    let nacelles = '';
-    if (cat === 'jet') {
-      nacelles = pod(13, 5, 1.5, 3) + pod(-13, 5, 1.5, 3);
-    } else if (cat === 'prop') {
-      nacelles = pod(10, 0.5, 1.5, 3) + pod(-10, 0.5, 1.5, 3) +
-        `<ellipse cx="10" cy="-4" rx="5" ry="0.7" fill="${color}" ${ns}/>` +
-        `<ellipse cx="-10" cy="-4" rx="5" ry="0.7" fill="${color}" ${ns}/>`;
-    } else if (cat === 'transport') {
-      nacelles = pod(10, 1, 1.5, 2.5) + pod(16, 3.5, 1.5, 2.5) +
-                 pod(-10, 1, 1.5, 2.5) + pod(-16, 3.5, 1.5, 2.5);
-    } else if (cat === 'bomber') {
-      nacelles = pod(9, 4, 1.5, 2.5) + pod(16, 6.5, 1.5, 2.5) +
-                 pod(-9, 4, 1.5, 2.5) + pod(-16, 6.5, 1.5, 2.5);
-    } else if (cat === 'attack') {
-      nacelles = pod(5, 9, 1.3, 3) + pod(-5, 9, 1.3, 3);
-    } else if (cat === 'warbird') {
-      nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${color}" ${ns}/>`;
-    }
-    const highlight = `<ellipse cx="-1" cy="-8" rx="4" ry="2.5" fill="rgba(255,255,255,0.32)"/>`;
-    body = `<g>` +
-      `<path d="${path}" fill="${color}" stroke="rgba(0,0,0,0.85)" stroke-width="1.5" stroke-linejoin="round"/>` +
-      nacelles +
-      `</g>` + highlight;
-  }
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="-26 -26 52 52">${body}</svg>`;
-  const el = document.createElement('div');
-  el.style.cssText = 'cursor:pointer; z-index:2; line-height:0;';
-  const inner = document.createElement('div');
-  inner.style.cssText = `filter:drop-shadow(0px 1px 2px rgba(0,0,0,0.5)); line-height:0;`;
-  inner.innerHTML = svg;
-  el.appendChild(inner);
-  return el;
-}
-
-function buildGroundShadowElement(flight: FlightState): HTMLDivElement {
-  const cat = categorizeAircraft(flight.aircraftType);
-  const fill = 'rgba(0,0,0,0.9)';
-  const pod = (cx: number, cy: number, rx: number, ry: number) =>
-    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`;
-
-  let body: string;
-  if (cat === 'airship') {
-    body = `<g>` +
-      `<ellipse cx="0" cy="-3" rx="7" ry="18" fill="${fill}"/>` +
-      `<rect x="-3" y="8" width="6" height="5" rx="1.5" fill="${fill}"/>` +
-      `<path d="M-7,10 L-13,21 L-3,14 Z" fill="${fill}"/>` +
-      `<path d="M7,10 L13,21 L3,14 Z" fill="${fill}"/>` +
-      `</g>`;
-  } else if (cat === 'heli' || cat === 'mil-heli') {
-    body = heliInnerSvg(fill, '');
-  } else {
-    const { path } = getAircraftSvgInfo(cat);
-    let nacelles = '';
-    if (cat === 'jet') {
-      nacelles = pod(13, 5, 1.5, 3) + pod(-13, 5, 1.5, 3);
-    } else if (cat === 'prop') {
-      nacelles = pod(10, 0.5, 1.5, 3) + pod(-10, 0.5, 1.5, 3) +
-        `<ellipse cx="10" cy="-4" rx="5" ry="0.7" fill="${fill}"/>` +
-        `<ellipse cx="-10" cy="-4" rx="5" ry="0.7" fill="${fill}"/>`;
-    } else if (cat === 'transport') {
-      nacelles = pod(10, 1, 1.5, 2.5) + pod(16, 3.5, 1.5, 2.5) +
-                 pod(-10, 1, 1.5, 2.5) + pod(-16, 3.5, 1.5, 2.5);
-    } else if (cat === 'bomber') {
-      nacelles = pod(9, 4, 1.5, 2.5) + pod(16, 6.5, 1.5, 2.5) +
-                 pod(-9, 4, 1.5, 2.5) + pod(-16, 6.5, 1.5, 2.5);
-    } else if (cat === 'attack') {
-      nacelles = pod(5, 9, 1.3, 3) + pod(-5, 9, 1.3, 3);
-    } else if (cat === 'warbird') {
-      nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${fill}"/>`;
-    }
-    body = `<g>` +
-      `<path d="${path}" fill="${fill}"/>` + nacelles + `</g>`;
-  }
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="-26 -26 52 52">${body}</svg>`;
-  const el = document.createElement('div');
-  el.style.cssText = 'pointer-events:none;line-height:0;';
-  const inner = document.createElement('div');
-  inner.style.cssText = `opacity:0.55;filter:blur(2px);line-height:0;`;
-  inner.innerHTML = svg;
-  el.appendChild(inner);
-  return el;
-}
-
-// CSS transform: rotates icon to correct compass heading, counter-rotates map bearing,
-// and partially counter-tilts for pitch so icons read as upright on the tilted map plane.
-function iconTransform(pitchDeg: number, bearingDeg: number, headingDeg = 0): string {
-  return `rotate(${(headingDeg - bearingDeg).toFixed(1)}deg) rotateX(${(-(pitchDeg * 0.5)).toFixed(1)}deg)`;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const rendererRef = useRef<AircraftRenderer | null>(null);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
-  const pitchRef = useRef(DEFAULT_PITCH);
-  pitchRef.current = pitch;
-  const bearingRef = useRef(0);
-  const introCompleteRef = useRef(false);
-  const lastPollTimeRef = useRef<number>(Date.now());
-
-  type MarkerPair = {
-    icon: mapboxgl.Marker; shadow: mapboxgl.Marker; altM: number; flight: FlightState;
-    blendFrom?: [number, number]; blendStart?: number; headingFrom?: number;
-  };
-  const markersRef = useRef<Map<string, MarkerPair>>(new Map());
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
   const trailRef = useRef<[number, number, number?, number?][]>([]);
   trailRef.current = trail;
-  const animFrameRef = useRef<number | null>(null);
 
   // Mount / unmount the map once
   useEffect(() => {
     if (!containerRef.current) return;
-
-    // Dead-reckon + blend marker positions each frame. Using rAF (not CSS transitions)
-    // so Mapbox's internal _update() calls can't snap markers mid-animation.
-    const tick = () => {
-      const now = Date.now();
-      const elapsed = Math.min((now - lastPollTimeRef.current) / 1000, POLL_S);
-      const pitch = pitchRef.current;
-      const bearing = bearingRef.current;
-      for (const [, state] of markersRef.current) {
-        const f = state.flight;
-        const v = f.velocity ?? 0;
-        const newHeading = f.trueTrack ?? 0;
-        let displayLat = f.latitude, displayLon = f.longitude, displayHeading = newHeading;
-        if (v > 0.5) {
-          [displayLat, displayLon] = deadReckon(f.latitude, f.longitude, newHeading, v, elapsed);
-        }
-        if (state.blendStart !== undefined) {
-          const bt = Math.min((now - state.blendStart) / (TRANSITION_S * 1000), 1);
-          const ease = easeInOutQuad(bt);
-          if (state.blendFrom && v > 0.5) {
-            displayLat = state.blendFrom[0] * (1 - ease) + displayLat * ease;
-            displayLon = state.blendFrom[1] * (1 - ease) + displayLon * ease;
-          }
-          if (state.headingFrom !== undefined) {
-            displayHeading = lerpAngle(state.headingFrom, newHeading, ease);
-          }
-          if (bt >= 1) {
-            state.blendStart = undefined;
-            state.blendFrom = undefined;
-            state.headingFrom = undefined;
-          }
-        }
-        if (v > 0.5) {
-          state.icon.setLngLat([displayLon, displayLat]);
-          state.shadow.setLngLat([displayLon, displayLat]);
-        }
-        const t = iconTransform(pitch, bearing, displayHeading);
-        const inner = state.icon.getElement().firstElementChild as HTMLElement | null;
-        if (inner) inner.style.transform = t;
-        const shadowInner = state.shadow.getElement().firstElementChild as HTMLElement | null;
-        if (shadowInner) shadowInner.style.transform = t;
-      }
-      animFrameRef.current = requestAnimationFrame(tick);
-    };
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
@@ -260,14 +75,17 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       pitch: 0,
       bearing: 0,
       maxPitch: 85,
+      projection: 'mercator',
+      fadeDuration: 0,
       attributionControl: { compact: true } as any,
     });
     mapRef.current = map;
+    const renderer = new AircraftRenderer(map, '3d');
+    rendererRef.current = renderer;
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    map.on('pitch', () => { pitchRef.current = map.getPitch(); });
-    map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
-    map.on('rotate', () => { bearingRef.current = map.getBearing(); });
+    map.on('pitchend', () => setPitch(Math.round(map.getPitch())));    const unbindClicks = bindAircraftClicks(map, icao24 => onSelectRef.current(icao24));
+
     map.on('style.load', () => {
       map.addSource('mapbox-dem', {
         type: 'raster-dem',
@@ -312,113 +130,37 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
         } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       });
 
+      addAircraftLayers(map, '3d');
+
       applyTrailData(map, trailRef.current);
+      renderer.render();
+      renderer.start();
       map.easeTo({ pitch: DEFAULT_PITCH, duration: 1800, easing: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t });
-      map.once('pitchend', () => {
-        introCompleteRef.current = true;
-        animFrameRef.current = requestAnimationFrame(tick);
-      });
     });
 
     const resizeObserver = new ResizeObserver(() => map.resize());
     if (containerRef.current) resizeObserver.observe(containerRef.current);
 
     return () => {
-      if (animFrameRef.current !== null) cancelAnimationFrame(animFrameRef.current);
+      renderer.stop();
+      rendererRef.current = null;
       resizeObserver.disconnect();
-      markersRef.current.forEach(({ icon, shadow }) => { icon.remove(); shadow.remove(); });
-      markersRef.current.clear();
+      unbindClicks();
       map.remove();
       mapRef.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync markers whenever flights or selection changes
+  // Feed new server data to the aircraft animation (only on real data updates —
+  // syncing restarts the dead-reckoning clock)
   useEffect(() => {
-    lastPollTimeRef.current = Date.now();
-    const map = mapRef.current;
-    if (!map) return;
+    rendererRef.current?.sync(flights);
+  }, [flights]);
 
-    const selectedIcao = flight?.icao24 ?? null;
-    const incoming = new Map(flights.map(f => [f.icao24, f]));
-
-    for (const [icao, { icon, shadow }] of markersRef.current) {
-      if (!incoming.has(icao)) {
-        icon.remove(); shadow.remove();
-        markersRef.current.delete(icao);
-      }
-    }
-
-    for (const f of flights) {
-      const isSelected = f.icao24 === selectedIcao;
-      const lngLat: [number, number] = [f.longitude, f.latitude];
-      const altM = Math.max(0, f.baroAltitude ?? 0);
-      const v = f.velocity ?? 0;
-      const h = f.trueTrack ?? 0;
-
-      const existing = markersRef.current.get(f.icao24);
-      const now = Date.now();
-      if (existing) {
-        const outerEl = existing.icon.getElement();
-        const innerEl = outerEl.firstElementChild as HTMLElement;
-        const tempEl = buildAircraftElement(f, isSelected);
-        const tempInner = tempEl.firstElementChild as HTMLElement;
-        innerEl.innerHTML = tempInner.innerHTML;
-        innerEl.style.filter = tempInner.style.filter;
-
-        const tempShadow = buildGroundShadowElement(f);
-        const tempShadowInner = tempShadow.firstElementChild as HTMLElement;
-        const shadowInner = existing.shadow.getElement().firstElementChild as HTMLElement;
-        shadowInner.style.opacity = tempShadowInner.style.opacity;
-        shadowInner.style.filter = tempShadowInner.style.filter;
-        shadowInner.innerHTML = tempShadowInner.innerHTML;
-
-        if (altM !== existing.altM) {
-          (existing.icon as any).setAltitude(altM); // eslint-disable-line @typescript-eslint/no-explicit-any
-        }
-
-        const lngLatNow = existing.icon.getLngLat();
-        let headingFrom = existing.flight.trueTrack ?? 0;
-        if (existing.blendStart !== undefined && existing.headingFrom !== undefined) {
-          const bt = Math.min((now - existing.blendStart) / (TRANSITION_S * 1000), 1);
-          headingFrom = lerpAngle(existing.headingFrom, existing.flight.trueTrack ?? 0, easeInOutQuad(bt));
-        }
-        markersRef.current.set(f.icao24, {
-          icon: existing.icon, shadow: existing.shadow, altM, flight: f,
-          blendFrom: [lngLatNow.lat, lngLatNow.lng],
-          blendStart: now,
-          headingFrom,
-        });
-      } else {
-        const initialTransform = iconTransform(pitchRef.current, bearingRef.current, f.trueTrack ?? 0);
-        const shadowEl = buildGroundShadowElement(f);
-        (shadowEl.firstElementChild as HTMLElement).style.transform = initialTransform;
-        const shadow = new mapboxgl.Marker({ element: shadowEl, anchor: 'center', pitchAlignment: 'map', rotationAlignment: 'viewport' })
-          .setLngLat(lngLat).addTo(map);
-
-        const iconEl = buildAircraftElement(f, isSelected);
-        (iconEl.firstElementChild as HTMLElement).style.transform = initialTransform;
-        iconEl.addEventListener('click', () => onSelectRef.current(f.icao24));
-        const icon = new mapboxgl.Marker({
-          element: iconEl,
-          anchor: 'center',
-          pitchAlignment: 'map',
-          rotationAlignment: 'viewport',
-        }).setLngLat(lngLat).addTo(map);
-        (icon as any).setAltitude(altM); // eslint-disable-line @typescript-eslint/no-explicit-any
-
-        markersRef.current.set(f.icao24, { icon, shadow, altM, flight: f });
-
-        // Before the rAF loop starts, pre-position at the estimated future location
-        // so the intro animation doesn't show planes snapping on reveal.
-        if (!introCompleteRef.current && v > 0.5) {
-          const [la, lo] = deadReckon(f.latitude, f.longitude, h, v, POLL_S);
-          icon.setLngLat([lo, la]);
-          shadow.setLngLat([lo, la]);
-        }
-      }
-    }
-  }, [flights, flight, userLat]);
+  // Selection only changes the highlighted icon
+  useEffect(() => {
+    rendererRef.current?.setSelected(flight?.icao24 ?? null);
+  }, [flight?.icao24]);
 
   // Sync trail
   useEffect(() => {
