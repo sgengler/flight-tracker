@@ -124,6 +124,7 @@ const MILITARY_LEGEND_ENTRIES: { category: FilterCategory; label: string; desc: 
 ];
 
 const MAX_HISTORY = 300; // ~50 minutes at 10s poll
+const MILITARY_LIST_LIMIT = 50; // global military feed can be 200+; rest are on the map / Hotspots / Regions
 
 // SVG paths (same as map icons, pointing up at heading=0)
 const ICON_PATHS: Partial<Record<AircraftCategory, string>> = {
@@ -1334,7 +1335,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
                     </tr>
                   </thead>
                   <tbody>
-                    {displayFlights.slice(0, militaryMode ? displayFlights.length : 10).map((f) => (
+                    {displayFlights.slice(0, militaryMode ? MILITARY_LIST_LIMIT : 10).map((f) => (
                       <tr
                         key={f.icao24}
                         onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
@@ -1365,6 +1366,13 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
                         </td>
                       </tr>
                     ))}
+                    {militaryMode && displayFlights.length > MILITARY_LIST_LIMIT && (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-2 text-slate-500 text-center">
+                          +{displayFlights.length - MILITARY_LIST_LIMIT} more on the map · see Hotspots and Regions
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               )

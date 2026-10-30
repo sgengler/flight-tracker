@@ -213,6 +213,8 @@ export async function fetchMilitaryFlights(refLat: number, refLon: number): Prom
 
 // ── Globe.adsbexchange.com trace proxy ───────────────────────────────────────
 
+const MAX_TRACE_POINTS = 300; // matches the client's MAX_HISTORY
+
 // Returns [lat, lon, speedMs, altM][] for the current-day trace of an aircraft.
 // Proxies globe.adsbexchange.com which requires a Referer header.
 export async function fetchAircraftTrace(icao24: string): Promise<Array<[number, number, number, number | null]>> {
@@ -233,7 +235,9 @@ export async function fetchAircraftTrace(icao24: string): Promise<Array<[number,
   };
 
   // Each entry: [timeOffset, lat, lon, alt_baro_ft_or_"ground", groundspeedKts, ...]
-  const positions: Array<[number, number, number, number | null]> = data.trace.map(entry => [
+  // A full-day trace can run to thousands of points; the client only keeps the
+  // most recent MAX_TRACE_POINTS, so trim here and spare the Pi the parsing.
+  const positions: Array<[number, number, number, number | null]> = data.trace.slice(-MAX_TRACE_POINTS).map(entry => [
     entry[1],                                                // lat
     entry[2],                                                // lon
     (entry[4] ?? 0) / 1.94384,                              // knots → m/s

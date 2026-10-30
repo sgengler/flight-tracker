@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.1',
+    date: '2026-10-30',
+    changes: [
+      'The flight trail on the 2D map is now a single smooth line with a continuous speed-color gradient.',
+      'Trails for newly selected flights load faster.',
+      'Military mode lists the 50 closest aircraft, with the rest on the map and in the Hotspots and Regions tabs.',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-10-30',
     changes: [

@@ -31,6 +31,9 @@ const MAPBOX_STYLES: Record<TileId, string> = {
 
 const TRAIL_POLL_S = 15;
 
+// The trail is one LineString colored by a speed gradient along its length.
+// line-gradient can only read line-progress (not feature properties), so the
+// color stops are recomputed from cumulative distance on every trail update.
 function applyTrailData(map: mapboxgl.Map, trail: [number, number, number?, number?][]) {
   const source = map.getSource('trail-line') as GeoJSONSource | undefined;
   if (!source) return;
@@ -38,25 +41,33 @@ function applyTrailData(map: mapboxgl.Map, trail: [number, number, number?, numb
     source.setData({ type: 'FeatureCollection', features: [] });
     return;
   }
-  const features = [];
+
+  const segLen: number[] = [];
+  const cumDist = [0];
   for (let i = 0; i < trail.length - 1; i++) {
-    const speedMs = trail[i][2] ?? haversineDist(
-      [trail[i][0], trail[i][1]],
-      [trail[i + 1][0], trail[i + 1][1]],
-    ) / TRAIL_POLL_S;
-    features.push({
-      type: 'Feature' as const,
-      properties: { color: trailColor(speedMs) },
-      geometry: {
-        type: 'LineString' as const,
-        coordinates: [
-          [trail[i][1], trail[i][0]],
-          [trail[i + 1][1], trail[i + 1][0]],
-        ],
-      },
-    });
+    const d = haversineDist([trail[i][0], trail[i][1]], [trail[i + 1][0], trail[i + 1][1]]);
+    segLen.push(d);
+    cumDist.push(cumDist[i] + d);
   }
-  source.setData({ type: 'FeatureCollection', features });
+  const total = cumDist[cumDist.length - 1];
+
+  const stops: (number | string)[] = [];
+  let lastProgress = -1;
+  for (let i = 0; i < trail.length; i++) {
+    const seg = Math.min(i, trail.length - 2); // last vertex takes the final segment's color
+    const speedMs = trail[seg][2] ?? segLen[seg] / TRAIL_POLL_S;
+    const progress = total > 0 ? cumDist[i] / total : i / (trail.length - 1);
+    if (progress <= lastProgress) continue; // stops must strictly increase (skips zero-length hops)
+    lastProgress = progress;
+    stops.push(progress, trailColor(speedMs));
+  }
+
+  map.setPaintProperty('trail-color', 'line-gradient', ['interpolate', ['linear'], ['line-progress'], ...stops]);
+  source.setData({
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'LineString', coordinates: trail.map(p => [p[1], p[0]]) },
+  });
 }
 
 function applyDestData(map: mapboxgl.Map, flight: FlightState | null) {
@@ -131,7 +142,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
     map.on('style.load', () => {
       sourcesReadyRef.current = true;
 
-      map.addSource('trail-line', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addSource('trail-line', { type: 'geojson', lineMetrics: true, data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({
         id: 'trail-shadow',
         type: 'line',
@@ -145,7 +156,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
         source: 'trail-line',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': ['get', 'color'] as unknown as string,
+          'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, '#38bdf8', 1, '#38bdf8'],
           'line-width': 3,
           'line-opacity': 0.85,
         },
