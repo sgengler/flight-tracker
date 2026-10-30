@@ -95,7 +95,6 @@ async function poll(session: Session) {
   if (adsbFiIsRateLimited()) return; // silently wait out the backoff; interval resumes automatically
   try {
     const flights = await fetchNearbyFlights(session.lat, session.lon, 50);
-    console.log(`[poller] ${session.lat},${session.lon} → ${flights.length} flights at 50mi`);
     // Enrich top 20 flights with aircraft types (cached, hexdb is free)
     const CONCURRENCY = 3;
     const queue = [...flights.slice(0, 20)];
@@ -125,7 +124,6 @@ async function poll(session: Session) {
     for (const f of flights) maybeUpdateSpeedRecord(f);
 
     const flight = findClosestFlight(flights);
-    console.log(`[poller] closest: ${flight ? `${flight.callsign} @ ${flight.distanceMiles.toFixed(1)}mi` : 'none'}`);
     session.lastFlight = flight;
     session.lastFlights = flights;
 
@@ -180,7 +178,6 @@ async function pollMilitary(session: Session) {
   if (adsbFiIsRateLimited()) return;
   try {
     const flights = await fetchMilitaryFlights(session.lat, session.lon);
-    console.log(`[military] ${flights.length} military aircraft globally`);
     // Enrich top 20 with aircraft type from hexdb (no route lookups in military mode)
     const CONCURRENCY = 3;
     const queue = [...flights.slice(0, 20)];

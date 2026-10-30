@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.4',
+    date: '2026-10-30',
+    changes: [
+      'Long-running stability: the app no longer keeps data for every aircraft it has ever seen, so memory stays flat when running 24/7.',
+      'The display refreshes itself once a day at 4am to stay fresh during continuous use.',
+      'Much quieter server logs, so they no longer slowly fill the SD card.',
+    ],
+  },
+  {
     version: '0.7.3',
     date: '2026-10-30',
     changes: [

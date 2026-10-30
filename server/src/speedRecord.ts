@@ -41,17 +41,28 @@ export function getSpeedRecord(): SpeedRecord | null {
 // 1,000 kts in m/s — filters transponder glitches while allowing any real aircraft
 const MAX_PLAUSIBLE_SPEED_MS = 1000 * 0.514444;
 
-// Rolling buffer of the last 3 velocity readings per icao24
-const speedHistory = new Map<string, number[]>();
+// Rolling buffer of the last 3 velocity readings per icao24. Aircraft not seen for
+// SPEED_HISTORY_TTL_MS are swept so the map doesn't grow with every aircraft ever seen.
+const speedHistory = new Map<string, { buf: number[]; lastSeen: number }>();
+const SPEED_HISTORY_TTL_MS = 10 * 60 * 1000;
+
+setInterval(() => {
+  const cutoff = Date.now() - SPEED_HISTORY_TTL_MS;
+  for (const [icao, entry] of speedHistory) {
+    if (entry.lastSeen < cutoff) speedHistory.delete(icao);
+  }
+}, SPEED_HISTORY_TTL_MS).unref();
 
 export function maybeUpdateSpeedRecord(flight: FlightState) {
   if (flight.velocity == null) return;
   if (flight.velocity > MAX_PLAUSIBLE_SPEED_MS) return;
 
-  const buf = speedHistory.get(flight.icao24) ?? [];
+  const entry = speedHistory.get(flight.icao24) ?? { buf: [], lastSeen: 0 };
+  entry.lastSeen = Date.now();
+  const { buf } = entry;
   buf.push(flight.velocity);
   if (buf.length > 3) buf.shift();
-  speedHistory.set(flight.icao24, buf);
+  speedHistory.set(flight.icao24, entry);
 
   if (buf.length < 3) return;
 

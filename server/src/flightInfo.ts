@@ -12,6 +12,15 @@ interface AircraftCacheEntry {
 const aircraftTypeCache = new Map<string, AircraftCacheEntry>();
 const AIRCRAFT_TYPE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Expiry is otherwise only checked on read, so entries for aircraft never seen
+// again would stay forever. Sweep hourly to keep the cache to ~a week of aircraft.
+setInterval(() => {
+  const cutoff = Date.now() - AIRCRAFT_TYPE_CACHE_TTL_MS;
+  for (const [key, entry] of aircraftTypeCache) {
+    if (entry.fetchedAt < cutoff) aircraftTypeCache.delete(key);
+  }
+}, 60 * 60 * 1000).unref();
+
 const POLICE_KEYWORDS = ['POLICE', 'SHERIFF', 'CONSTABULARY', 'TROOPER', 'STATE PATROL',
   'LAW ENFORCEMENT', 'DEPT OF PUBLIC SAFETY', 'DEPARTMENT OF PUBLIC SAFETY'];
 

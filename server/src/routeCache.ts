@@ -279,6 +279,7 @@ async function fetchFlightAwareRoute(callsign: string, opts: { interactive?: boo
 
   const backoff = faBackoffUntil.get(key);
   if (backoff && Date.now() < backoff) return null;
+  if (backoff) faBackoffUntil.delete(key);
 
   try {
     quotaConsume();
@@ -453,11 +454,9 @@ export async function getCachedRoute(callsign: string, _icao24: string, opts: { 
     if (cached) {
       cacheHitConsume();
       const r = cached.route;
-      if (!r.departure || !r.arrival) {
-        console.log(`[route] cache hit (no route): ${callsign}`);
-        return null;
-      }
-      console.log(`[route] cache hit [${cached.source ?? 'legacy'}]: ${callsign} → ${r.departure}→${r.arrival}`);
+      // Cache hits aren't logged: they happen for ~10 flights every poll and made
+      // up most of the log volume on the Pi.
+      if (!r.departure || !r.arrival) return null;
       return routeResultToInfo(r);
     }
   }

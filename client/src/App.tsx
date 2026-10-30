@@ -1019,10 +1019,24 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
         flightHistoryRef.current.set(f.icao24, next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next);
       }
     }
-    // Evict history for flights no longer in the current response
+    // Evict per-flight state for flights no longer in the current response, so a
+    // kiosk running for weeks doesn't accumulate every aircraft it has ever seen
     for (const icao of flightHistoryRef.current.keys()) {
       if (!activeIcaos.has(icao)) flightHistoryRef.current.delete(icao);
     }
+    for (const icao of traceFetchedRef.current) {
+      if (!activeIcaos.has(icao)) traceFetchedRef.current.delete(icao);
+    }
+    for (const icao of routeFetchAttemptedRef.current) {
+      if (!activeIcaos.has(icao)) routeFetchAttemptedRef.current.delete(icao);
+    }
+    setRouteOverrides(prev => {
+      const stale = Object.keys(prev).filter(icao => !activeIcaos.has(icao));
+      if (stale.length === 0) return prev;
+      const next = { ...prev };
+      for (const icao of stale) delete next[icao];
+      return next;
+    });
     const icao = (selectedIcao ?? selectedFlight?.icao24) ?? null;
     if (icao) setSelectedTrail(flightHistoryRef.current.get(icao) ?? []);
   }, [flights]);
