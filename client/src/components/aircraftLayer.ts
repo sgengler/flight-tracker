@@ -15,10 +15,15 @@ const SHADOW_LAYER = 'aircraft-shadows';
 
 const POLL_S = 16;
 const TRANSITION_S = 2;
-// Positions only need a few updates per second: a 450 kt jet moves ~4 px/s even at
-// zoom 11. Run faster only while a post-poll blend is in flight so it stays smooth.
-const BLEND_FRAME_MS = 50;
-const IDLE_FRAME_MS = 250;
+// Every setData() makes Mapbox repaint the whole map, which is the dominant cost on
+// the Pi. Positions are recomputed every CHECK_MS (cheap) but only pushed when some
+// aircraft would visibly move or turn, and never more often than MIN_PUSH_MS. At the
+// default zoom a 450 kt jet moves ~1 px/s, so that's roughly one repaint a second.
+const CHECK_MS = 100;
+const MIN_PUSH_MS = 250;
+const MIN_MOVE_PX = 1;
+const MIN_TURN_DEG = 3;
+const EARTH_CIRCUMFERENCE_M = 40_075_016;
 
 const ICON_PX = 48;      // logical icon size; images are rendered at 2x for sharpness
 const ICON_PIXEL_RATIO = 2;
@@ -213,7 +218,9 @@ export class AircraftRenderer {
   private lastPollTime = Date.now();
   private selectedIcao: string | null = null;
   private frame: number | null = null;
-  private lastRender = 0;
+  private lastCheck = 0;
+  private lastPush = 0;
+  private imagesPending = false; // some icon was still decoding at the last push
 
   constructor(private map: MapboxMap, private mode: AircraftMapMode) {}
 
@@ -249,8 +256,10 @@ export class AircraftRenderer {
     if (this.frame !== null) return;
     const loop = () => {
       const now = Date.now();
-      const interval = this.isBlending() ? BLEND_FRAME_MS : IDLE_FRAME_MS;
-      if (now - this.lastRender >= interval) this.render();
+      if (now - this.lastCheck >= CHECK_MS) {
+        this.lastCheck = now;
+        if (now - this.lastPush >= MIN_PUSH_MS) this.update(false);
+      }
       this.frame = requestAnimationFrame(loop);
     };
     this.frame = requestAnimationFrame(loop);
@@ -261,14 +270,21 @@ export class AircraftRenderer {
     this.frame = null;
   }
 
+  // Push the current positions unconditionally (new data, selection, style reload).
   render() {
-    const now = Date.now();
-    this.lastRender = now;
+    this.update(true);
+  }
+
+  private update(force: boolean) {
     const source = this.map.getSource(AIRCRAFT_SOURCE) as GeoJSONSource | undefined;
     if (!source) return;
 
+    const now = Date.now();
     const elapsed = Math.min((now - this.lastPollTime) / 1000, POLL_S);
-    const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+    const metersPerPx = this.metersPerPixel();
+    let changed = force || this.imagesPending;
+
+    const next: [number, number, number][] = [];
     for (const track of this.tracks.values()) {
       const f = track.flight;
       const v = f.velocity ?? 0;
@@ -289,17 +305,37 @@ export class AircraftRenderer {
           track.headingFrom = undefined;
         }
       }
-      track.shown = [lat, lon, displayHeading];
+      if (!changed) {
+        const [sLat, sLon, sHeading] = track.shown;
+        const dy = (lat - sLat) * 111_320;
+        const dx = (lon - sLon) * 111_320 * Math.cos((lat * Math.PI) / 180);
+        const turn = Math.abs(((displayHeading - sHeading + 540) % 360) - 180);
+        if (Math.hypot(dx, dy) / metersPerPx >= MIN_MOVE_PX || turn >= MIN_TURN_DEG) changed = true;
+      }
+      next.push([lat, lon, displayHeading]);
+    }
+    if (!changed) return;
 
+    this.lastPush = now;
+    this.imagesPending = false;
+    const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+    let i = 0;
+    for (const track of this.tracks.values()) {
+      const [lat, lon, displayHeading] = next[i++];
+      track.shown = [lat, lon, displayHeading];
+      const f = track.flight;
       const isSelected = f.icao24 === this.selectedIcao;
       const cat = categorizeAircraft(f.aircraftType);
+      const icon = readyImage(this.map, iconId(this.mode, cat, aircraftColor(f, isSelected)));
+      const shadow = readyImage(this.map, shadowId(this.mode, cat));
+      if (!icon || !shadow) this.imagesPending = true;
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [lon, lat] },
         properties: {
           icao24: f.icao24,
-          icon: readyImage(this.map, iconId(this.mode, cat, aircraftColor(f, isSelected))),
-          shadow: readyImage(this.map, shadowId(this.mode, cat)),
+          icon,
+          shadow,
           heading: displayHeading,
           alt: Math.max(0, f.baroAltitude ?? 0),
           sort: isSelected ? 1 : 0,
@@ -309,9 +345,12 @@ export class AircraftRenderer {
     source.setData({ type: 'FeatureCollection', features });
   }
 
-  private isBlending(): boolean {
-    for (const t of this.tracks.values()) if (t.blendStart !== undefined) return true;
-    return false;
+  // Ground resolution at the map center. Under 3D pitch, areas near the camera are
+  // magnified, so halve it there to stay conservative.
+  private metersPerPixel(): number {
+    const lat = this.map.getCenter().lat;
+    const mpp = (EARTH_CIRCUMFERENCE_M * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** this.map.getZoom());
+    return this.mode === '3d' ? mpp / 2 : mpp;
   }
 }
 
