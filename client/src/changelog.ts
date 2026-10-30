@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.3',
+    date: '2026-10-30',
+    changes: [
+      'Updates now download a ready-made build instead of compiling on the Pi, so the display stays smooth while updating.',
+      'If no ready-made build is available, the Pi builds at the lowest priority so the display keeps running smoothly.',
+    ],
+  },
+  {
     version: '0.7.2',
     date: '2026-10-30',
     changes: [

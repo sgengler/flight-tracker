@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import type { GeoJSONSource } from 'mapbox-gl';
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
+mapboxgl.accessToken = MAPBOX_TOKEN;
 import { FlightState } from '../types';
+import { MAPBOX_TOKEN } from '../mapboxToken';
 import { haversineDist, trailColor } from './aircraft';
 import { AircraftRenderer, addAircraftLayers, bindAircraftClicks } from './aircraftLayer';
 

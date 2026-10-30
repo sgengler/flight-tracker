@@ -258,10 +258,20 @@ app.get('/api/update-log', (_req, res) => {
   }
 });
 
-// Serve built client in production
-app.use(express.static(CLIENT_DIST));
+// Serve built client in production. index.html is served by hand so the Mapbox
+// token can be injected from .env at serve time: prebuilt bundles from CI don't
+// embed it, and rotating it doesn't need a rebuild.
+const MAPBOX_TOKEN = process.env.VITE_MAPBOX_TOKEN ?? process.env.MAPBOX_TOKEN ?? '';
+app.use(express.static(CLIENT_DIST, { index: false }));
 app.get('*', (_req, res) => {
-  res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+  fs.readFile(path.join(CLIENT_DIST, 'index.html'), 'utf8', (err, html) => {
+    if (err) {
+      res.status(500).send('Client not built');
+      return;
+    }
+    const inject = `<script>window.__MAPBOX_TOKEN__=${JSON.stringify(MAPBOX_TOKEN)}</script>`;
+    res.type('html').send(html.replace('</head>', `${inject}</head>`));
+  });
 });
 
 app.listen(PORT, () => {

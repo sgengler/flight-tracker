@@ -61,7 +61,7 @@ Type the following and press **Return**:
 bash scripts/update.sh
 ```
 
-You'll see text scrolling by as the update runs. Wait for it to finish — it may take a minute or two. You'll know it's done when you see the prompt (`pi@fullpageos:~ $`) appear again.
+You'll see text scrolling by as the update runs. Wait for it to finish — it may take a minute or two. If a change was pushed only moments ago, it may say it's waiting for the prebuilt build; GitHub usually has it ready within a few minutes, and after 5 minutes the Pi builds it itself instead. You'll know it's done when you see the prompt (`pi@fullpageos:~ $`) appear again.
 
 ---
 
