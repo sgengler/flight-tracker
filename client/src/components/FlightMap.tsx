@@ -5,7 +5,7 @@ import { FlightState } from '../types';
 import { MAPBOX_TOKEN } from '../mapboxToken';
 import { AIRPORT_COORDS } from '../utils';
 import { haversineDist, trailColor } from './aircraft';
-import { AircraftRenderer, addAircraftLayers, bindAircraftClicks } from './aircraftLayer';
+import { AircraftCanvas } from './aircraftCanvas';
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -106,7 +106,7 @@ interface Props {
 export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode, focusPoint, tileId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const rendererRef = useRef<AircraftRenderer | null>(null);
+  const aircraftRef = useRef<AircraftCanvas | null>(null);
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
   const trailRef = useRef(trail);
@@ -133,12 +133,11 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
       attributionControl: false,
     });
     mapRef.current = map;
-    const renderer = new AircraftRenderer(map, '2d');
-    rendererRef.current = renderer;
+    const aircraft = new AircraftCanvas(map, icao24 => onSelectRef.current(icao24));
+    aircraftRef.current = aircraft;
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.on('dragstart', () => { userDraggedRef.current = true; });
-    const unbindClicks = bindAircraftClicks(map, icao24 => onSelectRef.current(icao24));
 
     map.on('style.load', () => {
       sourcesReadyRef.current = true;
@@ -177,22 +176,17 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
         },
       });
 
-      addAircraftLayers(map, '2d');
-
       applyTrailData(map, trailRef.current);
       applyDestData(map, flightRef.current);
-      renderer.render();
-      renderer.start();
     });
 
     const resizeObserver = new ResizeObserver(() => map.resize());
     if (containerRef.current) resizeObserver.observe(containerRef.current);
 
     return () => {
-      renderer.stop();
-      rendererRef.current = null;
+      aircraft.destroy();
+      aircraftRef.current = null;
       resizeObserver.disconnect();
-      unbindClicks();
       map.remove();
       mapRef.current = null;
       sourcesReadyRef.current = false;
@@ -202,12 +196,12 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
   // Feed new server data to the aircraft animation (only on real data updates —
   // syncing restarts the dead-reckoning clock)
   useEffect(() => {
-    rendererRef.current?.sync(flights);
+    aircraftRef.current?.sync(flights);
   }, [flights]);
 
   // Selection only changes the highlighted icon
   useEffect(() => {
-    rendererRef.current?.setSelected(flight?.icao24 ?? null);
+    aircraftRef.current?.setSelected(flight?.icao24 ?? null);
   }, [flight?.icao24]);
 
   // AutoBounds + KeepFlightInView on every server update

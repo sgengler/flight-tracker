@@ -1,141 +1,35 @@
 import type { GeoJSONFeature, GeoJSONSource, Map as MapboxMap, MapMouseEvent } from 'mapbox-gl';
 import { FlightState } from '../types';
-import {
-  AircraftCategory, categorizeAircraft, deadReckon, easeInOutQuad, getAircraftSvgInfo,
-  heliInnerSvg, lerpAngle, MILITARY_CATS, WARBIRD_CATS,
-} from './aircraft';
+import { categorizeAircraft } from './aircraft';
+import { aircraftColor, decodedImage, iconId, ICON_PIXEL_RATIO, ICON_PX, shadowId } from './aircraftIcons';
+import { AircraftMotion } from './aircraftMotion';
 
-// Aircraft are drawn as a WebGL symbol layer rather than DOM markers. Icons are
-// rasterized once per (style, category, color) and registered with map.addImage;
-// each animation step is then a single GeoJSON setData() instead of N DOM writes.
+// 3D aircraft are drawn as a WebGL symbol layer so they can sit at altitude and take
+// on the map's perspective. Each animation step is a GeoJSON setData(). (The 2D map
+// draws aircraft on a canvas overlay instead — see aircraftCanvas.ts.)
 
 export const AIRCRAFT_SOURCE = 'aircraft';
 export const AIRCRAFT_LAYER = 'aircraft-icons';
 const SHADOW_LAYER = 'aircraft-shadows';
 
-const POLL_S = 16;
-const TRANSITION_S = 2;
 // Every setData() makes Mapbox repaint the whole map, which is the dominant cost on
 // the Pi. Positions are recomputed every CHECK_MS (cheap) but only pushed when some
-// aircraft would visibly move or turn, and never more often than MIN_PUSH_MS. At the
-// default zoom a 450 kt jet moves ~1 px/s, so that's roughly one repaint a second.
+// aircraft would visibly move or turn, and never more often than MIN_PUSH_MS.
 const CHECK_MS = 100;
 const MIN_PUSH_MS = 250;
 const MIN_MOVE_PX = 1;
 const MIN_TURN_DEG = 3;
 const EARTH_CIRCUMFERENCE_M = 40_075_016;
 
-const ICON_PX = 48;      // logical icon size; images are rendered at 2x for sharpness
-const ICON_PIXEL_RATIO = 2;
-
-export type AircraftMapMode = '2d' | '3d';
-
-export function aircraftColor(flight: FlightState, isSelected: boolean): string {
-  const cat = categorizeAircraft(flight.aircraftType);
-  if (isSelected)             return '#ef4444';
-  if (flight.isPolice)        return '#60a5fa';
-  if (MILITARY_CATS.has(cat)) return '#4ade80';
-  if (WARBIRD_CATS.has(cat))  return '#fb923c';
-  return '#facc15';
-}
-
-// ── Icon images ──────────────────────────────────────────────────────────────
-
-// outlined=false draws a fill-only silhouette (used for shadows).
-function aircraftBodySvg(cat: AircraftCategory, color: string, outlined: boolean, highlight: boolean): string {
-  const ns = outlined ? `stroke="rgba(0,0,0,0.7)" stroke-width="0.8"` : '';
-  const st = outlined ? `stroke="rgba(0,0,0,0.85)" stroke-width="1.5"` : '';
-  const pod = (cx: number, cy: number, rx: number, ry: number) =>
-    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${color}" ${ns}/>`;
-
-  if (cat === 'airship') {
-    return `<g>` +
-      `<ellipse cx="0" cy="-3" rx="7" ry="18" fill="${color}" ${st}/>` +
-      `<rect x="-3" y="8" width="6" height="5" rx="1.5" fill="${color}" ${st}/>` +
-      `<path d="M-7,10 L-13,21 L-3,14 Z" fill="${color}" ${st}/>` +
-      `<path d="M7,10 L13,21 L3,14 Z" fill="${color}" ${st}/>` +
-      `</g>`;
-  }
-  if (cat === 'heli' || cat === 'mil-heli') return heliInnerSvg(color, '');
-
-  const { path } = getAircraftSvgInfo(cat);
-  let nacelles = '';
-  if (cat === 'jet') {
-    nacelles = pod(13, 5, 1.5, 3) + pod(-13, 5, 1.5, 3);
-  } else if (cat === 'prop') {
-    nacelles = pod(10, 0.5, 1.5, 3) + pod(-10, 0.5, 1.5, 3) +
-      `<ellipse cx="10" cy="-4" rx="5" ry="0.7" fill="${color}" ${ns}/>` +
-      `<ellipse cx="-10" cy="-4" rx="5" ry="0.7" fill="${color}" ${ns}/>`;
-  } else if (cat === 'transport') {
-    nacelles = pod(10, 1, 1.5, 2.5) + pod(16, 3.5, 1.5, 2.5) +
-               pod(-10, 1, 1.5, 2.5) + pod(-16, 3.5, 1.5, 2.5);
-  } else if (cat === 'bomber') {
-    nacelles = pod(9, 4, 1.5, 2.5) + pod(16, 6.5, 1.5, 2.5) +
-               pod(-9, 4, 1.5, 2.5) + pod(-16, 6.5, 1.5, 2.5);
-  } else if (cat === 'attack') {
-    nacelles = pod(5, 9, 1.3, 3) + pod(-5, 9, 1.3, 3);
-  } else if (cat === 'warbird') {
-    nacelles = `<ellipse cx="0" cy="-23" rx="6.5" ry="0.8" fill="${color}" ${ns}/>`;
-  }
-  const outline = outlined ? `${st} stroke-linejoin="round"` : '';
-  return `<g><path d="${path}" fill="${color}" ${outline}/>${nacelles}</g>` +
-    (highlight ? `<ellipse cx="-1" cy="-8" rx="4" ry="2.5" fill="rgba(255,255,255,0.32)"/>` : '');
-}
-
-function wrapSvg(body: string, blurPx = 0): string {
-  const size = ICON_PX * ICON_PIXEL_RATIO;
-  const filter = blurPx > 0
-    ? `<defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${blurPx}"/></filter></defs>`
-    : '';
-  const g = blurPx > 0 ? `<g filter="url(#b)">${body}</g>` : body;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="-26 -26 52 52">${filter}${g}</svg>`;
-}
-
-// Image id → SVG source. Filled lazily as ids are handed out, so the
-// renderer can rasterize any id it hands to the layers.
-const svgById = new Map<string, string>();
-const decodedById = new Map<string, HTMLImageElement>();
-const decodingById = new Map<string, Promise<HTMLImageElement>>();
-
-function iconId(mode: AircraftMapMode, cat: AircraftCategory, color: string): string {
-  const id = `ac-icon-${mode}-${cat}-${color}`;
-  if (!svgById.has(id)) svgById.set(id, wrapSvg(aircraftBodySvg(cat, color, true, mode === '3d')));
-  return id;
-}
-
-function shadowId(mode: AircraftMapMode, cat: AircraftCategory): string {
-  const id = `ac-shadow-${mode}-${cat}`;
-  // 3D ground shadows are soft; 2D drop shadows are near-sharp
-  if (!svgById.has(id)) svgById.set(id, wrapSvg(aircraftBodySvg(cat, '#000000', false, false), mode === '3d' ? 1 : 0));
-  return id;
-}
-
-function decode(id: string, svg: string): Promise<HTMLImageElement> {
-  let p = decodingById.get(id);
-  if (!p) {
-    const img = new Image();
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-    p = img.decode().then(() => { decodedById.set(id, img); return img; });
-    p.catch(() => decodingById.delete(id)); // allow a retry
-    decodingById.set(id, p);
-  }
-  return p;
-}
-
 // Returns the image id if it's registered on the map and ready to draw, else ''
-// (draws nothing). Images not yet decoded are decoded in the background and
-// appear on a later animation step. Checking every render also re-registers
-// images after a tile style swap, which clears them.
+// (draws nothing). Images not yet decoded appear on a later animation step.
+// Checking every render also re-registers images after a tile style swap, which clears them.
 function readyImage(map: MapboxMap, id: string): string {
   if (map.hasImage(id)) return id;
-  const img = decodedById.get(id);
-  if (img) {
-    map.addImage(id, img, { pixelRatio: ICON_PIXEL_RATIO });
-    return id;
-  }
-  const svg = svgById.get(id);
-  if (svg) decode(id, svg).catch(() => {});
-  return '';
+  const img = decodedImage(id);
+  if (!img) return '';
+  map.addImage(id, img, { pixelRatio: ICON_PIXEL_RATIO });
+  return id;
 }
 
 // ── Layers ───────────────────────────────────────────────────────────────────
@@ -149,27 +43,10 @@ const SHARED_LAYOUT = {
 };
 
 // Call from the map's style.load handler, after any layers that should sit beneath the aircraft.
-export function addAircraftLayers(map: MapboxMap, mode: AircraftMapMode) {
+export function addAircraftLayers(map: MapboxMap) {
   map.addSource(AIRCRAFT_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
-  if (mode === '2d') {
-    map.addLayer({
-      id: SHADOW_LAYER,
-      type: 'symbol',
-      source: AIRCRAFT_SOURCE,
-      layout: { ...SHARED_LAYOUT, 'icon-image': ['get', 'shadow'] },
-      paint: { 'icon-opacity': 0.28, 'icon-translate': [6, 6], 'icon-translate-anchor': 'viewport' },
-    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
-    map.addLayer({
-      id: AIRCRAFT_LAYER,
-      type: 'symbol',
-      source: AIRCRAFT_SOURCE,
-      layout: { ...SHARED_LAYOUT, 'icon-image': ['get', 'icon'] },
-    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
-    return;
-  }
-
-  // 3D: flat soft shadow on the ground, icon raised to the aircraft's altitude.
+  // Flat soft shadow on the ground, icon raised to the aircraft's altitude.
   map.addLayer({
     id: SHADOW_LAYER,
     type: 'symbol',
@@ -202,47 +79,21 @@ export function addAircraftLayers(map: MapboxMap, mode: AircraftMapMode) {
 
 // ── Animation ────────────────────────────────────────────────────────────────
 
-interface Track {
-  flight: FlightState;
-  shown: [number, number, number]; // last rendered lat, lon, heading
-  blendFrom?: [number, number];
-  blendStart?: number;
-  headingFrom?: number;
-}
-
-// Owns per-aircraft animation state and pushes frames into the aircraft source.
-// Dead-reckons each aircraft forward from its last report, and blends from the
-// previously shown position over TRANSITION_S when a new report arrives.
+// Pushes frames from the shared motion model into the aircraft source.
 export class AircraftRenderer {
-  private tracks = new Map<string, Track>();
-  private lastPollTime = Date.now();
+  private motion = new AircraftMotion();
+  private shown = new Map<string, [number, number, number]>(); // last pushed lat, lon, heading
   private selectedIcao: string | null = null;
   private frame: number | null = null;
   private lastCheck = 0;
   private lastPush = 0;
   private imagesPending = false; // some icon was still decoding at the last push
 
-  constructor(private map: MapboxMap, private mode: AircraftMapMode) {}
+  constructor(private map: MapboxMap) {}
 
   // Call only when fresh data arrives — it restarts the dead-reckoning clock.
   sync(flights: FlightState[]) {
-    const now = Date.now();
-    const incoming = new Set(flights.map(f => f.icao24));
-    for (const icao of this.tracks.keys()) {
-      if (!incoming.has(icao)) this.tracks.delete(icao);
-    }
-    for (const f of flights) {
-      const existing = this.tracks.get(f.icao24);
-      if (existing) {
-        existing.flight = f;
-        existing.blendFrom = [existing.shown[0], existing.shown[1]];
-        existing.headingFrom = existing.shown[2];
-        existing.blendStart = now;
-      } else {
-        this.tracks.set(f.icao24, { flight: f, shown: [f.latitude, f.longitude, f.trueTrack ?? 0] });
-      }
-    }
-    this.lastPollTime = now;
+    this.motion.sync(flights);
     this.render();
   }
 
@@ -279,55 +130,19 @@ export class AircraftRenderer {
     const source = this.map.getSource(AIRCRAFT_SOURCE) as GeoJSONSource | undefined;
     if (!source) return;
 
-    const now = Date.now();
-    const elapsed = Math.min((now - this.lastPollTime) / 1000, POLL_S);
-    const metersPerPx = this.metersPerPixel();
-    let changed = force || this.imagesPending;
+    const poses = this.motion.poses();
+    if (!force && !this.imagesPending && !this.visiblyChanged(poses)) return;
 
-    const next: [number, number, number][] = [];
-    for (const track of this.tracks.values()) {
-      const f = track.flight;
-      const v = f.velocity ?? 0;
-      const heading = f.trueTrack ?? 0;
-      let lat = f.latitude, lon = f.longitude, displayHeading = heading;
-      if (v > 0.5) [lat, lon] = deadReckon(f.latitude, f.longitude, heading, v, elapsed);
-      if (track.blendStart !== undefined) {
-        const bt = Math.min((now - track.blendStart) / (TRANSITION_S * 1000), 1);
-        const ease = easeInOutQuad(bt);
-        if (track.blendFrom && v > 0.5) {
-          lat = track.blendFrom[0] * (1 - ease) + lat * ease;
-          lon = track.blendFrom[1] * (1 - ease) + lon * ease;
-        }
-        if (track.headingFrom !== undefined) displayHeading = lerpAngle(track.headingFrom, heading, ease);
-        if (bt >= 1) {
-          track.blendStart = undefined;
-          track.blendFrom = undefined;
-          track.headingFrom = undefined;
-        }
-      }
-      if (!changed) {
-        const [sLat, sLon, sHeading] = track.shown;
-        const dy = (lat - sLat) * 111_320;
-        const dx = (lon - sLon) * 111_320 * Math.cos((lat * Math.PI) / 180);
-        const turn = Math.abs(((displayHeading - sHeading + 540) % 360) - 180);
-        if (Math.hypot(dx, dy) / metersPerPx >= MIN_MOVE_PX || turn >= MIN_TURN_DEG) changed = true;
-      }
-      next.push([lat, lon, displayHeading]);
-    }
-    if (!changed) return;
-
-    this.lastPush = now;
+    this.lastPush = Date.now();
     this.imagesPending = false;
+    this.shown.clear();
     const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
-    let i = 0;
-    for (const track of this.tracks.values()) {
-      const [lat, lon, displayHeading] = next[i++];
-      track.shown = [lat, lon, displayHeading];
-      const f = track.flight;
+    for (const { flight: f, lat, lon, heading } of poses) {
+      this.shown.set(f.icao24, [lat, lon, heading]);
       const isSelected = f.icao24 === this.selectedIcao;
       const cat = categorizeAircraft(f.aircraftType);
-      const icon = readyImage(this.map, iconId(this.mode, cat, aircraftColor(f, isSelected)));
-      const shadow = readyImage(this.map, shadowId(this.mode, cat));
+      const icon = readyImage(this.map, iconId('3d', cat, aircraftColor(f, isSelected)));
+      const shadow = readyImage(this.map, shadowId('3d', cat));
       if (!icon || !shadow) this.imagesPending = true;
       features.push({
         type: 'Feature',
@@ -336,7 +151,7 @@ export class AircraftRenderer {
           icao24: f.icao24,
           icon,
           shadow,
-          heading: displayHeading,
+          heading,
           alt: Math.max(0, f.baroAltitude ?? 0),
           sort: isSelected ? 1 : 0,
         },
@@ -345,12 +160,25 @@ export class AircraftRenderer {
     source.setData({ type: 'FeatureCollection', features });
   }
 
-  // Ground resolution at the map center. Under 3D pitch, areas near the camera are
-  // magnified, so halve it there to stay conservative.
+  private visiblyChanged(poses: ReturnType<AircraftMotion['poses']>): boolean {
+    const metersPerPx = this.metersPerPixel();
+    for (const { flight, lat, lon, heading } of poses) {
+      const prev = this.shown.get(flight.icao24);
+      if (!prev) return true;
+      const [sLat, sLon, sHeading] = prev;
+      const dy = (lat - sLat) * 111_320;
+      const dx = (lon - sLon) * 111_320 * Math.cos((lat * Math.PI) / 180);
+      const turn = Math.abs(((heading - sHeading + 540) % 360) - 180);
+      if (Math.hypot(dx, dy) / metersPerPx >= MIN_MOVE_PX || turn >= MIN_TURN_DEG) return true;
+    }
+    return false;
+  }
+
+  // Ground resolution at the map center, halved because under 3D pitch areas near
+  // the camera are magnified.
   private metersPerPixel(): number {
     const lat = this.map.getCenter().lat;
-    const mpp = (EARTH_CIRCUMFERENCE_M * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** this.map.getZoom());
-    return this.mode === '3d' ? mpp / 2 : mpp;
+    return (EARTH_CIRCUMFERENCE_M * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** this.map.getZoom()) / 2;
   }
 }
 

@@ -81,11 +81,12 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       attributionControl: { compact: true } as any,
     });
     mapRef.current = map;
-    const renderer = new AircraftRenderer(map, '3d');
+    const renderer = new AircraftRenderer(map);
     rendererRef.current = renderer;
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    map.on('pitchend', () => setPitch(Math.round(map.getPitch())));    const unbindClicks = bindAircraftClicks(map, icao24 => onSelectRef.current(icao24));
+    map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
+    const unbindClicks = bindAircraftClicks(map, icao24 => onSelectRef.current(icao24));
 
     map.on('style.load', () => {
       map.addSource('mapbox-dem', {
@@ -131,7 +132,7 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
         } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       });
 
-      addAircraftLayers(map, '3d');
+      addAircraftLayers(map);
 
       applyTrailData(map, trailRef.current);
       renderer.render();

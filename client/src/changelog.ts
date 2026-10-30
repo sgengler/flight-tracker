@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.5',
+    date: '2026-10-30',
+    changes: [
+      'Planes on the map glide smoothly again instead of ticking forward about once a second.',
+      'Planes no longer slide backwards briefly when fresh position data arrives.',
+    ],
+  },
+  {
     version: '0.7.4',
     date: '2026-10-30',
     changes: [
