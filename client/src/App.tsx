@@ -1671,6 +1671,15 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
           )}
 
           <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 flex flex-col'}>
+            {/* Above the card: the card fills the column, so anything below it is off-screen */}
+            {selectedIcao && (
+              <button
+                onClick={() => selectFlight(null)}
+                className="flex-shrink-0 w-full flex items-center justify-center gap-2 px-3 py-2 mb-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-300 text-xs font-semibold hover:bg-sky-500/25 active:bg-sky-500/30 transition-colors"
+              >
+                <span>⟳</span> Return to closest plane
+              </button>
+            )}
             {selectedFlight ? (
               <div key={selectedFlight.icao24} className={`flight-card-enter${fullscreenPanel === 'card' ? ' flex-1 min-h-0' : ' flex-1 flex flex-col'}`}>
                 <FlightCard
@@ -1688,14 +1697,6 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
                   ? 'Searching for nearby flights…'
                   : 'No airborne flights detected nearby. Click a row to select.'}
               </div>
-            )}
-            {selectedIcao && (
-              <button
-                onClick={() => selectFlight(null)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 mt-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-400 text-xs font-medium hover:bg-sky-500/25 transition-colors"
-              >
-                <span>⟳</span> Return to closest plane
-              </button>
             )}
           </div>
 
