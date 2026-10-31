@@ -68,7 +68,7 @@ describe('findClosestFlight', () => {
     route: null,
     aircraftType: null,
     isPolice: false,
-    registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null,
+    registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null, notableWhy: null,
   });
 
   it('returns null for an empty array', () => {

@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.9.1',
+    date: '2026-10-31',
+    changes: [
+      'Alerts now appear above the flight card, then shrink to a one-line banner after 30 seconds; tap – to shrink, ✕ to hide, or the banner to open it again.',
+      'The military alert stays a quiet one-line banner, since military planes are around most of the time.',
+      '"Worth a look" alerts say why the plane is special, e.g. "Only four exist".',
+      'Blimps, including the Goodyear Blimp, now count as worth a look.',
+      'Bigger alert buttons for the touchscreen.',
+      'The flight card shows the airline instead of a leasing bank as the plane\'s operator.',
+    ],
+  },
+  {
     version: '0.9.0',
     date: '2026-10-31',
     changes: [

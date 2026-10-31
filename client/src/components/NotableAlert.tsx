@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { FlightState } from '../types';
 import { aircraftTypeName, wellKnownAircraftName } from '../utils';
 
@@ -25,10 +25,11 @@ function playChime() {
   } catch { /* AudioContext blocked by browser */ }
 }
 
-export function NotableAlert({ flights, selectedFlight, onTrack }: {
+export function NotableAlert({ flights, selectedFlight, onTrack, controls }: {
   flights: FlightState[];
   selectedFlight: FlightState | null;
   onTrack: (icao24: string | null) => void;
+  controls?: ReactNode;
 }) {
   const chimedRef = useRef(new Set<string>());
   useEffect(() => {
@@ -53,8 +54,10 @@ export function NotableAlert({ flights, selectedFlight, onTrack }: {
           <span className="text-[10px] font-bold text-violet-300 uppercase tracking-[0.2em] font-mono flex-1">
             Worth a look{flights.length > 1 ? ` (${flights.length})` : ''}
           </span>
+          {controls}
         </div>
         <div className="text-sm font-semibold text-violet-200 truncate">{primary.notable}</div>
+        {primary.notableWhy && <div className="text-xs text-violet-300/90 leading-snug">{primary.notableWhy}</div>}
         <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">
           {primary.callsign ?? primary.icao24.toUpperCase()}{typeName && <span className="font-sans"> · {typeName}</span>} · {primary.distanceMiles.toFixed(1)} mi
         </div>

@@ -1,10 +1,13 @@
 import { FlightState, RouteInfo } from '../types';
 import { metersToFeet, msToMph } from '../utils';
+import { airlineName } from '../airlines';
 
 // Extra flight-card details derived from the live data: the specific airframe,
 // what the aircraft is doing, how far along its route it is, and its profile.
 
 const LEGAL_SUFFIX = /\b(INC|LLC|L\.?L\.?C|CORP|CORPORATION|CO|LTD|LP|TRUSTEE|TR)\b\.?/g;
+// Many airliners are registered to banks, trusts and lessors rather than the airline
+const FINANCIAL_OWNER = /\b(BANK|TRUST|TRUSTEE|LEASING|LEASE|LESSOR|CAPITAL|FINANCE|FINANCIAL|CREDIT|WILMINGTON|WELLS FARGO)\b/i;
 
 function titleCase(s: string): string {
   return s.toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
@@ -14,7 +17,10 @@ function titleCase(s: string): string {
 export function airframeSummary(flight: FlightState): string | null {
   const parts: string[] = [];
   if (flight.registration) parts.push(flight.registration);
-  if (flight.operator) {
+  const airline = airlineName(flight.callsign?.match(/^([A-Z]{3})\d/)?.[1]);
+  if (airline) {
+    parts.push(airline);
+  } else if (flight.operator && !FINANCIAL_OWNER.test(flight.operator)) {
     const op = titleCase(flight.operator.replace(LEGAL_SUFFIX, '').replace(/[,\s]+$/, '').replace(/\s{2,}/g, ' ').trim());
     if (op) parts.push(op);
   }

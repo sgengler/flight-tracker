@@ -42,24 +42,53 @@ const RARE_MAX_DAYS = 2;           // seen on at most this many earlier days →
 const RARE_CATEGORIES = new Set(['A3', 'A4', 'A5', 'A6']); // large, 757, heavy, high-performance
 const RARITY_REFRESH_MS = 10 * 60 * 1000;
 
-const NOTABLE_TYPES: Record<string, string> = {
-  A388: 'Airbus A380 superjumbo',
-  B741: 'Boeing 747', B742: 'Boeing 747', B743: 'Boeing 747', B744: 'Boeing 747', B748: 'Boeing 747-8', B74S: 'Boeing 747SP',
-  B74R: 'Boeing 747', BLCF: 'Boeing Dreamlifter',
-  A3ST: 'Airbus Beluga', A337: 'Airbus BelugaXL',
-  A124: 'Antonov An-124', A225: 'Antonov An-225', IL76: 'Ilyushin Il-76',
-  A342: 'Airbus A340', A343: 'Airbus A340', A345: 'Airbus A340', A346: 'Airbus A340',
-  MD11: 'McDonnell Douglas MD-11', DC10: 'McDonnell Douglas DC-10', DC3: 'Douglas DC-3', DC6: 'Douglas DC-6',
-  CONC: 'Concorde', E4: 'Boeing E-4 "Doomsday plane"', VC25: 'VC-25 (Air Force One aircraft)',
-  B52: 'B-52 bomber', B1: 'B-1 bomber', B2: 'B-2 stealth bomber', U2: 'U-2 spy plane',
+// Each notable aircraft gets a title and a plain-language reason it's worth a look.
+interface Notable { title: string; why: string }
+
+const B747: Notable = { title: 'Boeing 747', why: 'The original jumbo jet, now mostly retired from passenger service' };
+const A340: Notable = { title: 'Airbus A340', why: 'A four-engine long-haul jet; few are still flying' };
+
+const NOTABLE_TYPES: Record<string, Notable> = {
+  A388: { title: 'Airbus A380', why: "The world's largest passenger jet" },
+  B741: B747, B742: B747, B743: B747, B744: B747, B74R: B747,
+  B748: { title: 'Boeing 747-8', why: 'The last and longest jumbo jet; Boeing built its final one in 2023' },
+  B74S: { title: 'Boeing 747SP', why: 'A rare short-body 747; only a handful still fly' },
+  BLCF: { title: 'Boeing Dreamlifter', why: 'A puffed-up 747 that carries 787 parts; only four exist' },
+  A3ST: { title: 'Airbus Beluga', why: 'A whale-shaped cargo plane that carries Airbus wings and fuselages' },
+  A337: { title: 'Airbus BelugaXL', why: 'The newer, bigger whale-shaped Airbus cargo plane' },
+  A124: { title: 'Antonov An-124', why: 'One of the largest cargo planes in the world' },
+  IL76: { title: 'Ilyushin Il-76', why: 'A Soviet-era heavy cargo jet, rarely seen in the US' },
+  A342: A340, A343: A340, A345: A340, A346: A340,
+  MD11: { title: 'McDonnell Douglas MD-11', why: 'A three-engine jet from the 1990s; only a few cargo ones still fly' },
+  DC10: { title: 'McDonnell Douglas DC-10', why: 'A three-engine classic from the 1970s; almost all retired' },
+  DC3:  { title: 'Douglas DC-3', why: 'A propeller airliner from the 1930s, still flying' },
+  DC6:  { title: 'Douglas DC-6', why: 'A four-propeller airliner from the 1940s' },
+  E4:   { title: 'Boeing E-4 "Doomsday plane"', why: 'A flying command center for the military in a national emergency' },
+  VC25: { title: 'VC-25', why: 'One of the two 747s that serve as Air Force One' },
+  B52:  { title: 'B-52 Stratofortress', why: 'An Air Force bomber that first flew in 1952 and still serves' },
+  B1:   { title: 'B-1 Lancer', why: 'A supersonic Air Force bomber with swing wings' },
+  B2:   { title: 'B-2 Spirit', why: 'The flying-wing stealth bomber; only 19 were built' },
+  U2:   { title: 'U-2 Dragon Lady', why: 'A spy plane that flies at about 70,000 ft' },
 };
 
-const NOTABLE_CALLSIGNS: Array<[RegExp, string]> = [
-  [/^AF1$/, 'Air Force One'],
-  [/^AF2$/, 'Air Force Two'],
-  [/^SAM\d+/, 'Special Air Mission (VIP transport)'],
-  [/^EXEC1F$/, 'Executive One Foxtrot (presidential family)'],
-  [/^NASA\d+/, 'NASA flight'],
+// Blimps: airship type codes, or ADS-B emitter category B2 (lighter-than-air)
+const AIRSHIP_TYPES = new Set(['SHIP', 'ZNTH', 'ZEPN']);
+const GOODYEAR_REGISTRATIONS = new Set(['N1A', 'N2A', 'N3A']); // Wingfoot One, Two and Three
+
+function blimp(f: FlightState): Notable | null {
+  const isAirship = AIRSHIP_TYPES.has(f.aircraftType?.toUpperCase() ?? '') || f.category === 'B2';
+  const isGoodyear = GOODYEAR_REGISTRATIONS.has(f.registration?.toUpperCase() ?? '') || /GOODYEAR/i.test(f.operator ?? '');
+  if (isGoodyear) return { title: 'Goodyear Blimp', why: 'One of only three Goodyear blimps flying in the US' };
+  if (isAirship) return { title: 'Blimp', why: 'An airship: lighter than air, cruising at about the speed of a car' };
+  return null;
+}
+
+const NOTABLE_CALLSIGNS: Array<[RegExp, Notable]> = [
+  [/^AF1$/, { title: 'Air Force One', why: 'The President is on board' }],
+  [/^AF2$/, { title: 'Air Force Two', why: 'The Vice President is on board' }],
+  [/^SAM\d+/, { title: 'Special Air Mission', why: 'An Air Force jet carrying senior government officials' }],
+  [/^EXEC1F$/, { title: 'Executive One Foxtrot', why: "The President's family is on board" }],
+  [/^NASA\d+/, { title: 'NASA flight', why: 'A NASA research or support aircraft' }],
 ];
 
 const stmtUpsert = db.prepare(`
@@ -106,17 +135,25 @@ function refreshRarity(now: number) {
   db.prepare('DELETE FROM sightings WHERE day < ?').run(utcDay(now - KEEP_DAYS * 86_400_000));
 }
 
-function notableReason(f: FlightState): string | null {
+function notableReason(f: FlightState): Notable | null {
   const callsign = f.callsign?.trim().toUpperCase() ?? '';
-  for (const [re, label] of NOTABLE_CALLSIGNS) if (re.test(callsign)) return label;
+  for (const [re, notable] of NOTABLE_CALLSIGNS) if (re.test(callsign)) return notable;
+  const airship = blimp(f);
+  if (airship) return airship;
   const type = f.aircraftType?.toUpperCase() ?? '';
   if (NOTABLE_TYPES[type]) return NOTABLE_TYPES[type];
   if (type && historyDays >= MIN_HISTORY_DAYS && f.category && RARE_CATEGORIES.has(f.category)) {
     const days = typeDays.get(type) ?? 0;
-    if (days === 0) return 'First one seen here';
-    if (days <= RARE_MAX_DAYS) return `Rare here: seen on ${days} of the last ${RARITY_WINDOW_DAYS} days`;
+    if (days === 0) return { title: 'First one seen here', why: `We haven't logged this type of plane at home before` };
+    if (days <= RARE_MAX_DAYS) return { title: 'Rare visitor', why: `Seen on just ${days} of the last ${RARITY_WINDOW_DAYS} days` };
   }
   return null;
+}
+
+function markOne(f: FlightState) {
+  const n = notableReason(f);
+  f.notable = n?.title ?? null;
+  f.notableWhy = n?.why ?? null;
 }
 
 // Marks notable aircraft and logs everything. Called for the home location only.
@@ -124,7 +161,7 @@ export const recordSightings = db.transaction((flights: FlightState[], now: numb
   refreshRarity(now);
   const day = utcDay(now);
   for (const f of flights) {
-    f.notable = notableReason(f);
+    markOne(f);
     stmtUpsert.run({
       day,
       icao24: f.icao24,
@@ -147,7 +184,7 @@ export const recordSightings = db.transaction((flights: FlightState[], now: numb
 
 // Notable flags for sessions that aren't logged (explore mode) — same rules, no logging.
 export function markNotable(flights: FlightState[]) {
-  for (const f of flights) f.notable = notableReason(f);
+  for (const f of flights) markOne(f);
 }
 
 // ── Today summary ────────────────────────────────────────────────────────────

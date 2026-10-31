@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useFlightStream } from './hooks/useFlightStream';
 import { useFlightInfo } from './hooks/useFlightInfo';
 import { FlightCard } from './components/FlightCard';
@@ -9,6 +9,7 @@ import { aircraftTypeName, wellKnownAircraftName, msToMph, formatMiles, clusterF
 import { ShutdownButton } from './components/ShutdownButton';
 import { EmergencyAlert, useEmergencies } from './components/EmergencyAlert';
 import { NotableAlert } from './components/NotableAlert';
+import { AlertSlot } from './components/AlertSlot';
 import { TodayTab } from './components/TodayTab';
 import { useAutoReload } from './hooks/useAutoReload';
 import { useStoredState } from './hooks/useStoredState';
@@ -234,12 +235,13 @@ const RETICLE_SVG_PATHS = (
   </>
 );
 
-function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModal }: {
+function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModal, controls }: {
   flights: FlightState[];
   selectedFlight: FlightState | null;
   onTrack: (icao24: string | null) => void;
   takeover: boolean;
   onDismissModal: () => void;
+  controls?: ReactNode;
 }) {
   const primary = flights[0];
   const quipIdx = primary.icao24.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % TOP_GUN_QUIPS.length;
@@ -386,6 +388,7 @@ function TopGunAlert({ flights, selectedFlight, onTrack, takeover, onDismissModa
           <span className="text-[10px] font-mono text-amber-700">
             {new Date().toISOString().slice(11, 19)}Z
           </span>
+          {controls}
         </div>
 
         <div className="flex items-center gap-3">
@@ -448,10 +451,11 @@ const WARBIRD_QUIPS = [
   "Flame on — let's go hunting.",
 ];
 
-function WarbirdAlert({ flights, selectedFlight, onTrack }: {
+function WarbirdAlert({ flights, selectedFlight, onTrack, controls }: {
   flights: FlightState[];
   selectedFlight: FlightState | null;
   onTrack: (icao24: string | null) => void;
+  controls?: ReactNode;
 }) {
   const primary = flights[0];
   const quipIdx = primary.icao24.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % WARBIRD_QUIPS.length;
@@ -472,6 +476,7 @@ function WarbirdAlert({ flights, selectedFlight, onTrack }: {
           <span className="text-[10px] font-bold text-orange-400 uppercase tracking-[0.2em] font-mono flex-1">
             Warbird Spotted{flights.length > 1 ? ` (${flights.length})` : ''}
           </span>
+          {controls}
         </div>
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center">
@@ -805,7 +810,7 @@ const TOPGUN_DUMMY: FlightState = {
   route: null,
   aircraftType: 'F22',
   isPolice: false,
-  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null, notableWhy: null,
 };
 
 const WARBIRD_DUMMY: FlightState = {
@@ -825,7 +830,7 @@ const WARBIRD_DUMMY: FlightState = {
   route: null,
   aircraftType: 'HURI',
   isPolice: false,
-  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null, notableWhy: null,
 };
 
 function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat: number; lon: number; dev: boolean; topgun: boolean; warbird: boolean; emergency: boolean; notable: boolean }) {
@@ -875,7 +880,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
       result = [{ ...result[0], squawk: '7700', emergency: 'general' }, ...result.slice(1)];
     }
     if (notable && result.length > 1) {
-      result = [result[0], { ...result[1], notable: 'Boeing 747-8' }, ...result.slice(2)];
+      result = [result[0], { ...result[1], notable: 'Boeing 747-8', notableWhy: 'The last and longest jumbo jet; Boeing built its final one in 2023' }, ...result.slice(2)];
     }
     return result;
   }, [rawFlights, topGunActive, warbirdActive, emergencyActive, notable, militaryMode, homeLat, homeLon]);
@@ -959,6 +964,14 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
   );
 
   const emergencyFlights = useEmergencies(flights);
+
+  // One-line banner text for a minimized alert: "Bogey · F-22 Raptor · N123 · 3.7 mi (+1)"
+  const typeLabel = (f: FlightState) => wellKnownAircraftName(f.icao24) ?? (f.aircraftType ? (aircraftTypeName(f.aircraftType) ?? f.aircraftType) : '');
+  const alertSummary = (label: string, fs: FlightState[], detail: (f: FlightState) => string) => {
+    const f = fs[0];
+    return [`${label} ${detail(f)}`.trim(), f.callsign ?? f.icao24.toUpperCase(), formatMiles(f.distanceMiles)]
+      .filter(Boolean).join(' · ') + (fs.length > 1 ? ` (+${fs.length - 1})` : '');
+  };
 
   // Notable aircraft (special types, VIP callsigns, rare here) — flagged by the server
   const notableFlights = useMemo(() =>
@@ -1270,7 +1283,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
           {/* Flight list — hidden when map is fullscreen */}
           {fullscreenPanel !== 'map' && (
           <div className="flex-[2] min-h-0 rounded-2xl bg-slate-800/60 border border-white/10 overflow-y-auto">
-            <div className="sticky top-0 z-10 bg-slate-800 px-3 py-1.5 border-b border-white/10 flex items-center gap-2">
+            <div className="sticky top-0 z-10 bg-slate-800 px-2.5 py-1.5 border-b border-white/10 flex items-center gap-1.5">
               {militaryMode ? (
                 <div className="flex items-center gap-1">
                   <button
@@ -1312,11 +1325,11 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
                   >Stats</button>
                 </div>
               )}
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-1.5">
                 {dev && <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">DEV</span>}
                 <button
                   onClick={() => { setMilitaryMode(m => !m); setSelectedIcao(null); }}
-                  className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap transition-colors ${
+                  className={`flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap transition-colors ${
                     militaryMode
                       ? 'bg-green-500/20 border-green-400/50 text-green-300'
                       : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
@@ -1541,6 +1554,122 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
         {(fullscreenPanel === null || fullscreenPanel === 'card') && (
         <div className={`${fullscreenPanel === 'card' ? 'flex-1' : 'flex-[2]'} flex flex-col gap-1.5 min-w-0 ${fullscreenPanel === 'card' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
+          {/* Alerts — above the card so they're never cut off; each opens in full, then
+              shrinks to a one-line banner (AlertSlot) so the plane info isn't pushed down for long */}
+          {emergencyFlights.length > 0 && (
+            <AlertSlot icaos={emergencyFlights.map(f => f.icao24)} tone="red" summary={alertSummary('Emergency', emergencyFlights, f => f.squawk ?? '')}>
+              {controls => (
+                <EmergencyAlert
+                  flights={emergencyFlights}
+                  selectedFlight={selectedFlight}
+                  onTrack={selectFlight}
+                  allowTakeover={fullscreenPanel === null}
+                  controls={controls}
+                />
+              )}
+            </AlertSlot>
+          )}
+          {fullscreenPanel === null && (topGunFlights.length > 0 || topGunTakeover || topGunDismissing) && (
+            <AlertSlot icaos={topGunAlertFlights.map(f => f.icao24)} tone="amber" forceOpen={topGunTakeover || topGunDismissing} summary={alertSummary('Bogey', topGunAlertFlights, typeLabel)}>
+              {controls => (
+                <TopGunAlert
+                  flights={topGunAlertFlights}
+                  selectedFlight={selectedFlight}
+                  onTrack={selectFlight}
+                  takeover={topGunTakeover}
+                  onDismissModal={() => dismissTopGunRef.current()}
+                  controls={controls}
+                />
+              )}
+            </AlertSlot>
+          )}
+          {fullscreenPanel === null && notableFlights.length > 0 && (
+            <AlertSlot icaos={notableFlights.map(f => f.icao24)} tone="violet" summary={alertSummary('★', notableFlights, f => f.notable ?? '')}>
+              {controls => <NotableAlert flights={notableFlights} selectedFlight={selectedFlight} onTrack={selectFlight} controls={controls} />}
+            </AlertSlot>
+          )}
+          {fullscreenPanel === null && !militaryMode && warbirdFlights.length > 0 && (
+            <AlertSlot icaos={warbirdFlights.map(f => f.icao24)} tone="orange" summary={alertSummary('Warbird', warbirdFlights, typeLabel)}>
+              {controls => <WarbirdAlert flights={warbirdFlights} selectedFlight={selectedFlight} onTrack={selectFlight} controls={controls} />}
+            </AlertSlot>
+          )}
+          {fullscreenPanel === null && policeFlights.length > 0 && (
+            <AlertSlot icaos={policeFlights.map(f => f.icao24)} tone="blue" summary={alertSummary('Police', policeFlights, () => '')}>
+              {controls => (
+                <div className="flex-shrink-0 rounded-xl border border-blue-400/40 bg-blue-500/10 px-3 py-2">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="-26 -26 52 52" className="flex-shrink-0">
+                      <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="#60a5fa" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinejoin="round"/>
+                    </svg>
+                    <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                      Police {policeFlights.length > 1 ? `(${policeFlights.length})` : 'Aircraft Detected'}
+                    </span>
+                    {controls}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {policeFlights.map(f => (
+                      <div key={f.icao24} className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-blue-300 font-medium flex-1 min-w-0 truncate">
+                          {f.callsign ?? f.icao24.toUpperCase()}
+                          {f.aircraftType && <span className="text-blue-600 ml-1">· {aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>}
+                        </span>
+                        <span className="text-xs text-blue-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
+                        <button
+                          onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                          className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-md border transition-colors ${
+                            f.icao24 === selectedFlight?.icao24
+                              ? 'bg-blue-500/30 border-blue-400/50 text-blue-300'
+                              : 'bg-blue-500/15 border-blue-400/30 text-blue-400 hover:bg-blue-500/25'
+                          }`}
+                        >
+                          {f.icao24 === selectedFlight?.icao24 ? 'Tracking' : 'Track'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </AlertSlot>
+          )}
+          {fullscreenPanel === null && !militaryMode && militaryFlights.length > 0 && (
+            <AlertSlot icaos={militaryFlights.map(f => f.icao24)} tone="green" quiet summary={alertSummary('Military', militaryFlights, typeLabel)}>
+              {controls => (
+                <div className="flex-shrink-0 rounded-xl border border-green-400/40 bg-green-500/10 px-3 py-2">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="-26 -26 52 52" className="flex-shrink-0">
+                      <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="#4ade80" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinejoin="round"/>
+                    </svg>
+                    <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">
+                      Military {militaryFlights.length > 1 ? `(${militaryFlights.length})` : 'Aircraft Detected'}
+                    </span>
+                    {controls}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {militaryFlights.map(f => (
+                      <div key={f.icao24} className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-green-300 font-medium flex-1 min-w-0 truncate">
+                          {f.callsign ?? f.icao24.toUpperCase()}
+                          {f.aircraftType && <span className="text-green-600 ml-1">· {aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>}
+                        </span>
+                        <span className="text-xs text-green-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
+                        <button
+                          onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
+                          className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-md border transition-colors ${
+                            f.icao24 === selectedFlight?.icao24
+                              ? 'bg-green-500/30 border-green-400/50 text-green-300'
+                              : 'bg-green-500/15 border-green-400/30 text-green-400 hover:bg-green-500/25'
+                          }`}
+                        >
+                          {f.icao24 === selectedFlight?.icao24 ? 'Tracking' : 'Track'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </AlertSlot>
+          )}
+
           <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 flex flex-col'}>
             {selectedFlight ? (
               <div key={selectedFlight.icao24} className={`flight-card-enter${fullscreenPanel === 'card' ? ' flex-1 min-h-0' : ' flex-1 flex flex-col'}`}>
@@ -1570,114 +1699,6 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
             )}
           </div>
 
-          {/* Emergency alert — squawk 7700/7600/7500; shown in every mode */}
-          {emergencyFlights.length > 0 && (
-            <EmergencyAlert
-              flights={emergencyFlights}
-              selectedFlight={selectedFlight}
-              onTrack={selectFlight}
-              allowTakeover={fullscreenPanel === null}
-            />
-          )}
-
-          {/* Top Gun alert — fighter/attack aircraft in normal mode, or SSH-triggered */}
-          {fullscreenPanel === null && (topGunFlights.length > 0 || topGunTakeover || topGunDismissing) && (
-            <TopGunAlert
-              flights={topGunAlertFlights}
-              selectedFlight={selectedFlight}
-              onTrack={selectFlight}
-              takeover={topGunTakeover}
-              onDismissModal={() => dismissTopGunRef.current()}
-            />
-          )}
-
-          {/* Notable aircraft — special types and rarities in normal mode */}
-          {fullscreenPanel === null && notableFlights.length > 0 && (
-            <NotableAlert
-              flights={notableFlights}
-              selectedFlight={selectedFlight}
-              onTrack={selectFlight}
-            />
-          )}
-
-          {/* Warbird alert — vintage aircraft in normal mode */}
-          {fullscreenPanel === null && !militaryMode && warbirdFlights.length > 0 && (
-            <WarbirdAlert
-              flights={warbirdFlights}
-              selectedFlight={selectedFlight}
-              onTrack={selectFlight}
-            />
-          )}
-
-          {/* Police alert — hidden in card fullscreen */}
-          {fullscreenPanel === null && policeFlights.length > 0 && (
-            <div className="flex-shrink-0 rounded-xl border border-blue-400/40 bg-blue-500/10 px-3 py-2">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="-26 -26 52 52" className="flex-shrink-0">
-                  <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="#60a5fa" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinejoin="round"/>
-                </svg>
-                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
-                  Police {policeFlights.length > 1 ? `(${policeFlights.length})` : 'Aircraft Detected'}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                {policeFlights.map(f => (
-                  <div key={f.icao24} className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-blue-300 font-medium flex-1 min-w-0 truncate">
-                      {f.callsign ?? f.icao24.toUpperCase()}
-                      {f.aircraftType && <span className="text-blue-600 ml-1">· {aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>}
-                    </span>
-                    <span className="text-xs text-blue-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
-                    <button
-                      onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
-                      className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-md border transition-colors ${
-                        f.icao24 === selectedFlight?.icao24
-                          ? 'bg-blue-500/30 border-blue-400/50 text-blue-300'
-                          : 'bg-blue-500/15 border-blue-400/30 text-blue-400 hover:bg-blue-500/25'
-                      }`}
-                    >
-                      {f.icao24 === selectedFlight?.icao24 ? 'Tracking' : 'Track'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Military alert — hidden in card fullscreen and in military mode */}
-          {fullscreenPanel === null && !militaryMode && militaryFlights.length > 0 && (
-            <div className="flex-shrink-0 rounded-xl border border-green-400/40 bg-green-500/10 px-3 py-2">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="-26 -26 52 52" className="flex-shrink-0">
-                  <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="#4ade80" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinejoin="round"/>
-                </svg>
-                <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">
-                  Military {militaryFlights.length > 1 ? `(${militaryFlights.length})` : 'Aircraft Detected'}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                {militaryFlights.map(f => (
-                  <div key={f.icao24} className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-green-300 font-medium flex-1 min-w-0 truncate">
-                      {f.callsign ?? f.icao24.toUpperCase()}
-                      {f.aircraftType && <span className="text-green-600 ml-1">· {aircraftTypeName(f.aircraftType) ?? f.aircraftType}</span>}
-                    </span>
-                    <span className="text-xs text-green-600 flex-shrink-0">{f.distanceMiles.toFixed(1)} mi</span>
-                    <button
-                      onClick={() => selectFlight(f.icao24 === selectedFlight?.icao24 ? null : f.icao24)}
-                      className={`flex-shrink-0 text-xs px-2 py-0.5 rounded-md border transition-colors ${
-                        f.icao24 === selectedFlight?.icao24
-                          ? 'bg-green-500/30 border-green-400/50 text-green-300'
-                          : 'bg-green-500/15 border-green-400/30 text-green-400 hover:bg-green-500/25'
-                      }`}
-                    >
-                      {f.icao24 === selectedFlight?.icao24 ? 'Tracking' : 'Track'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
         </div>
         )}

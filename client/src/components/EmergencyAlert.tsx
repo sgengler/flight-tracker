@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { FlightState } from '../types';
 import { aircraftTypeName, wellKnownAircraftName } from '../utils';
 
@@ -76,11 +76,12 @@ function describe(f: FlightState) {
   return { typeName, route, ident: f.callsign ?? f.registration ?? f.icao24.toUpperCase() };
 }
 
-export function EmergencyAlert({ flights, selectedFlight, onTrack, allowTakeover }: {
+export function EmergencyAlert({ flights, selectedFlight, onTrack, allowTakeover, controls }: {
   flights: FlightState[];
   selectedFlight: FlightState | null;
   onTrack: (icao24: string | null) => void;
   allowTakeover: boolean;
+  controls?: ReactNode;
 }) {
   const primary = flights[0];
   const [takeoverIcao, setTakeoverIcao] = useState<string | null>(null);
@@ -168,6 +169,7 @@ export function EmergencyAlert({ flights, selectedFlight, onTrack, allowTakeover
           {primary.squawk && SQUAWK_MEANING[primary.squawk] && (
             <span className="text-xs font-black text-red-500 font-mono">{primary.squawk}</span>
           )}
+          {controls}
         </div>
         <div className="text-sm font-bold text-white font-mono truncate">{ident}{typeName && <span className="font-sans font-normal text-slate-400"> · {typeName}</span>}</div>
         <div className="text-xs text-red-300 mt-0.5">{emergencyReason(primary)} · {primary.distanceMiles.toFixed(1)} mi</div>

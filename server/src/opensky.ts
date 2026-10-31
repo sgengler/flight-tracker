@@ -48,7 +48,8 @@ export interface FlightState {
   emergency: string | null;          // adsb.fi emergency status; null when 'none'
   selectedAltitude: number | null;   // metres — autopilot target altitude
   category: string | null;           // ADS-B emitter category (A3 large, A5 heavy, …)
-  notable: string | null;            // why this aircraft is worth a look, if it is
+  notable: string | null;            // title, if this aircraft is worth a look (e.g. "Boeing Dreamlifter")
+  notableWhy: string | null;         // plain-language reason (e.g. "Only four exist")
 }
 
 export interface RouteInfo {
@@ -183,6 +184,7 @@ function toFlightState(ac: AdsbFiAircraft & { lat: number; lon: number }, refLat
     selectedAltitude: ac.nav_altitude_mcp != null ? ac.nav_altitude_mcp * 0.3048 : null,
     category: ac.category ?? null,
     notable: null,
+    notableWhy: null,
   };
 }
 
