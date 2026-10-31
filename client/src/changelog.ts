@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.7',
+    date: '2026-10-30',
+    changes: [
+      'The map remembers whether it was in 3D and which map style was picked, including after updates and the daily refresh.',
+    ],
+  },
+  {
     version: '0.7.6',
     date: '2026-10-30',
     changes: [

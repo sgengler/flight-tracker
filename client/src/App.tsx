@@ -8,10 +8,13 @@ import { FlightMap3D } from './components/FlightMap3D';
 import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { useAutoReload } from './hooks/useAutoReload';
+import { useStoredState } from './hooks/useStoredState';
 import { RouteInfo, FlightState } from './types';
 import { APP_VERSION } from './version';
 import { CHANGELOG } from './changelog';
 
+const isTileId = (v: unknown): v is TileId => TILE_OPTIONS.some(o => o.id === v);
+const isBoolean = (v: unknown): v is boolean => typeof v === 'boolean';
 
 // Default fallback location (Chesterbrook, PA)
 const DEFAULT_LAT = 40.074845;
@@ -850,9 +853,9 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
-  const [tileId, setTileId] = useState<TileId>('dark');
+  const [tileId, setTileId] = useStoredState<TileId>('map.tile', 'dark', isTileId);
   const [tilePickerOpen, setTilePickerOpen] = useState(false);
-  const [map3D, setMap3D] = useState(false);
+  const [map3D, setMap3D] = useStoredState('map.3d', false, isBoolean);
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
   const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
   const flightHistoryRef = useRef<Map<string, [number, number, number?, number?][]>>(new Map());
