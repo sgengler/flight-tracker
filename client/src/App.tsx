@@ -7,6 +7,7 @@ import { categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory } fro
 import { FlightMap3D } from './components/FlightMap3D';
 import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
+import { EmergencyAlert, useEmergencies } from './components/EmergencyAlert';
 import { useAutoReload } from './hooks/useAutoReload';
 import { useStoredState } from './hooks/useStoredState';
 import { RouteInfo, FlightState } from './types';
@@ -825,7 +826,7 @@ const WARBIRD_DUMMY: FlightState = {
   registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null,
 };
 
-function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: number; dev: boolean; topgun: boolean; warbird: boolean }) {
+function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number; lon: number; dev: boolean; topgun: boolean; warbird: boolean; emergency: boolean }) {
   const [militaryMode, setMilitaryMode] = useState(false);
   const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog' | 'stats'>('nearby');
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
@@ -849,6 +850,13 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
     const t = setTimeout(() => setWarbirdActive(true), 5000);
     return () => clearTimeout(t);
   }, [warbird]);
+  // ?emergency=1 — make the closest real flight squawk 7700 after 5s, for testing
+  const [emergencyActive, setEmergencyActive] = useState(false);
+  useEffect(() => {
+    if (!emergency) return;
+    const t = setTimeout(() => setEmergencyActive(true), 5000);
+    return () => clearTimeout(t);
+  }, [emergency]);
   const flights = useMemo(() => {
     if (militaryMode) return rawFlights;
     let result = rawFlights;
@@ -860,8 +868,11 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
       const dummy = { ...WARBIRD_DUMMY, latitude: homeLat + 0.03, longitude: homeLon - 0.04 };
       result = [...result.filter(f => f.icao24 !== dummy.icao24), dummy];
     }
+    if (emergencyActive && result.length > 0) {
+      result = [{ ...result[0], squawk: '7700', emergency: 'general' }, ...result.slice(1)];
+    }
     return result;
-  }, [rawFlights, topGunActive, warbirdActive, militaryMode, homeLat, homeLon]);
+  }, [rawFlights, topGunActive, warbirdActive, emergencyActive, militaryMode, homeLat, homeLon]);
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
@@ -939,6 +950,8 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
     flights.filter(f => f.isPolice),
     [flights]
   );
+
+  const emergencyFlights = useEmergencies(flights);
 
   // Warbird aircraft present in the full (unfiltered) flight list
   const warbirdFlights = useMemo(() =>
@@ -1446,6 +1459,16 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
             )}
           </div>
 
+          {/* Emergency alert — squawk 7700/7600/7500; shown in every mode */}
+          {emergencyFlights.length > 0 && (
+            <EmergencyAlert
+              flights={emergencyFlights}
+              selectedFlight={selectedFlight}
+              onTrack={selectFlight}
+              allowTakeover={fullscreenPanel === null}
+            />
+          )}
+
           {/* Top Gun alert — fighter/attack aircraft in normal mode, or SSH-triggered */}
           {fullscreenPanel === null && (topGunFlights.length > 0 || topGunTakeover || topGunDismissing) && (
             <TopGunAlert
@@ -1626,6 +1649,7 @@ export default function App() {
   const dev = params.get('dev') === '1';
   const topgun = params.get('topgun') === '1';
   const warbird = params.get('warbird') === '1';
+  const emergency = params.get('emergency') === '1';
 
-  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} topgun={topgun} warbird={warbird} />;
+  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} topgun={topgun} warbird={warbird} emergency={emergency} />;
 }

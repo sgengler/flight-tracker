@@ -17,6 +17,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Route now has a progress bar with miles to go and an estimated landing time.',
       'Fullscreen flight card shows an altitude and speed graph for the flight so far.',
       'Fixed vertical speed showing feet per second labelled as feet per minute.',
+      'Emergency alert: a plane squawking 7700, 7600 or 7500 takes over the screen with an alarm, then stays pinned in the sidebar.',
     ],
   },
   {
