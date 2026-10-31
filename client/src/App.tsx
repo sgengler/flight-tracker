@@ -5,7 +5,7 @@ import { FlightCard } from './components/FlightCard';
 import { FlightMap, TILE_OPTIONS, TileId } from './components/FlightMap';
 import { categorizeAircraft, MILITARY_CATS, WARBIRD_CATS, AircraftCategory } from './components/aircraft';
 import { FlightMap3D } from './components/FlightMap3D';
-import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
+import { aircraftTypeName, wellKnownAircraftName, msToMph, formatMiles, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { EmergencyAlert, useEmergencies } from './components/EmergencyAlert';
 import { NotableAlert } from './components/NotableAlert';
@@ -885,6 +885,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
   const [fullscreenPanel, setFullscreenPanel] = useState<FullscreenPanel>(null);
   const [tileId, setTileId] = useStoredState<TileId>('map.tile', 'dark', isTileId);
   const [tilePickerOpen, setTilePickerOpen] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(false);
   const [map3D, setMap3D] = useStoredState('map.3d', false, isBoolean);
   const [milTab, setMilTab] = useState<'nearby' | 'hotspots' | 'regions'>('nearby');
   const [focusPoint, setFocusPoint] = useState<[number, number, number?] | null>(null);
@@ -1138,7 +1139,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
     return () => { cancelled = true; };
   }, [selectedIcao, baseSelectedFlight?.icao24, baseSelectedFlight?.callsign, baseSelectedFlight?.route]);
 
-  const info = useFlightInfo(selectedFlight?.icao24 ?? null, selectedFlight?.aircraftType ? (aircraftTypeName(selectedFlight.aircraftType) ?? null) : null, selectedFlight?.callsign ?? null);
+  const info = useFlightInfo(selectedFlight?.icao24 ?? null, selectedFlight?.aircraftType ? (aircraftTypeName(selectedFlight.aircraftType) ?? null) : null, selectedFlight?.registration ?? null);
 
   return (
     <div className="h-full flex flex-col bg-slate-900 relative">
@@ -1149,14 +1150,83 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
 
           {/* Map — hidden when flights is fullscreen */}
           {fullscreenPanel !== 'flights' && (
-          <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[2]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
+          <div className={`${fullscreenPanel === 'map' ? 'flex-1' : 'flex-[3]'} min-h-0 rounded-2xl overflow-hidden shadow-xl relative`}>
             {map3D
               ? <FlightMap3D userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
               : <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} tileId={tileId} />
             }
+            {/* Map key — top-left, styled like the small expand and map-style buttons */}
+            <div className="absolute top-2 left-2 z-[1000]">
+              <div className="relative">
+                <button onClick={() => { setKeyOpen(o => !o); setTilePickerOpen(false); }} className={`relative flex items-center gap-1 p-1 pr-1.5 rounded-md text-[11px] leading-[11px] font-semibold transition-colors ${keyOpen ? 'bg-white text-slate-900' : 'bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900'}`} title="Map key and filters">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+                  Key
+                  {activeCategories.size < allCategories.size && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-sky-500" />}
+                </button>
+                {keyOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 w-72 rounded-xl bg-slate-900/95 border border-white/10 shadow-xl px-3 py-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Map key · tap to filter</div>
+                        <div className="flex items-center gap-2">
+                          {activeCategories.size < allCategories.size && (
+                            <button
+                              onClick={() => setActiveCategories(allCategories)}
+                              className="text-xs text-sky-400 hover:text-sky-300 transition-colors"
+                            >
+                              Show all
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {[...(militaryMode ? MILITARY_LEGEND_ENTRIES : LEGEND_ENTRIES)]
+                          .sort((a, b) => (categoryCounts.get(b.category) ?? 0) - (categoryCounts.get(a.category) ?? 0))
+                          .map(({ category, label, svg }) => {
+                          const active = activeCategories.has(category);
+                          const count = categoryCounts.get(category) ?? 0;
+                          return (
+                            <button
+                              key={category}
+                              onClick={() => toggleCategory(category)}
+                              title={label}
+                              className={`flex items-center gap-1.5 w-full text-left rounded-lg px-1.5 py-1 transition-opacity hover:bg-white/5 ${active ? 'opacity-100' : 'opacity-30'}`}
+                            >
+                              <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5" dangerouslySetInnerHTML={{ __html: svg }} />
+                              <div className="text-xs font-medium text-slate-200 truncate flex-1 min-w-0">{label}</div>
+                              {count > 0 && (
+                                <span className="flex-shrink-0 text-xs font-mono font-semibold text-slate-300 bg-white/10 rounded px-1 leading-4">{count}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                        {/* Selected — not filterable, static */}
+                        <div className="flex items-center gap-1.5 px-1.5 py-1">
+                          <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52">
+                              <path d="M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z" fill="#ef4444" stroke="rgba(0,0,0,0.85)" strokeWidth="1.5" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                          <div className="text-xs font-medium text-slate-200 truncate">Selected</div>
+                        </div>
+                      </div>
+
+                      {/* Trail speed gradient key */}
+                      <div className="mt-2 px-1.5">
+                        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Trail Speed</div>
+                        <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(to right, #a855f7, #38bdf8, #4ade80, #facc15)' }} />
+                        <div className="flex justify-between mt-0.5">
+                          <span className="text-xs font-mono text-slate-500">≤35 mph</span>
+                          <span className="text-xs font-mono text-slate-500">~375 mph</span>
+                          <span className="text-xs font-mono text-slate-500">≥635 mph</span>
+                        </div>
+                      </div>
+                    </div>
+                )}
+              </div>
+            </div>
             <div className="absolute bottom-2 right-2 z-[1000] flex items-center gap-1">
               <div className="relative">
-                <button onClick={() => setTilePickerOpen(o => !o)} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors" title={map3D ? '3D terrain map' : `Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
+                <button onClick={() => { setTilePickerOpen(o => !o); setKeyOpen(false); }} className="p-1 rounded-md bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900 transition-colors" title={map3D ? '3D terrain map' : `Map style: ${TILE_OPTIONS.find(o => o.id === tileId)?.label}`}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
                     <line x1="9" y1="3" x2="9" y2="18"/>
@@ -1199,8 +1269,8 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
 
           {/* Flight list — hidden when map is fullscreen */}
           {fullscreenPanel !== 'map' && (
-          <div className="flex-1 min-h-0 rounded-2xl bg-slate-800/60 border border-white/10 overflow-y-auto">
-            <div className="px-3 py-1.5 border-b border-white/10 flex items-center gap-2">
+          <div className="flex-[2] min-h-0 rounded-2xl bg-slate-800/60 border border-white/10 overflow-y-auto">
+            <div className="sticky top-0 z-10 bg-slate-800 px-3 py-1.5 border-b border-white/10 flex items-center gap-2">
               {militaryMode ? (
                 <div className="flex items-center gap-1">
                   <button
@@ -1244,7 +1314,20 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
               )}
               <div className="ml-auto flex items-center gap-2">
                 {dev && <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">DEV</span>}
-                <span className="text-[10px] font-mono text-slate-500 select-none" title="App version">{APP_VERSION}</span>
+                <button
+                  onClick={() => { setMilitaryMode(m => !m); setSelectedIcao(null); }}
+                  className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap transition-colors ${
+                    militaryMode
+                      ? 'bg-green-500/20 border-green-400/50 text-green-300'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Military mode"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="-26 -26 52 52">
+                    <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="currentColor"/>
+                  </svg>
+                  Military
+                </button>
                 {fullscreenPanel === 'flights'
                   ? <CollapseBtn onClick={() => setFullscreenPanel(null)} />
                   : <ExpandBtn onClick={() => setFullscreenPanel('flights')} />}
@@ -1339,19 +1422,19 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1 mb-1">
                       {cat === 'city' ? 'Cities' : 'Military Bases'}
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="grid grid-cols-2 gap-1">
                       {EXPLORE_CITIES.filter(c => c.category === cat).map(city => (
                         <button
                           key={city.name}
                           onClick={() => { setExploreCity(city); setNormalTab('nearby'); }}
-                          className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
+                          className={`w-full min-w-0 text-left px-2.5 py-1.5 rounded-lg border transition-colors ${
                             exploreCity?.name === city.name
                               ? 'bg-sky-500/20 border-sky-400/40 text-white'
                               : 'bg-slate-900/60 border-white/5 text-slate-300 hover:bg-white/5 hover:border-white/10'
                           }`}
                         >
-                          <div className="text-sm font-semibold">{city.name}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">{city.region}</div>
+                          <div className="text-xs font-semibold truncate">{city.name}</div>
+                          <div className="text-[11px] text-slate-500 truncate">{city.region}</div>
                         </button>
                       ))}
                     </div>
@@ -1363,7 +1446,11 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
             {/* Changelog tab */}
             {!militaryMode && normalTab === 'changelog' && (
               <div className="p-3 flex flex-col gap-3">
-                <UpdateButton />
+                <div className="flex items-start gap-3">
+                  <UpdateButton />
+                  <span className="text-[11px] font-mono text-slate-500 mt-1.5">Running {APP_VERSION}</span>
+                  <div className="ml-auto mt-1"><ShutdownButton /></div>
+                </div>
                 {CHANGELOG.map(entry => (
                   <div key={entry.version}>
                     <div className="flex items-baseline gap-2 mb-1">
@@ -1396,7 +1483,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
                       {!militaryMode && <th className="px-3 py-1 text-left font-medium">Route</th>}
                       {militaryMode && <th className="px-3 py-1 text-left font-medium w-full">Model</th>}
                       <th className="px-3 py-1 text-right font-medium w-px">Dist</th>
-                      <th className="px-3 py-1 text-right font-medium w-px">Alt</th>
+                      <th className="px-3 py-1 text-right font-medium w-px whitespace-nowrap">Alt <span className="normal-case tracking-normal text-slate-600">ft</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1408,26 +1495,29 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
                           ? 'bg-red-500/15 text-white'
                           : 'text-slate-300 hover:bg-white/5'}`}
                       >
-                        <td className="px-3 py-1 font-mono whitespace-nowrap">
+                        <td className="px-3 py-0.5 font-mono whitespace-nowrap">
                           <span className="inline-flex items-center gap-1.5">
                             <CategoryIcon category={categorizeAircraft(f.aircraftType)} isPolice={f.isPolice} />
                             {militaryMode && (() => { const c = getCountryFromIcao(f.icao24); return c ? <span className="text-base leading-none" title={c.name}>{c.flag}</span> : null; })()}
                             {f.callsign ?? f.icao24}
                           </span>
                         </td>
-                        {!militaryMode && <td className="px-3 py-1 max-w-0 truncate">
+                        {!militaryMode && <td className="px-3 py-0.5 max-w-0 truncate">
                           {(f.route ?? routeOverrides[f.icao24])
                             ? <span className="text-slate-400">{(f.route ?? routeOverrides[f.icao24])!.originCity} → {(f.route ?? routeOverrides[f.icao24])!.destinationCity}</span>
                             : <span className="text-slate-600 italic">{routeSkipReason(f) ?? '—'}</span>}
                         </td>}
-                        {militaryMode && <td className="px-3 py-1 w-full max-w-0 truncate">
+                        {militaryMode && <td className="px-3 py-0.5 w-full max-w-0 truncate">
                           {f.aircraftType
                             ? <span className="text-slate-300">{aircraftTypeName(f.aircraftType) ?? f.aircraftType.toUpperCase()}</span>
                             : <span className="text-slate-600">—</span>}
                         </td>}
-                        <td className="px-3 py-1 text-right whitespace-nowrap">{f.distanceMiles.toFixed(1)} mi</td>
-                        <td className="px-3 py-1 text-right whitespace-nowrap">
-                          {f.baroAltitude != null ? `${Math.round(f.baroAltitude * 3.28084 / 100) * 100}` : '—'}
+                        <td className="px-3 py-0.5 text-right whitespace-nowrap tabular-nums">{formatMiles(f.distanceMiles)}</td>
+                        <td className="px-3 py-0.5 text-right whitespace-nowrap tabular-nums">
+                          {f.baroAltitude != null ? (Math.round(f.baroAltitude * 3.28084 / 100) * 100).toLocaleString() : '—'}
+                          <span className={`inline-block w-3 text-center ${f.verticalRate != null && f.verticalRate > 1 ? 'text-emerald-400' : f.verticalRate != null && f.verticalRate < -1 ? 'text-rose-400' : 'text-transparent'}`}>
+                            {f.verticalRate != null && f.verticalRate < -1 ? '↓' : '↑'}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -1451,9 +1541,9 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
         {(fullscreenPanel === null || fullscreenPanel === 'card') && (
         <div className={`${fullscreenPanel === 'card' ? 'flex-1' : 'flex-[2]'} flex flex-col gap-1.5 min-w-0 ${fullscreenPanel === 'card' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
-          <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0'}>
+          <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 flex flex-col'}>
             {selectedFlight ? (
-              <div key={selectedFlight.icao24} className={`flight-card-enter${fullscreenPanel === 'card' ? ' flex-1 min-h-0' : ''}`}>
+              <div key={selectedFlight.icao24} className={`flight-card-enter${fullscreenPanel === 'card' ? ' flex-1 min-h-0' : ' flex-1 flex flex-col'}`}>
                 <FlightCard
                   flight={selectedFlight}
                   trail={selectedTrail}
@@ -1589,84 +1679,8 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
             </div>
           )}
 
-          {/* Icon legend — hidden in card fullscreen */}
-          {fullscreenPanel === null && (
-          <div className="flex-shrink-0 rounded-2xl bg-slate-800/60 border border-white/10 px-3 py-2">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Map Icon Key</div>
-              <div className="flex items-center gap-2">
-                {activeCategories.size < allCategories.size && (
-                  <button
-                    onClick={() => setActiveCategories(allCategories)}
-                    className="text-xs text-sky-400 hover:text-sky-300 transition-colors"
-                  >
-                    Show all
-                  </button>
-                )}
-                <button
-                  onClick={() => { setMilitaryMode(m => !m); setSelectedIcao(null); }}
-                  className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors ${
-                    militaryMode
-                      ? 'bg-green-500/20 border-green-400/50 text-green-300'
-                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="-26 -26 52 52">
-                    <path d="M0,-20 L2,-14 L3,-3 L20,10 L15,15 L3,9 L3,14 L6,17 L2,19 L0,20 L-2,19 L-6,17 L-3,14 L-3,9 L-15,15 L-20,10 L-3,-3 L-2,-14 Z" fill="currentColor"/>
-                  </svg>
-                  Military Mode
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              {[...(militaryMode ? MILITARY_LEGEND_ENTRIES : LEGEND_ENTRIES)]
-                .sort((a, b) => (categoryCounts.get(b.category) ?? 0) - (categoryCounts.get(a.category) ?? 0))
-                .map(({ category, label, svg }) => {
-                const active = activeCategories.has(category);
-                const count = categoryCounts.get(category) ?? 0;
-                return (
-                  <button
-                    key={category}
-                    onClick={() => toggleCategory(category)}
-                    title={label}
-                    className={`flex items-center gap-1.5 w-full text-left rounded-lg px-1.5 py-1 transition-opacity hover:bg-white/5 ${active ? 'opacity-100' : 'opacity-30'}`}
-                  >
-                    <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5" dangerouslySetInnerHTML={{ __html: svg }} />
-                    <div className="text-xs font-medium text-slate-200 truncate flex-1 min-w-0">{label}</div>
-                    {count > 0 && (
-                      <span className="flex-shrink-0 text-xs font-mono font-semibold text-slate-300 bg-white/10 rounded px-1 leading-4">{count}</span>
-                    )}
-                  </button>
-                );
-              })}
-              {/* Selected — not filterable, static */}
-              <div className="flex items-center gap-1.5 px-1.5 py-1">
-                <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="-26 -26 52 52">
-                    <path d="M0,-18 L4,-8 L18,2 L18,7 L4,1 L3,14 L8,15 L8,18 L0,16 L-8,18 L-8,15 L-3,14 L-4,1 L-18,7 L-18,2 L-4,-8 Z" fill="#ef4444" stroke="rgba(0,0,0,0.85)" strokeWidth="1.5" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <div className="text-xs font-medium text-slate-200 truncate">Selected</div>
-              </div>
-            </div>
-
-            {/* Trail speed gradient key */}
-            <div className="mt-2 px-1.5">
-              <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Trail Speed</div>
-              <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(to right, #a855f7, #38bdf8, #4ade80, #facc15)' }} />
-              <div className="flex justify-between mt-0.5">
-                <span className="text-xs font-mono text-slate-500">≤35 mph</span>
-                <span className="text-xs font-mono text-slate-500">~375 mph</span>
-                <span className="text-xs font-mono text-slate-500">≥635 mph</span>
-              </div>
-            </div>
-          </div>
-          )}
         </div>
         )}
-      </div>
-      <div className="absolute bottom-3 right-3 z-[1001]">
-        <ShutdownButton />
       </div>
     </div>
   );

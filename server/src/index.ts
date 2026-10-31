@@ -130,7 +130,7 @@ app.get('/api/flight-info', async (req, res) => {
   const typeName = ((req.query.typeName as string) ?? '').trim() || null;
   const registration = ((req.query.registration as string) ?? '').trim() || null;
   const photo = icao24 ? await fetchPlanePhoto(icao24, typeName, registration).catch(() => null) : null;
-  res.json({ photoUrl: photo?.normal ?? null, photoUrlLarge: photo?.large ?? null, wikiInfo: photo?.wikiInfo ?? null, wikiTitle: photo?.wikiTitle ?? null, wikiExtract: photo?.wikiExtract ?? null });
+  res.json({ photoUrl: photo?.normal ?? null, photoUrlLarge: photo?.large ?? null, photoCredit: photo?.credit ?? null, photoOfThisAircraft: photo?.ofThisAircraft ?? false, wikiInfo: photo?.wikiInfo ?? null, wikiTitle: photo?.wikiTitle ?? null, wikiExtract: photo?.wikiExtract ?? null });
 });
 
 app.get('/api/flights/stream', (req, res) => {

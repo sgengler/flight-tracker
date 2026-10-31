@@ -9,6 +9,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.9.0',
+    date: '2026-10-31',
+    changes: [
+      'Flight card shows a photo of the actual plane, credited to its photographer, instead of a generic photo of the type.',
+      'The map key is now a small Key button on the map; Military Mode moved to the tab bar, and the power button to the Changelog tab.',
+      'The flight card fills the right side and its altitude and speed graph grows to use the space.',
+      'Smaller, lighter zoom buttons that match the other map buttons.',
+      'The Nearby list shows more planes, with climbing and descending arrows and easier-to-read altitudes.',
+      'Home is marked with a blue house instead of a red pin, so it isn\'t mistaken for the selected plane.',
+      'Explore shows cities in a compact grid.',
+      'Fixed clipped numbers on the flight card and the distance overlapping long aircraft names.',
+      'The Flightradar24 link is hidden on the Pi itself, where it opened a page with no way back.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-10-30',
     changes: [

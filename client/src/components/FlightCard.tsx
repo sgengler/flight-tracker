@@ -1,29 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FlightState, RouteInfo, AircraftWikiInfo } from '../types';
-import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, wellKnownAircraftName, getCountryFromIcao } from '../utils';
+import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, wellKnownAircraftName, getCountryFromIcao, formatMiles, IS_KIOSK } from '../utils';
 import { categorizeAircraft, getAircraftSvgInfo } from './aircraft';
 import { AirlineLogo } from './AirlineLogo';
 import { airframeSummary, flightPhase, FlightProfileChart, RouteProgressBar, TrailPoint } from './flightExtras';
 
 interface Props {
   flight: FlightState;
-  info: { photoUrl: string | null; photoUrlLarge?: string | null; wikiInfo?: AircraftWikiInfo | null; wikiTitle?: string | null; wikiExtract?: string | null } | null;
+  info: { photoUrl: string | null; photoUrlLarge?: string | null; photoCredit?: string | null; photoOfThisAircraft?: boolean; wikiInfo?: AircraftWikiInfo | null; wikiTitle?: string | null; wikiExtract?: string | null } | null;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   militaryMode?: boolean;
   trail?: TrailPoint[];
 }
 
-function StatBox({ label, value, colorClass = 'text-white' }: { label: string; value: string; colorClass?: string }) {
+function StatBox({ label, unit, value, colorClass = 'text-white' }: { label: string; unit?: string; value: string; colorClass?: string }) {
   return (
     <div className="bg-slate-900/60 rounded-lg px-2 py-1.5 overflow-hidden">
-      <div className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">{label}</div>
+      <div className="text-xs text-slate-500 uppercase tracking-wider mb-0.5 whitespace-nowrap">{label}{unit && <span className="normal-case tracking-normal text-slate-600"> {unit}</span>}</div>
       <div className={`text-xs font-mono font-medium whitespace-nowrap ${colorClass}`}>{value}</div>
     </div>
   );
 }
 
+
+// Planespotters requires the photographer's credit; a Wikipedia type photo is labelled
+// so it isn't mistaken for this exact aircraft (it's often another airline's livery).
+function PhotoCredit({ info, large = false }: { info: Props['info']; large?: boolean }) {
+  if (!info) return null;
+  const text = info.photoOfThisAircraft ? (info.photoCredit ? `© ${info.photoCredit}` : null) : 'Photo of this type';
+  if (!text) return null;
+  return (
+    <div className={`absolute ${large ? 'top-3 right-12 text-xs' : 'top-2 right-8 text-[10px]'} px-1.5 py-0.5 rounded bg-black/40 text-white/70 pointer-events-none truncate max-w-[60%]`}>
+      {text}
+    </div>
+  );
+}
 
 function CompactStat({ label, value, colorClass = 'text-white' }: { label: string; value: string; colorClass?: string }) {
   return (
@@ -155,6 +168,8 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/85 via-[50%] to-transparent to-[80%]" />
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-transparent to-[12%]" />
 
+        {photoVisible && <PhotoCredit info={info} large />}
+
         {/* Top-left buttons */}
         <div className="absolute top-3 left-3 flex items-center gap-1">
           {onToggleFullscreen && (
@@ -182,7 +197,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
           {/* Identity row */}
           <div className="flex items-center gap-2.5 mb-1">
             <div className="text-3xl font-bold text-white tracking-wide leading-tight">{displayName}</div>
-            {flight.callsign && (
+            {flight.callsign && !IS_KIOSK && (
               <a href={`https://www.flightradar24.com/${flight.callsign.trim()}`} target="_blank" rel="noopener noreferrer" className="text-sm text-sky-400 hover:text-sky-300 underline underline-offset-2">FR24 ↗</a>
             )}
             <div className="ml-auto flex items-center gap-1.5 text-sm font-semibold text-sky-300 flex-shrink-0">
@@ -192,7 +207,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
                   <path d={svgInfo.path} />
                 </svg>
               )}
-              {flight.distanceMiles.toFixed(1)} mi {direction}
+              {formatMiles(flight.distanceMiles)} {direction}
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-slate-200 font-mono flex-wrap mb-2">
@@ -257,7 +272,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
   const compactPhase = flightPhase(flight, flight.route);
   return (
     <>
-    <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+    <div className="flex-1 flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-slate-900/80">
 
       {/* ── Photo / Header ── */}
       <div className="relative bg-gradient-to-br from-slate-700 to-slate-900 overflow-hidden">
@@ -281,28 +296,29 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 via-[20%] to-transparent to-[50%]" />
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-transparent to-[12%]" />
         <div className="absolute bottom-0 left-0 right-0 px-3 pb-2">
-          <div className="flex items-baseline gap-2">
-            <div className="text-lg font-bold text-white tracking-wide leading-tight">{displayName}</div>
-            {flight.callsign && (
-              <a href={`https://www.flightradar24.com/${flight.callsign.trim()}`} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-400 hover:text-sky-300 underline underline-offset-2">FR24 ↗</a>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="text-lg font-bold text-white tracking-wide leading-tight truncate">{displayName}</div>
+            {flight.callsign && !IS_KIOSK && (
+              <a href={`https://www.flightradar24.com/${flight.callsign.trim()}`} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-400 hover:text-sky-300 underline underline-offset-2 flex-shrink-0">FR24 ↗</a>
             )}
+            {/* Aircraft icon + distance/direction — in the name row so long type names can't run under it */}
+            <div className="ml-auto flex items-center gap-1 text-xs font-semibold text-sky-300 drop-shadow flex-shrink-0">
+              {flight.trueTrack != null && (
+                <svg width="18" height="18" viewBox="-28 -28 56 56" fill="currentColor" className="flex-shrink-0"
+                     style={{ transform: `rotate(${svgInfo.rotates ? flight.trueTrack : 0}deg)`, transformOrigin: 'center' }}>
+                  <path d={svgInfo.path} />
+                </svg>
+              )}
+              {formatMiles(flight.distanceMiles)} {direction}
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono min-w-0">
             {country && <><span className="text-base leading-none not-italic">{country.flag}</span><span className="font-sans not-italic text-slate-400">{country.name}</span><span className="text-slate-600">·</span></>}
-            <span>{flight.icao24.toUpperCase()}</span>
-            {flight.aircraftType && <span className="not-italic font-sans text-slate-300"> · {wellKnownAircraftName(flight.icao24) ?? aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
+            <span className="flex-shrink-0">{flight.icao24.toUpperCase()}</span>
+            {flight.aircraftType && <span className="not-italic font-sans text-slate-300 truncate">· {wellKnownAircraftName(flight.icao24) ?? aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
           </div>
         </div>
-        {/* Bottom-right: aircraft icon + distance/direction */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs font-semibold text-sky-300 drop-shadow">
-          {flight.trueTrack != null && (
-            <svg width="22" height="22" viewBox="-28 -28 56 56" fill="currentColor" className="flex-shrink-0"
-                 style={{ transform: `rotate(${svgInfo.rotates ? flight.trueTrack : 0}deg)`, transformOrigin: 'center' }}>
-              <path d={svgInfo.path} />
-            </svg>
-          )}
-          {flight.distanceMiles.toFixed(1)} mi {direction}
-        </div>
+        {photoVisible && <PhotoCredit info={info} />}
 
         <div className="absolute top-2 left-2 flex items-center gap-1">
           {onToggleFullscreen && (
@@ -341,19 +357,25 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
 
       {/* ── What it's doing / which airframe ── */}
       {(compactPhase || airframe) && (
-        <div className="px-3 py-1 bg-slate-900/80 border-t border-white/5 flex items-center gap-1.5 min-w-0 text-xs">
-          {compactPhase && <span className="text-sky-300 font-medium flex-shrink-0">{compactPhase}</span>}
-          {compactPhase && airframe && <span className="text-slate-600">·</span>}
+        <div className="px-3 py-1 bg-slate-900/80 border-t border-white/5 flex flex-col min-w-0 text-xs">
+          {compactPhase && <span className="text-sky-300 font-medium">{compactPhase}</span>}
           {airframe && <span className="text-slate-400 truncate">{airframe}</span>}
         </div>
       )}
 
+      {/* ── Profile graph — grows to fill the column so the card ends level with the list ── */}
+      {trail.length > 0 ? (
+        <div className="flex-1 flex flex-col px-3 py-1.5 border-t border-white/5">
+          <FlightProfileChart trail={trail} fill />
+        </div>
+      ) : <div className="flex-1" />}
+
       {/* ── Stats row ── */}
       <div className="p-2 bg-slate-800/70 grid grid-cols-4 gap-1.5">
-        <StatBox label="Alt" value={alt} />
-        <StatBox label="Speed" value={speed} />
+        <StatBox label="Alt" unit="ft" value={flight.baroAltitude != null ? metersToFeet(flight.baroAltitude).toLocaleString() : '—'} />
+        <StatBox label="Spd" unit="mph" value={flight.velocity != null ? msToMph(flight.velocity).toLocaleString() : '—'} />
         <StatBox label="Hdg" value={heading} />
-        <StatBox label="V/S" value={vrate + vrateIcon} colorClass={vrateColor} />
+        <StatBox label="V/S" unit={isLevel ? undefined : 'fpm'} value={isLevel ? 'Level' : `${isClimbing ? '+' : '−'}${Math.abs(Math.round(flight.verticalRate! * 196.85 / 10) * 10).toLocaleString()}`} colorClass={vrateColor} />
       </div>
 
     </div>

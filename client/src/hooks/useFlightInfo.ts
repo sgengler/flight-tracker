@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { AircraftWikiInfo } from '../types';
 
-export function useFlightInfo(icao24: string | null, typeName?: string | null, registration?: string | null): { photoUrl: string | null; photoUrlLarge: string | null; wikiInfo: AircraftWikiInfo | null; wikiTitle: string | null; wikiExtract: string | null } | null {
-  const [info, setInfo] = useState<{ photoUrl: string | null; photoUrlLarge: string | null; wikiInfo: AircraftWikiInfo | null; wikiTitle: string | null; wikiExtract: string | null } | null>(null);
+export function useFlightInfo(icao24: string | null, typeName?: string | null, registration?: string | null): { photoUrl: string | null; photoUrlLarge: string | null; photoCredit?: string | null; photoOfThisAircraft?: boolean; wikiInfo: AircraftWikiInfo | null; wikiTitle: string | null; wikiExtract: string | null } | null {
+  const [info, setInfo] = useState<{ photoUrl: string | null; photoUrlLarge: string | null; photoCredit?: string | null; photoOfThisAircraft?: boolean; wikiInfo: AircraftWikiInfo | null; wikiTitle: string | null; wikiExtract: string | null } | null>(null);
   const prevIcaoRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export function useFlightInfo(icao24: string | null, typeName?: string | null, r
       .catch(() => { if (!cancelled) setInfo({ photoUrl: null, photoUrlLarge: null, wikiInfo: null, wikiTitle: null, wikiExtract: null }); });
 
     return () => { cancelled = true; };
-  }, [icao24, typeName]);
+  }, [icao24, typeName, registration]);
 
   return info;
 }

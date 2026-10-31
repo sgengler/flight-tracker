@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
+import { createHomeMarkerElement } from './homeMarker';
 import type { GeoJSONSource } from 'mapbox-gl';
 import { FlightState } from '../types';
 import { MAPBOX_TOKEN } from '../mapboxToken';
@@ -294,10 +295,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
   useEffect(() => {
     const map = mapRef.current;
     if (!map || militaryMode) return;
-    const pinEl = document.createElement('div');
-    pinEl.style.cssText = 'font-size:20px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));pointer-events:none;';
-    pinEl.textContent = '📍';
-    const pin = new mapboxgl.Marker({ element: pinEl, anchor: 'bottom' })
+    const pin = new mapboxgl.Marker({ element: createHomeMarkerElement(), anchor: 'center' })
       .setLngLat([userLon, userLat])
       .addTo(map);
     return () => { pin.remove(); };

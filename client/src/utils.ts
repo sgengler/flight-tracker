@@ -2,6 +2,15 @@ export function metersToFeet(m: number): number {
   return Math.round(m * 3.28084);
 }
 
+// "4.2 mi" up close, "1,094 mi" far away
+export function formatMiles(mi: number): string {
+  return mi < 100 ? `${mi.toFixed(1)} mi` : `${Math.round(mi).toLocaleString()} mi`;
+}
+
+// The Pi kiosk opens the app on localhost:3001 in a full-screen browser with no
+// tabs or back button, so links that leave the app would strand it.
+export const IS_KIOSK = window.location.hostname === 'localhost' && window.location.port === '3001';
+
 export function msToKnots(ms: number): number {
   return Math.round(ms * 1.94384);
 }

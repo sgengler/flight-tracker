@@ -110,7 +110,8 @@ export function RouteProgressBar({ flight, route, large = false }: { flight: Fli
 export type TrailPoint = [number, number, number?, number?]; // lat, lon, speed m/s, alt m (alt may be null for 'ground')
 
 // Altitude (filled) and speed (line) along the trail, oldest on the left.
-export function FlightProfileChart({ trail }: { trail: TrailPoint[] }) {
+// fill: stretch the plot to the container's height (the compact card grows it into spare space)
+export function FlightProfileChart({ trail, fill = false }: { trail: TrailPoint[]; fill?: boolean }) {
   const pts = trail.filter(p => p[3] != null && p[2] != null);
   if (pts.length < 5) return null;
   const W = 300, H = 48;
@@ -127,12 +128,12 @@ export function FlightProfileChart({ trail }: { trail: TrailPoint[] }) {
   const altLine = pts.map((_, i) => `${x(i).toFixed(1)},${altY(i).toFixed(1)}`).join(' ');
   const speedLine = pts.map((_, i) => `${x(i).toFixed(1)},${speedY(i).toFixed(1)}`).join(' ');
   return (
-    <div>
-      <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">
-        <span><span className="text-sky-400">■</span> Altitude · max {formatAltitude(maxAlt)}</span>
-        <span><span className="text-amber-400">━</span> Speed · max {Math.round(msToMph(maxSpeed))} mph</span>
+    <div className={fill ? 'flex flex-col flex-1 min-h-0' : undefined}>
+      <div className="flex justify-between gap-2 text-[10px] text-slate-500 mb-0.5 whitespace-nowrap">
+        <span><span className="text-sky-400">■</span> ALT · max {formatAltitude(maxAlt)}</span>
+        <span><span className="text-amber-400">━</span> SPEED · max {Math.round(msToMph(maxSpeed))} mph</span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-9 block">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={`w-full block ${fill ? 'flex-1 min-h-9' : 'h-9'}`}>
         <polygon points={`0,${H} ${altLine} ${W},${H}`} fill="rgba(56,189,248,0.25)" stroke="none" />
         <polyline points={altLine} fill="none" stroke="rgb(56,189,248)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         <polyline points={speedLine} fill="none" stroke="rgb(251,191,36)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />

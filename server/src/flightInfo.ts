@@ -75,13 +75,6 @@ function wikiThumbAtWidth(src: string, width: number): string {
   return src.replace(/\/\d+px-/, `/${width}px-`);
 }
 
-// Planespotters CDN URLs (t.plnspttrs.net) embed the size in the filename: ..._280.jpg
-// Replace it to request a larger render.
-function planespottersThumbAtWidth(src: string, width: number): string {
-  if (!src.includes('plnspttrs.net')) return src;
-  return src.replace(/_\d+(\.jpe?g)$/i, `_${width}$1`);
-}
-
 function stripHtml(html: string): string {
   return html
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')                            // style blocks (content + tag)
@@ -158,8 +151,63 @@ const WELL_KNOWN_AIRCRAFT_WIKI: Record<string, string> = {
   'adfdf9': 'Air Force One',    // 92-9000 VC-25A
 };
 
-export async function fetchPlanePhoto(icao24: string, typeName?: string | null, registration?: string | null): Promise<{ normal: string; large: string; wikiInfo?: AircraftWikiInfo; wikiTitle?: string; wikiExtract?: string } | null> {
-  // Wikipedia first — scales to 1920px for fullscreen and provides infobox data. Priority order:
+interface PlanePhoto {
+  normal: string;
+  large: string;
+  credit?: string;        // photographer, for Planespotters photos (required attribution)
+  ofThisAircraft: boolean; // true = this exact airframe; false = a photo of the type
+  wikiInfo?: AircraftWikiInfo;
+  wikiTitle?: string;
+  wikiExtract?: string;
+}
+
+type AirframePhoto = { normal: string; large: string; credit?: string };
+
+// Recent lookups by hex, including misses, so reselecting a plane doesn't re-ask.
+const AIRFRAME_PHOTO_TTL_MS = 6 * 60 * 60 * 1000;
+const AIRFRAME_PHOTO_MAX = 500;
+const airframePhotoCache = new Map<string, { photo: AirframePhoto | null; at: number }>();
+
+// Planespotters photo of this exact airframe, by hex then registration.
+async function fetchPlanespottersPhoto(icao24: string, registration?: string | null): Promise<AirframePhoto | null> {
+  const key = icao24.toLowerCase();
+  const cached = airframePhotoCache.get(key);
+  if (cached && Date.now() - cached.at < AIRFRAME_PHOTO_TTL_MS) return cached.photo;
+  const photo = await lookupPlanespottersPhoto(icao24, registration);
+  airframePhotoCache.delete(key);
+  airframePhotoCache.set(key, { photo, at: Date.now() });
+  if (airframePhotoCache.size > AIRFRAME_PHOTO_MAX) airframePhotoCache.delete(airframePhotoCache.keys().next().value!);
+  return photo;
+}
+
+async function lookupPlanespottersPhoto(icao24: string, registration?: string | null): Promise<AirframePhoto | null> {
+  const targets = [
+    `https://api.planespotters.net/pub/photos/hex/${icao24.toLowerCase()}`,
+    ...(registration ? [`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(registration)}`] : []),
+  ];
+  for (const url of targets) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'gina-flights/1.0 (+https://github.com/stevegengler/gina-flights)' } });
+      if (res.ok) {
+        const data = await res.json() as { photos: Array<{ thumbnail_large: { src: string }; photographer?: string }> };
+        const photo = data.photos?.[0];
+        if (photo?.thumbnail_large?.src) {
+          const src = photo.thumbnail_large.src;
+          // 420×280 is the largest size Planespotters' API serves
+          return { normal: src, large: src, credit: photo.photographer };
+        }
+      }
+    } catch {
+      // fall through
+    }
+  }
+  return null;
+}
+
+export async function fetchPlanePhoto(icao24: string, typeName?: string | null, registration?: string | null): Promise<PlanePhoto | null> {
+  // The photo prefers this exact airframe (Planespotters), so the livery matches the
+  // flight; Wikipedia supplies the type's infobox and is the photo fallback. Wikipedia
+  // title priority:
   //   1. Well-known individual aircraft title (e.g. "Goodyear Blimp", "Air Force One")
   //   2. Client-supplied typeName (mapped from ICAO type code on the client)
   //   3. hexdb's "{Manufacturer} {Type}" — handles type codes the client doesn't map
@@ -182,28 +230,19 @@ export async function fetchPlanePhoto(icao24: string, typeName?: string | null, 
     if (stripped !== full) candidates.push(stripped);
   }
 
-  for (const title of candidates) {
-    const data = await fetchWikipediaData(title);
-    if (data) return { normal: data.thumb.normal, large: data.thumb.large, wikiInfo: data.infobox, wikiTitle: data.articleTitle, wikiExtract: data.extract };
-  }
-
-  // Planespotters fallback — specific aircraft photos by hex/registration.
-  const planespottersTargets = [
-    `https://api.planespotters.net/pub/photos/hex/${icao24.toLowerCase()}`,
-    ...(registration ? [`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(registration)}`] : []),
-  ];
-  for (const url of planespottersTargets) {
-    try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'gina-flights/1.0 (+https://github.com/stevegengler/gina-flights)' } });
-      if (res.ok) {
-        const data = await res.json() as { photos: Array<{ thumbnail_large: { src: string } }> };
-        const src = data.photos?.[0]?.thumbnail_large?.src ?? null;
-        if (src) return { normal: src, large: planespottersThumbAtWidth(src, 1200) };
+  const [airframe, wiki] = await Promise.all([
+    wellKnownWiki ? Promise.resolve(null) : fetchPlanespottersPhoto(icao24, registration),
+    (async () => {
+      for (const title of candidates) {
+        const data = await fetchWikipediaData(title);
+        if (data) return data;
       }
-    } catch {
-      // fall through
-    }
-  }
+      return null;
+    })(),
+  ]);
 
+  const wikiFields = wiki ? { wikiInfo: wiki.infobox, wikiTitle: wiki.articleTitle, wikiExtract: wiki.extract } : {};
+  if (airframe) return { ...airframe, ofThisAircraft: true, ...wikiFields };
+  if (wiki) return { normal: wiki.thumb.normal, large: wiki.thumb.large, ofThisAircraft: false, ...wikiFields };
   return null;
 }

@@ -105,3 +105,39 @@ html, body, #root {
 .emergency-pulse {
   animation: emergency-pulse 1.6s ease-in-out infinite;
 }
+
+/* Zoom / compass controls — one translucent group with thin dividers, sized and coloured
+   like the app's own small map buttons (Key, expand, map style). Mapbox's icons are drawn
+   in a 29px box; keeping that size centres the same ~11px glyph our buttons use. */
+.mapboxgl-ctrl-top-right .mapboxgl-ctrl {
+  margin: 8px 8px 0 0;
+}
+.mapboxgl-ctrl-group:not(:empty) {
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  box-shadow: none;
+  overflow: hidden;
+}
+.mapboxgl-ctrl-group button {
+  width: 19px;
+  height: 19px;
+  transition: background-color 0.15s;
+}
+.mapboxgl-ctrl-group button + button {
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+}
+.mapboxgl-ctrl-group button:not(:disabled):hover {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+.mapboxgl-ctrl-group button .mapboxgl-ctrl-icon {
+  background-size: 29px 29px;
+}
+/* Thinner plus/minus than Mapbox's built-in glyphs (stroke matches our 11px button icons) */
+.mapboxgl-ctrl button.mapboxgl-ctrl-zoom-in .mapboxgl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 19 19'%3E%3Cpath d='M9.5 5v9M5 9.5h9' stroke='%23334155' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 19px 19px;
+}
+.mapboxgl-ctrl button.mapboxgl-ctrl-zoom-out .mapboxgl-ctrl-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 19 19'%3E%3Cpath d='M5 9.5h9' stroke='%23334155' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 19px 19px;
+}
