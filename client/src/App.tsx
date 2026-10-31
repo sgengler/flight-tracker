@@ -781,6 +781,10 @@ function UpdateButton() {
   );
 }
 
+// Military types that don't trigger the fighter alert. The T-6 Texan II trainer
+// turns up constantly (airshows, training flights) and isn't really a fighter.
+const NO_ALERT_TYPES = new Set(['T6', 'TEX2']);
+
 const TOPGUN_DUMMY: FlightState = {
   icao24: '000000',
   callsign: 'TOPGUN1',
@@ -944,7 +948,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
   const topGunFlights = useMemo(() =>
     !militaryMode ? flights.filter(f => {
       const cat = categorizeAircraft(f.aircraftType);
-      return !f.isPolice && (cat === 'fighter' || cat === 'attack');
+      return !f.isPolice && (cat === 'fighter' || cat === 'attack') && !NO_ALERT_TYPES.has(f.aircraftType?.toUpperCase() ?? '');
     }) : [],
     [flights, militaryMode]
   );

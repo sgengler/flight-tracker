@@ -15,6 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Routes that no longer match where a plane is actually flying (after an airline reuses a flight number) are hidden and looked up again.',
       'Flights with no known route are re-checked after a week instead of never.',
       'The Stats tab now shows AirLabs route lookups alongside FlightAware.',
+      'The T-6 Texan II trainer no longer sets off the fighter alert.',
     ],
   },
   {
