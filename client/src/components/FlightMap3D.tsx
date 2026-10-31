@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import type { GeoJSONSource } from 'mapbox-gl';
-
-mapboxgl.accessToken = MAPBOX_TOKEN;
 import { FlightState } from '../types';
 import { MAPBOX_TOKEN } from '../mapboxToken';
 import { haversineDist, trailColor } from './aircraft';
-import { AircraftRenderer, addAircraftLayers, bindAircraftClicks } from './aircraftLayer';
+import { AircraftCanvas } from './aircraftCanvas';
+
+mapboxgl.accessToken = MAPBOX_TOKEN;
 
 interface Props {
   userLat: number;
@@ -57,7 +57,7 @@ function applyTrailData(map: mapboxgl.Map, trail: [number, number, number?, numb
 export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelectFlight, militaryMode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const rendererRef = useRef<AircraftRenderer | null>(null);
+  const aircraftRef = useRef<AircraftCanvas | null>(null);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
   const onSelectRef = useRef(onSelectFlight);
   onSelectRef.current = onSelectFlight;
@@ -81,12 +81,11 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
       attributionControl: { compact: true } as any,
     });
     mapRef.current = map;
-    const renderer = new AircraftRenderer(map);
-    rendererRef.current = renderer;
+    const aircraft = new AircraftCanvas(map, '3d', icao24 => onSelectRef.current(icao24));
+    aircraftRef.current = aircraft;
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.on('pitchend', () => setPitch(Math.round(map.getPitch())));
-    const unbindClicks = bindAircraftClicks(map, icao24 => onSelectRef.current(icao24));
 
     map.on('style.load', () => {
       map.addSource('mapbox-dem', {
@@ -132,11 +131,9 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
         } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       });
 
-      addAircraftLayers(map);
+      aircraft.addCameraLayer();
 
       applyTrailData(map, trailRef.current);
-      renderer.render();
-      renderer.start();
       map.easeTo({ pitch: DEFAULT_PITCH, duration: 1800, easing: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t });
     });
 
@@ -144,10 +141,9 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
     if (containerRef.current) resizeObserver.observe(containerRef.current);
 
     return () => {
-      renderer.stop();
-      rendererRef.current = null;
+      aircraft.destroy();
+      aircraftRef.current = null;
       resizeObserver.disconnect();
-      unbindClicks();
       map.remove();
       mapRef.current = null;
     };
@@ -156,12 +152,12 @@ export function FlightMap3D({ userLat, userLon, flight, flights, trail, onSelect
   // Feed new server data to the aircraft animation (only on real data updates —
   // syncing restarts the dead-reckoning clock)
   useEffect(() => {
-    rendererRef.current?.sync(flights);
+    aircraftRef.current?.sync(flights);
   }, [flights]);
 
   // Selection only changes the highlighted icon
   useEffect(() => {
-    rendererRef.current?.setSelected(flight?.icao24 ?? null);
+    aircraftRef.current?.setSelected(flight?.icao24 ?? null);
   }, [flight?.icao24]);
 
   // Sync trail

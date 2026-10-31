@@ -1,11 +1,11 @@
 import { FlightState } from '../types';
 import { AircraftCategory, categorizeAircraft, getAircraftSvgInfo, heliInnerSvg, MILITARY_CATS, WARBIRD_CATS } from './aircraft';
 
-// Aircraft icon images shared by the 2D canvas overlay and the 3D symbol layer.
-// SVGs are built once per (mode, category, color) and decoded in the background.
+// Aircraft icon images for the map overlay (aircraftCanvas.ts). SVGs are built once
+// per (mode, category, color) and decoded in the background.
 
 export const ICON_PX = 48;      // logical icon size; images are rendered at 2x for sharpness
-export const ICON_PIXEL_RATIO = 2;
+const ICON_PIXEL_RATIO = 2;
 
 export type AircraftMapMode = '2d' | '3d';
 

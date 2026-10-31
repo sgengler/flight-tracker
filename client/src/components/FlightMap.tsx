@@ -133,7 +133,7 @@ export function FlightMap({ userLat, userLon, flight, flights, trail, onSelectFl
       attributionControl: false,
     });
     mapRef.current = map;
-    const aircraft = new AircraftCanvas(map, icao24 => onSelectRef.current(icao24));
+    const aircraft = new AircraftCanvas(map, '2d', icao24 => onSelectRef.current(icao24));
     aircraftRef.current = aircraft;
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');

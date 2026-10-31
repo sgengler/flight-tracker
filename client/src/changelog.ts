@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.6',
+    date: '2026-10-30',
+    changes: [
+      'Planes in the 3D map now glide smoothly too, and 3D uses far less CPU on the Pi.',
+    ],
+  },
+  {
     version: '0.7.5',
     date: '2026-10-30',
     changes: [
