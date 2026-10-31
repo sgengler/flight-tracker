@@ -45,6 +45,7 @@ const MOCK_FLIGHT: FlightState = {
   route: null,
   aircraftType: null,
   isPolice: false,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null,
 };
 
 function makeRes(): Response {

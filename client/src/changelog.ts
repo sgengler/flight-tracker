@@ -9,6 +9,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.8.0',
+    date: '2026-10-30',
+    changes: [
+      'Flight card shows the specific aircraft: registration, operator, and how old it is.',
+      'Flight card shows what the plane is doing, e.g. "Climbing to FL340" or "Descending into Philadelphia".',
+      'Route now has a progress bar with miles to go and an estimated landing time.',
+      'Fullscreen flight card shows an altitude and speed graph for the flight so far.',
+      'Fixed vertical speed showing feet per second labelled as feet per minute.',
+    ],
+  },
+  {
     version: '0.7.8',
     date: '2026-10-30',
     changes: [

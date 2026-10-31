@@ -15,6 +15,12 @@ export interface FlightState {
   route: RouteInfo | null;
   aircraftType: string | null;
   isPolice: boolean;
+  registration: string | null;
+  operator: string | null;
+  yearBuilt: number | null;
+  squawk: string | null;
+  emergency: string | null;          // adsb.fi emergency status; null when 'none'
+  selectedAltitude: number | null;   // metres — autopilot target altitude
 }
 
 export interface StreamMessage {
@@ -34,5 +40,9 @@ export interface RouteInfo {
   destination: string;
   destinationCity: string;
   airline: string | null;
+  originLat: number | null;
+  originLon: number | null;
+  destinationLat: number | null;
+  destinationLon: number | null;
 }
 

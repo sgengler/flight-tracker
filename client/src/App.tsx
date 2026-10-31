@@ -802,6 +802,7 @@ const TOPGUN_DUMMY: FlightState = {
   route: null,
   aircraftType: 'F22',
   isPolice: false,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null,
 };
 
 const WARBIRD_DUMMY: FlightState = {
@@ -821,6 +822,7 @@ const WARBIRD_DUMMY: FlightState = {
   route: null,
   aircraftType: 'HURI',
   isPolice: false,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null,
 };
 
 function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: number; dev: boolean; topgun: boolean; warbird: boolean }) {
@@ -1420,6 +1422,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
               <div key={selectedFlight.icao24} className={`flight-card-enter${fullscreenPanel === 'card' ? ' flex-1 min-h-0' : ''}`}>
                 <FlightCard
                   flight={selectedFlight}
+                  trail={selectedTrail}
                   info={info}
                   isFullscreen={fullscreenPanel === 'card'}
                   onToggleFullscreen={() => setFullscreenPanel(fullscreenPanel === 'card' ? null : 'card')}

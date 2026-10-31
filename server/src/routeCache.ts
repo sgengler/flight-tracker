@@ -451,12 +451,18 @@ async function lookupAirlabsRoute(callsign: string): Promise<RouteResult | null>
 
 function routeResultToInfo(r: RouteResult): RouteInfo | null {
   if (!r.departure || !r.arrival) return null;
+  const o = airport(r.departure);
+  const d = airport(r.arrival);
   return {
     origin: r.departure,
     originCity: r.departureCity ?? airportCity(r.departure),
     destination: r.arrival,
     destinationCity: r.arrivalCity ?? airportCity(r.arrival),
     airline: r.airline,
+    originLat: o?.lat ?? null,
+    originLon: o?.lon ?? null,
+    destinationLat: d?.lat ?? null,
+    destinationLon: d?.lon ?? null,
   };
 }
 
@@ -493,20 +499,20 @@ function noteFailedLookup(key: string, now: number) {
   }
 }
 
-const DEV_DUMMY_ROUTES: RouteInfo[] = [
-  { origin: 'KEWR', originCity: 'Newark',        destination: 'KLAX', destinationCity: 'Los Angeles',   airline: 'AAL' },
-  { origin: 'KATL', originCity: 'Atlanta',        destination: 'KORD', destinationCity: 'Chicago',       airline: 'DAL' },
-  { origin: 'KBOS', originCity: 'Boston',         destination: 'KMIA', destinationCity: 'Miami',         airline: 'JBU' },
-  { origin: 'KSFO', originCity: 'San Francisco',  destination: 'KJFK', destinationCity: 'New York',      airline: 'UAL' },
-  { origin: 'KPHL', originCity: 'Philadelphia',   destination: 'KDFW', destinationCity: 'Dallas',        airline: 'SWA' },
-  { origin: 'KDEN', originCity: 'Denver',         destination: 'KSEA', destinationCity: 'Seattle',       airline: 'SWA' },
-  { origin: 'KDFW', originCity: 'Dallas',         destination: 'KBOS', destinationCity: 'Boston',        airline: 'AAL' },
-  { origin: 'KMSP', originCity: 'Minneapolis',    destination: 'KLGA', destinationCity: 'New York',      airline: 'DAL' },
+const DEV_DUMMY_ROUTES: RouteResult[] = [
+  { departure: 'KEWR', departureCity: 'Newark', arrival: 'KLAX', arrivalCity: 'Los Angeles', airline: 'AAL' },
+  { departure: 'KATL', departureCity: 'Atlanta', arrival: 'KORD', arrivalCity: 'Chicago', airline: 'DAL' },
+  { departure: 'KBOS', departureCity: 'Boston', arrival: 'KMIA', arrivalCity: 'Miami', airline: 'JBU' },
+  { departure: 'KSFO', departureCity: 'San Francisco', arrival: 'KJFK', arrivalCity: 'New York', airline: 'UAL' },
+  { departure: 'KPHL', departureCity: 'Philadelphia', arrival: 'KDFW', arrivalCity: 'Dallas', airline: 'SWA' },
+  { departure: 'KDEN', departureCity: 'Denver', arrival: 'KSEA', arrivalCity: 'Seattle', airline: 'SWA' },
+  { departure: 'KDFW', departureCity: 'Dallas', arrival: 'KBOS', arrivalCity: 'Boston', airline: 'AAL' },
+  { departure: 'KMSP', departureCity: 'Minneapolis', arrival: 'KLGA', arrivalCity: 'New York', airline: 'DAL' },
 ];
 
 function devDummyRoute(callsign: string): RouteInfo {
   const idx = callsign.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % DEV_DUMMY_ROUTES.length;
-  return DEV_DUMMY_ROUTES[idx];
+  return routeResultToInfo(DEV_DUMMY_ROUTES[idx])!;
 }
 
 export async function getCachedRoute(

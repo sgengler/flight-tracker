@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FlightState, RouteInfo, AircraftWikiInfo } from '../types';
 import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, wellKnownAircraftName, getCountryFromIcao } from '../utils';
 import { categorizeAircraft, getAircraftSvgInfo } from './aircraft';
+import { airframeSummary, flightPhase, FlightProfileChart, RouteProgressBar, TrailPoint } from './flightExtras';
 
 interface Props {
   flight: FlightState;
@@ -10,6 +11,7 @@ interface Props {
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   militaryMode?: boolean;
+  trail?: TrailPoint[];
 }
 
 function StatBox({ label, value, colorClass = 'text-white' }: { label: string; value: string; colorClass?: string }) {
@@ -31,7 +33,7 @@ function CompactStat({ label, value, colorClass = 'text-white' }: { label: strin
   );
 }
 
-export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscreen, militaryMode = false }: Props) {
+export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscreen, militaryMode = false, trail = [] }: Props) {
   const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null);
   const [refreshedRoute, setRefreshedRoute] = useState<RouteInfo | null | undefined>(undefined); // undefined = not yet refreshed
   const [routeRefreshing, setRouteRefreshing] = useState(false);
@@ -85,7 +87,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
   const isClimbing = !isLevel && flight.verticalRate! > 0;
   const vrate = isLevel
     ? 'Level'
-    : `${isClimbing ? '+' : ''}${metersToFeet(flight.verticalRate!).toLocaleString()} fpm`;
+    : `${isClimbing ? '+' : ''}${(Math.round(flight.verticalRate! * 196.85 / 10) * 10).toLocaleString()} fpm`; // m/s → ft/min
   const vrateIcon = isLevel ? '' : isClimbing ? ' ↑' : ' ↓';
   const vrateColor = isLevel ? 'text-slate-300' : isClimbing ? 'text-emerald-400' : 'text-rose-400';
 
@@ -124,7 +126,10 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
     document.body
   ) : null;
 
+  const airframe = airframeSummary(flight);
+
   if (isFullscreen) {
+    const phase = flightPhase(flight, displayRoute);
     return (
       <>
       <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10 h-full relative bg-gradient-to-br from-slate-700 to-slate-900">
@@ -146,7 +151,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
         )}
 
         {/* Gradient — deepened to cover all bottom content */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/70 via-[35%] to-transparent to-[65%]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/85 via-[50%] to-transparent to-[80%]" />
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/50 to-transparent to-[12%]" />
 
         {/* Top-left buttons */}
@@ -189,16 +194,17 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
               {flight.distanceMiles.toFixed(1)} mi {direction}
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-slate-200 font-mono flex-wrap mb-3">
+          <div className="flex items-center gap-1.5 text-sm text-slate-200 font-mono flex-wrap mb-2">
             {country && <><span className="text-base leading-none not-italic">{country.flag}</span><span className="font-sans not-italic text-slate-200">{country.name}</span><span className="text-slate-500">·</span></>}
             <span>{flight.icao24.toUpperCase()}</span>
             {flight.aircraftType && <span className="not-italic font-sans text-slate-200"> · {wellKnownAircraftName(flight.icao24) ?? aircraftTypeName(flight.aircraftType) ?? flight.aircraftType}</span>}
             {flight.isPolice && <span className="not-italic font-sans text-blue-300"> · Police</span>}
           </div>
+          {airframe && <div className="text-sm text-slate-300 -mt-2 mb-2 truncate">{airframe}</div>}
 
           {/* Route */}
           {displayRoute && (
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-2">
               <span className="font-mono text-sm font-bold text-white">{displayRoute.origin}</span>
               <span className="text-sm text-slate-200 truncate">{displayRoute.originCity}</span>
               <div className="flex items-center gap-0.5 text-sky-500 flex-shrink-0 text-sm">
@@ -216,6 +222,15 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
                   </svg>
                 </button>
               )}
+            </div>
+          )}
+
+          {displayRoute && <div className="-mt-1.5 mb-2"><RouteProgressBar flight={flight} route={displayRoute} large /></div>}
+
+          {(phase || trail.length > 0) && (
+            <div className="bg-slate-900/75 rounded-xl px-3 py-1.5 mb-2">
+              {phase && <div className="text-sm font-semibold text-sky-300">{phase}</div>}
+              <FlightProfileChart trail={trail} />
             </div>
           )}
 
@@ -238,6 +253,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
     );
   }
 
+  const compactPhase = flightPhase(flight, flight.route);
   return (
     <>
     <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
@@ -309,13 +325,25 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
 
       {/* ── Route ── */}
       {flight.route && (
-        <div className="px-3 py-1.5 bg-slate-900/80 border-t border-white/5 flex items-center gap-1.5 min-w-0">
+        <div className="px-3 py-1.5 bg-slate-900/80 border-t border-white/5">
+        <div className="flex items-center gap-1.5 min-w-0">
           <span className="font-mono text-xs font-bold text-white flex-shrink-0">{flight.route.origin}</span>
           <span className="text-xs text-slate-500 truncate">{flight.route.originCity}</span>
           <span className="text-sky-500 text-xs flex-shrink-0">→</span>
           <span className="font-mono text-xs font-bold text-white flex-shrink-0">{flight.route.destination}</span>
           <span className="text-xs text-slate-500 truncate">{flight.route.destinationCity}</span>
           {flight.route.airline && <span className="text-xs text-slate-600 flex-shrink-0 ml-auto">· {flight.route.airline}</span>}
+        </div>
+        <div className="mt-1"><RouteProgressBar flight={flight} route={flight.route} /></div>
+        </div>
+      )}
+
+      {/* ── What it's doing / which airframe ── */}
+      {(compactPhase || airframe) && (
+        <div className="px-3 py-1 bg-slate-900/80 border-t border-white/5 flex items-center gap-1.5 min-w-0 text-xs">
+          {compactPhase && <span className="text-sky-300 font-medium flex-shrink-0">{compactPhase}</span>}
+          {compactPhase && airframe && <span className="text-slate-600">·</span>}
+          {airframe && <span className="text-slate-400 truncate">{airframe}</span>}
         </div>
       )}
 

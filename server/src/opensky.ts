@@ -15,6 +15,12 @@ interface AdsbFiAircraft {
   track?: number | null;
   baro_rate?: number | null;
   t?: string;        // ICAO type code — provided directly, no hexdb lookup needed
+  r?: string;        // registration
+  ownOp?: string;    // registered owner/operator
+  year?: string;     // year built
+  squawk?: string;
+  emergency?: string; // 'none' | 'general' | 'lifeguard' | 'minfuel' | 'nordo' | 'unlawful' | 'downed' | 'reserved'
+  nav_altitude_mcp?: number; // altitude selected on the autopilot, ft
 }
 
 export interface FlightState {
@@ -34,6 +40,12 @@ export interface FlightState {
   route: RouteInfo | null;
   aircraftType: string | null;
   isPolice: boolean;
+  registration: string | null;
+  operator: string | null;
+  yearBuilt: number | null;
+  squawk: string | null;
+  emergency: string | null;          // adsb.fi emergency status; null when 'none'
+  selectedAltitude: number | null;   // metres — autopilot target altitude
 }
 
 export interface RouteInfo {
@@ -42,6 +54,10 @@ export interface RouteInfo {
   destination: string;
   destinationCity: string;
   airline: string | null;
+  originLat: number | null;
+  originLon: number | null;
+  destinationLat: number | null;
+  destinationLon: number | null;
 }
 
 export function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -136,40 +152,50 @@ async function fetchAdsbData(path: string): Promise<{ ac?: AdsbFiAircraft[] }> {
   throw new Error('all ADS-B sources rate limited');
 }
 
-export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 50): Promise<FlightState[]> {
-  const radiusNm = Math.round(radiusMiles * MILES_TO_NM);
-  const data = await fetchAdsbData(`/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`);
-  const aircraft = data.ac ?? [];
+function toFlightState(ac: AdsbFiAircraft & { lat: number; lon: number }, refLat: number, refLon: number): FlightState {
+  const baroAltFt = typeof ac.alt_baro === 'number' ? ac.alt_baro : null;
+  const year = ac.year ? parseInt(ac.year, 10) : NaN;
+  return {
+    icao24: ac.hex,
+    callsign: ac.flight?.trim() || null,
+    originCountry: '',
+    latitude: ac.lat,
+    longitude: ac.lon,
+    baroAltitude: baroAltFt != null ? baroAltFt * 0.3048 : null,         // ft → m
+    onGround: false,
+    velocity: ac.gs != null ? ac.gs * 0.514444 : null,                    // knots → m/s
+    trueTrack: ac.track ?? null,
+    verticalRate: ac.baro_rate != null ? ac.baro_rate * 0.00508 : null,   // ft/min → m/s
+    geoAltitude: ac.alt_geom != null ? ac.alt_geom * 0.3048 : null,       // ft → m
+    distanceMiles: haversineDistance(refLat, refLon, ac.lat, ac.lon),
+    bearingDeg: bearingTo(refLat, refLon, ac.lat, ac.lon),
+    route: null,
+    aircraftType: ac.t?.trim() || null,  // provided directly — no hexdb lookup needed
+    isPolice: false,
+    registration: ac.r?.trim() || null,
+    operator: ac.ownOp?.trim() || null,
+    yearBuilt: year > 1900 ? year : null,
+    squawk: ac.squawk ?? null,
+    emergency: ac.emergency && ac.emergency !== 'none' ? ac.emergency : null,
+    selectedAltitude: ac.nav_altitude_mcp != null ? ac.nav_altitude_mcp * 0.3048 : null,
+  };
+}
 
+function toFlightStates(aircraft: AdsbFiAircraft[], refLat: number, refLon: number): FlightState[] {
   const flights: FlightState[] = [];
   for (const ac of aircraft) {
     if (ac.lat == null || ac.lon == null) continue;
     if (ac.alt_baro === 'ground') continue;
-
-    const baroAltFt = typeof ac.alt_baro === 'number' ? ac.alt_baro : null;
-
-    flights.push({
-      icao24: ac.hex,
-      callsign: ac.flight?.trim() || null,
-      originCountry: '',
-      latitude: ac.lat,
-      longitude: ac.lon,
-      baroAltitude: baroAltFt != null ? baroAltFt * 0.3048 : null,         // ft → m
-      onGround: false,
-      velocity: ac.gs != null ? ac.gs * 0.514444 : null,                    // knots → m/s
-      trueTrack: ac.track ?? null,
-      verticalRate: ac.baro_rate != null ? ac.baro_rate * 0.00508 : null,   // ft/min → m/s
-      geoAltitude: ac.alt_geom != null ? ac.alt_geom * 0.3048 : null,       // ft → m
-      distanceMiles: haversineDistance(lat, lon, ac.lat, ac.lon),
-      bearingDeg: bearingTo(lat, lon, ac.lat, ac.lon),
-      route: null,
-      aircraftType: ac.t?.trim() || null,  // provided directly — no hexdb lookup needed
-      isPolice: false,
-    });
+    flights.push(toFlightState(ac as AdsbFiAircraft & { lat: number; lon: number }, refLat, refLon));
   }
-
   flights.sort((a, b) => a.distanceMiles - b.distanceMiles);
   return flights;
+}
+
+export async function fetchNearbyFlights(lat: number, lon: number, radiusMiles = 50): Promise<FlightState[]> {
+  const radiusNm = Math.round(radiusMiles * MILES_TO_NM);
+  const data = await fetchAdsbData(`/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`);
+  return toFlightStates(data.ac ?? [], lat, lon);
 }
 
 export function findClosestFlight(flights: FlightState[]): FlightState | null {
@@ -178,37 +204,7 @@ export function findClosestFlight(flights: FlightState[]): FlightState | null {
 
 export async function fetchMilitaryFlights(refLat: number, refLon: number): Promise<FlightState[]> {
   const data = await fetchAdsbData('/v2/mil');
-  const aircraft = data.ac ?? [];
-
-  const flights: FlightState[] = [];
-  for (const ac of aircraft) {
-    if (ac.lat == null || ac.lon == null) continue;
-    if (ac.alt_baro === 'ground') continue;
-
-    const baroAltFt = typeof ac.alt_baro === 'number' ? ac.alt_baro : null;
-
-    flights.push({
-      icao24: ac.hex,
-      callsign: ac.flight?.trim() || null,
-      originCountry: '',
-      latitude: ac.lat,
-      longitude: ac.lon,
-      baroAltitude: baroAltFt != null ? baroAltFt * 0.3048 : null,
-      onGround: false,
-      velocity: ac.gs != null ? ac.gs * 0.514444 : null,
-      trueTrack: ac.track ?? null,
-      verticalRate: ac.baro_rate != null ? ac.baro_rate * 0.00508 : null,
-      geoAltitude: ac.alt_geom != null ? ac.alt_geom * 0.3048 : null,
-      distanceMiles: haversineDistance(refLat, refLon, ac.lat, ac.lon),
-      bearingDeg: bearingTo(refLat, refLon, ac.lat, ac.lon),
-      route: null,
-      aircraftType: ac.t?.trim() || null,
-      isPolice: false,
-    });
-  }
-
-  flights.sort((a, b) => a.distanceMiles - b.distanceMiles);
-  return flights;
+  return toFlightStates(data.ac ?? [], refLat, refLon);
 }
 
 // ── Globe.adsbexchange.com trace proxy ───────────────────────────────────────
