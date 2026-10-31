@@ -1168,8 +1168,9 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
               ? <FlightMap3D userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} />
               : <FlightMap userLat={homeLat} userLon={homeLon} flight={selectedFlight} flights={displayFlights} trail={selectedTrail} onSelectFlight={(icao24) => selectFlight(icao24 === selectedFlight?.icao24 ? null : icao24)} militaryMode={militaryMode} focusPoint={focusPoint} tileId={tileId} />
             }
-            {/* Map key — top-left, styled like the small expand and map-style buttons */}
-            <div className="absolute top-2 left-2 z-[1000]">
+            {/* Map key (and "back to closest" after a manual pick) — top-left, styled like the
+                small expand and map-style buttons */}
+            <div className="absolute top-2 left-2 z-[1000] flex items-start gap-1">
               <div className="relative">
                 <button onClick={() => { setKeyOpen(o => !o); setTilePickerOpen(false); }} className={`relative flex items-center gap-1 p-1 pr-1.5 rounded-md text-[11px] leading-[11px] font-semibold transition-colors ${keyOpen ? 'bg-white text-slate-900' : 'bg-white/70 text-slate-700 hover:bg-white/90 hover:text-slate-900'}`} title="Map key and filters">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
@@ -1236,6 +1237,12 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
                     </div>
                 )}
               </div>
+              {selectedIcao && (
+                <button onClick={() => selectFlight(null)} className="flex items-center gap-1 p-1 pr-1.5 rounded-md text-[11px] leading-[11px] font-semibold bg-sky-500/90 text-white hover:bg-sky-500 transition-colors" title="Return to closest plane">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                  Closest plane
+                </button>
+              )}
             </div>
             <div className="absolute bottom-2 right-2 z-[1000] flex items-center gap-1">
               <div className="relative">
@@ -1671,15 +1678,6 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat
           )}
 
           <div className={fullscreenPanel === 'card' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 flex flex-col'}>
-            {/* Above the card: the card fills the column, so anything below it is off-screen */}
-            {selectedIcao && (
-              <button
-                onClick={() => selectFlight(null)}
-                className="flex-shrink-0 w-full flex items-center justify-center gap-2 px-3 py-2 mb-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-300 text-xs font-semibold hover:bg-sky-500/25 active:bg-sky-500/30 transition-colors"
-              >
-                <span>⟳</span> Return to closest plane
-              </button>
-            )}
             {selectedFlight ? (
               <div key={selectedFlight.icao24} className={`flight-card-enter${fullscreenPanel === 'card' ? ' flex-1 min-h-0' : ' flex-1 flex flex-col'}`}>
                 <FlightCard

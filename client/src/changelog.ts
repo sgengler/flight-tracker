@@ -12,7 +12,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '0.9.3',
     date: '2026-10-31',
     changes: [
-      '"Return to closest plane" now sits above the flight card, so it\'s always on screen.',
+      'After you pick a plane, a "Closest plane" button on the map (next to Key) takes you back; it used to sit below the card, off screen.',
     ],
   },
   {
