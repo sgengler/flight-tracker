@@ -14,6 +14,10 @@ vi.mock('../routeCache', () => ({
   getRouteFromCacheOnly: vi.fn().mockReturnValue(null),
 }));
 
+vi.mock('../sightings', () => ({
+  recordSightings: vi.fn(),
+  markNotable: vi.fn(),
+}));
 vi.mock('../flightInfo', () => ({
   getCachedAircraftType: vi.fn().mockResolvedValue({ typeCode: null, isPolice: false }),
 }));
@@ -45,7 +49,7 @@ const MOCK_FLIGHT: FlightState = {
   route: null,
   aircraftType: null,
   isPolice: false,
-  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null,
 };
 
 function makeRes(): Response {

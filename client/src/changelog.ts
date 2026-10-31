@@ -18,6 +18,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Fullscreen flight card shows an altitude and speed graph for the flight so far.',
       'Fixed vertical speed showing feet per second labelled as feet per minute.',
       'Emergency alert: a plane squawking 7700, 7600 or 7500 takes over the screen with an alarm, then stays pinned in the sidebar.',
+      '"Worth a look" alert for notable aircraft: A380s, 747s, Dreamlifters, VIP flights like Air Force One, and big jets that rarely pass by.',
+      'New Today tab: how many aircraft and types flew by, busiest hour, closest pass, highest, fastest, oldest airframe, farthest origin, rarest type and top airlines.',
+      'Airline logos on the flight card and in the Today tab.',
     ],
   },
   {

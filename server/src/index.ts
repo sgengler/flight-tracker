@@ -9,6 +9,7 @@ import { exec, spawn } from 'child_process';
 import { subscribe, subscribeMilitary, broadcastTopGun, broadcastTopGunDismiss, broadcastWarbird, broadcastWarbirdDismiss } from './poller';
 import { fetchAircraftTrace } from './opensky';
 import { getCachedRoute, getApiStats, getCacheSize } from './routeCache';
+import { todaySummary } from './sightings';
 import { fetchPlanePhoto } from './flightInfo';
 import { getSpeedRecord } from './speedRecord';
 
@@ -52,6 +53,18 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/stats', (_req, res) => {
   res.json({ faHistory: getApiStats(), speedRecord: getSpeedRecord(), cacheSize: getCacheSize() });
+});
+
+// Highlights of everything seen from home since `since` (the client's local midnight).
+app.get('/api/sightings/today', (req, res) => {
+  const since = Number(req.query.since);
+  const lat = parseFloat(req.query.lat as string);
+  const lon = parseFloat(req.query.lon as string);
+  if (!Number.isFinite(since) || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+    res.status(400).json({ error: 'Invalid since/lat/lon' });
+    return;
+  }
+  res.json(todaySummary(since, lat, lon));
 });
 
 app.get('/api/version', (_req, res) => {
@@ -135,7 +148,7 @@ app.get('/api/flights/stream', (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering if proxied
   res.flushHeaders();
 
-  const unsubscribe = subscribe(lat, lon, res, req.query.dev === '1');
+  const unsubscribe = subscribe(lat, lon, res, req.query.dev === '1', req.query.home === '1');
 
   req.on('close', () => {
     unsubscribe();

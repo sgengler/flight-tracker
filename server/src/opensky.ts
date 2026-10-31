@@ -21,6 +21,7 @@ interface AdsbFiAircraft {
   squawk?: string;
   emergency?: string; // 'none' | 'general' | 'lifeguard' | 'minfuel' | 'nordo' | 'unlawful' | 'downed' | 'reserved'
   nav_altitude_mcp?: number; // altitude selected on the autopilot, ft
+  category?: string; // ADS-B emitter category: A1 light … A5 heavy, A7 rotorcraft, …
 }
 
 export interface FlightState {
@@ -46,6 +47,8 @@ export interface FlightState {
   squawk: string | null;
   emergency: string | null;          // adsb.fi emergency status; null when 'none'
   selectedAltitude: number | null;   // metres — autopilot target altitude
+  category: string | null;           // ADS-B emitter category (A3 large, A5 heavy, …)
+  notable: string | null;            // why this aircraft is worth a look, if it is
 }
 
 export interface RouteInfo {
@@ -178,6 +181,8 @@ function toFlightState(ac: AdsbFiAircraft & { lat: number; lon: number }, refLat
     squawk: ac.squawk ?? null,
     emergency: ac.emergency && ac.emergency !== 'none' ? ac.emergency : null,
     selectedAltitude: ac.nav_altitude_mcp != null ? ac.nav_altitude_mcp * 0.3048 : null,
+    category: ac.category ?? null,
+    notable: null,
   };
 }
 

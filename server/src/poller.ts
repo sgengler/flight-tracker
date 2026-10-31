@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { fetchNearbyFlights, fetchMilitaryFlights, findClosestFlight, adsbFiIsRateLimited, FlightState } from './opensky';
 import { getCachedRoute, getRouteFromCacheOnly } from './routeCache';
+import { markNotable, recordSightings } from './sightings';
 import { getCachedAircraftType } from './flightInfo';
 import { maybeUpdateSpeedRecord } from './speedRecord';
 
@@ -77,6 +78,7 @@ interface Session {
   lat: number;
   lon: number;
   dev: boolean;
+  home: boolean; // the kiosk's own location (not an explored city) — sightings are logged
   clients: Set<Response>;
   interval: ReturnType<typeof setInterval>;
   lastFlight: FlightState | null;
@@ -122,6 +124,8 @@ async function poll(session: Session) {
     }));
 
     for (const f of flights) maybeUpdateSpeedRecord(f);
+    if (session.home && !session.dev) recordSightings(flights);
+    else markNotable(flights);
 
     const flight = findClosestFlight(flights);
     session.lastFlight = flight;
@@ -141,15 +145,17 @@ async function poll(session: Session) {
   }
 }
 
-export function subscribe(lat: number, lon: number, res: Response, dev = false): () => void {
+export function subscribe(lat: number, lon: number, res: Response, dev = false, home = false): () => void {
   const key = sessionKey(lat, lon);
 
   let session = sessions.get(key);
+  if (session && home) session.home = true;
   if (!session) {
     session = {
       lat,
       lon,
       dev,
+      home,
       clients: new Set(),
       interval: setInterval(() => poll(session!), POLL_INTERVAL_MS),
       lastFlight: null,
@@ -219,6 +225,7 @@ export function subscribeMilitary(lat: number, lon: number, res: Response): () =
       lat,
       lon,
       dev: false,
+      home: false,
       clients: new Set(),
       interval: setInterval(() => pollMilitary(session!), POLL_INTERVAL_MS),
       lastFlight: null,

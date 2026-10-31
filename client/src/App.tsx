@@ -8,6 +8,8 @@ import { FlightMap3D } from './components/FlightMap3D';
 import { aircraftTypeName, wellKnownAircraftName, msToMph, clusterFlights, Hotspot, groupByBroadRegion, BroadRegionGroup, getCountryFromIcao } from './utils';
 import { ShutdownButton } from './components/ShutdownButton';
 import { EmergencyAlert, useEmergencies } from './components/EmergencyAlert';
+import { NotableAlert } from './components/NotableAlert';
+import { TodayTab } from './components/TodayTab';
 import { useAutoReload } from './hooks/useAutoReload';
 import { useStoredState } from './hooks/useStoredState';
 import { RouteInfo, FlightState } from './types';
@@ -803,7 +805,7 @@ const TOPGUN_DUMMY: FlightState = {
   route: null,
   aircraftType: 'F22',
   isPolice: false,
-  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null,
 };
 
 const WARBIRD_DUMMY: FlightState = {
@@ -823,12 +825,12 @@ const WARBIRD_DUMMY: FlightState = {
   route: null,
   aircraftType: 'HURI',
   isPolice: false,
-  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null,
+  registration: null, operator: null, yearBuilt: null, squawk: null, emergency: null, selectedAltitude: null, category: null, notable: null,
 };
 
-function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number; lon: number; dev: boolean; topgun: boolean; warbird: boolean; emergency: boolean }) {
+function Dashboard({ lat, lon, dev, topgun, warbird, emergency, notable }: { lat: number; lon: number; dev: boolean; topgun: boolean; warbird: boolean; emergency: boolean; notable: boolean }) {
   const [militaryMode, setMilitaryMode] = useState(false);
-  const [normalTab, setNormalTab] = useState<'nearby' | 'explore' | 'changelog' | 'stats'>('nearby');
+  const [normalTab, setNormalTab] = useState<'nearby' | 'today' | 'explore' | 'changelog' | 'stats'>('nearby');
   const [exploreCity, setExploreCity] = useState<typeof EXPLORE_CITIES[number] | null>(null);
   const homeLat = exploreCity?.lat ?? lat;
   const homeLon = exploreCity?.lon ?? lon;
@@ -839,6 +841,7 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number;
     homeLat, homeLon, militaryMode ? 'military' : 'normal', dev,
     () => setTopGunActive(true), () => setTopGunActive(false),
     () => setWarbirdActive(true), () => setWarbirdActive(false),
+    exploreCity === null,
   );
   useEffect(() => {
     if (!topgun) return;
@@ -871,8 +874,11 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number;
     if (emergencyActive && result.length > 0) {
       result = [{ ...result[0], squawk: '7700', emergency: 'general' }, ...result.slice(1)];
     }
+    if (notable && result.length > 1) {
+      result = [result[0], { ...result[1], notable: 'Boeing 747-8' }, ...result.slice(2)];
+    }
     return result;
-  }, [rawFlights, topGunActive, warbirdActive, emergencyActive, militaryMode, homeLat, homeLon]);
+  }, [rawFlights, topGunActive, warbirdActive, emergencyActive, notable, militaryMode, homeLat, homeLon]);
   const [selectedIcao, setSelectedIcao] = useState<string | null>(null);
   const allCategories = militaryMode ? MILITARY_CATEGORIES : NORMAL_CATEGORIES;
   const [activeCategories, setActiveCategories] = useState<Set<FilterCategory>>(NORMAL_CATEGORIES);
@@ -952,6 +958,12 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number;
   );
 
   const emergencyFlights = useEmergencies(flights);
+
+  // Notable aircraft (special types, VIP callsigns, rare here) — flagged by the server
+  const notableFlights = useMemo(() =>
+    !militaryMode ? flights.filter(f => f.notable && !emergencyFlights.includes(f)) : [],
+    [flights, militaryMode, emergencyFlights]
+  );
 
   // Warbird aircraft present in the full (unfiltered) flight list
   const warbirdFlights = useMemo(() =>
@@ -1193,34 +1205,40 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number;
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setMilTab('nearby')}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${milTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Nearby <span className="opacity-60">{displayFlights.length}{displayFlights.length !== flights.length ? `/${flights.length}` : ''}</span></button>
                   <button
                     onClick={() => setMilTab('hotspots')}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'hotspots' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${milTab === 'hotspots' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Hotspots <span className="opacity-60">{hotspots.length}</span></button>
                   <button
                     onClick={() => setMilTab('regions')}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${milTab === 'regions' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${milTab === 'regions' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Regions <span className="opacity-60">{regionGroups.length}</span></button>
                 </div>
               ) : (
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setNormalTab('nearby')}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${normalTab === 'nearby' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Nearby <span className="opacity-60">{Math.min(displayFlights.length, 10)}{flights.length > 10 ? `/${flights.length}` : ''}</span></button>
+                  {exploreCity === null && (
+                    <button
+                      onClick={() => setNormalTab('today')}
+                      className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${normalTab === 'today' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    >Today</button>
+                  )}
                   <button
                     onClick={() => setNormalTab('explore')}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'explore' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${normalTab === 'explore' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Explore</button>
                   <button
                     onClick={() => setNormalTab('changelog')}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'changelog' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${normalTab === 'changelog' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Changelog</button>
                   <button
                     onClick={() => setNormalTab('stats')}
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-md transition-colors ${normalTab === 'stats' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap transition-colors ${normalTab === 'stats' ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                   >Stats</button>
                 </div>
               )}
@@ -1362,6 +1380,9 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number;
 
             {/* Stats tab */}
             {!militaryMode && normalTab === 'stats' && <StatsTab />}
+            {!militaryMode && normalTab === 'today' && exploreCity === null && (
+              <TodayTab lat={lat} lon={lon} onSelect={icao24 => { if (flights.some(f => f.icao24 === icao24)) selectFlight(icao24); }} />
+            )}
 
             {/* Nearby aircraft tab (normal mode always, military mode when nearby tab active) */}
             {(!militaryMode || milTab === 'nearby') && (militaryMode || normalTab === 'nearby') && (
@@ -1477,6 +1498,15 @@ function Dashboard({ lat, lon, dev, topgun, warbird, emergency }: { lat: number;
               onTrack={selectFlight}
               takeover={topGunTakeover}
               onDismissModal={() => dismissTopGunRef.current()}
+            />
+          )}
+
+          {/* Notable aircraft — special types and rarities in normal mode */}
+          {fullscreenPanel === null && notableFlights.length > 0 && (
+            <NotableAlert
+              flights={notableFlights}
+              selectedFlight={selectedFlight}
+              onTrack={selectFlight}
             />
           )}
 
@@ -1650,6 +1680,7 @@ export default function App() {
   const topgun = params.get('topgun') === '1';
   const warbird = params.get('warbird') === '1';
   const emergency = params.get('emergency') === '1';
+  const notable = params.get('notable') === '1';
 
-  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} topgun={topgun} warbird={warbird} emergency={emergency} />;
+  return <Dashboard lat={geo.lat} lon={geo.lon} dev={dev} topgun={topgun} warbird={warbird} emergency={emergency} notable={notable} />;
 }

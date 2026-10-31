@@ -57,7 +57,7 @@ function buildAirportDb(): Map<string, Airport> {
   return map;
 }
 
-function airport(icao: string): Airport | undefined {
+export function airport(icao: string): Airport | undefined {
   if (!airportDb) airportDb = buildAirportDb();
   return airportDb.get(icao.toUpperCase());
 }

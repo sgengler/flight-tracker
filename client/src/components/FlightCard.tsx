@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FlightState, RouteInfo, AircraftWikiInfo } from '../types';
 import { metersToFeet, msToMph, bearingToCardinal, headingToCardinal, aircraftTypeName, wellKnownAircraftName, getCountryFromIcao } from '../utils';
 import { categorizeAircraft, getAircraftSvgInfo } from './aircraft';
+import { AirlineLogo } from './AirlineLogo';
 import { airframeSummary, flightPhase, FlightProfileChart, RouteProgressBar, TrailPoint } from './flightExtras';
 
 interface Props {
@@ -214,7 +215,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
               </div>
               <span className="font-mono text-sm font-bold text-white">{displayRoute.destination}</span>
               <span className="text-sm text-slate-200 truncate">{displayRoute.destinationCity}</span>
-              {displayRoute.airline && <span className="text-sm text-slate-400 flex-shrink-0 ml-auto">· {displayRoute.airline}</span>}
+              {displayRoute.airline && <AirlineLogo code={displayRoute.airline} height={16} className="ml-auto text-sm" />}
               {flight.callsign && (
                 <button onClick={refreshRoute} disabled={routeRefreshing} className="text-slate-600 hover:text-slate-400 transition-colors disabled:opacity-40 flex-shrink-0" title="Refresh route">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={routeRefreshing ? 'animate-spin' : ''}>
@@ -332,7 +333,7 @@ export function FlightCard({ flight, info, isFullscreen = false, onToggleFullscr
           <span className="text-sky-500 text-xs flex-shrink-0">→</span>
           <span className="font-mono text-xs font-bold text-white flex-shrink-0">{flight.route.destination}</span>
           <span className="text-xs text-slate-500 truncate">{flight.route.destinationCity}</span>
-          {flight.route.airline && <span className="text-xs text-slate-600 flex-shrink-0 ml-auto">· {flight.route.airline}</span>}
+          {flight.route.airline && <AirlineLogo code={flight.route.airline} height={12} className="ml-auto text-xs" />}
         </div>
         <div className="mt-1"><RouteProgressBar flight={flight} route={flight.route} /></div>
         </div>

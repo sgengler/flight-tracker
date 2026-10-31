@@ -21,6 +21,8 @@ export interface FlightState {
   squawk: string | null;
   emergency: string | null;          // adsb.fi emergency status; null when 'none'
   selectedAltitude: number | null;   // metres — autopilot target altitude
+  category: string | null;           // ADS-B emitter category (A3 large, A5 heavy, …)
+  notable: string | null;            // why this aircraft is worth a look, if it is
 }
 
 export interface StreamMessage {
