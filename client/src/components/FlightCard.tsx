@@ -32,7 +32,7 @@ function PhotoCredit({ info, large = false }: { info: Props['info']; large?: boo
   const text = info.photoOfThisAircraft ? (info.photoCredit ? `© ${info.photoCredit}` : null) : 'Photo of this type';
   if (!text) return null;
   return (
-    <div className={`absolute ${large ? 'top-3 right-12 text-xs' : 'top-2 right-8 text-[10px]'} px-1.5 py-0.5 rounded bg-black/40 text-white/70 pointer-events-none truncate max-w-[60%]`}>
+    <div className={`absolute ${large ? 'top-3.5 right-11 text-[11px]' : 'top-2.5 right-7 text-[9px]'} leading-none text-white/45 [text-shadow:0_1px_2px_rgba(0,0,0,0.6)] pointer-events-none truncate max-w-[55%]`}>
       {text}
     </div>
   );
