@@ -107,18 +107,18 @@ async function poll(session: Session) {
       }
     }));
 
-    // Attach routes from cache only for flights outside the top 10 — no FA spend
+    // Attach routes from cache only for flights outside the top 10 — no API spend
     for (const f of flights.slice(10, 20)) {
-      if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
+      if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign, f);
     }
 
     // Top 10 flights may trigger FlightAware lookups
     await Promise.all(flights.slice(0, 10).map(async f => {
       if (!f.callsign || f.isPolice || isMilitaryType(f.aircraftType) || isWarbirdType(f.aircraftType) || isHelicopterType(f.aircraftType) || isMilitaryIcao(f.icao24)) {
-        if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign);
+        if (f.callsign) f.route = getRouteFromCacheOnly(f.icao24, f.callsign, f);
         return;
       }
-      f.route = await getCachedRoute(f.callsign, f.icao24, { dev: session.dev });
+      f.route = await getCachedRoute(f.callsign, f.icao24, { dev: session.dev, position: f });
     }));
 
     for (const f of flights) maybeUpdateSpeedRecord(f);

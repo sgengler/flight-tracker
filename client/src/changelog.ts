@@ -9,6 +9,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.7.8',
+    date: '2026-10-30',
+    changes: [
+      'Routes that no longer match where a plane is actually flying (after an airline reuses a flight number) are hidden and looked up again.',
+      'Flights with no known route are re-checked after a week instead of never.',
+      'The Stats tab now shows AirLabs route lookups alongside FlightAware.',
+    ],
+  },
+  {
     version: '0.7.7',
     date: '2026-10-30',
     changes: [

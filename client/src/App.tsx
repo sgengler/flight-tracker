@@ -527,7 +527,7 @@ interface SpeedRecord {
 }
 
 interface StatsResponse {
-  faHistory: { date: string; fresh: number; cached: number }[];
+  faHistory: { date: string; fresh: number; cached: number; airlabs?: number }[];
   speedRecord: SpeedRecord | null;
   cacheSize: number;
 }
@@ -583,6 +583,7 @@ function StatsTab() {
   const today = new Date().toISOString().slice(0, 10);
   const todayEntry = faHistory.find(d => d.date === today);
   const todayFresh = todayEntry?.fresh ?? 0;
+  const todayAirlabs = todayEntry?.airlabs ?? 0;
   const totalFresh = faHistory.reduce((sum, d) => sum + d.fresh, 0);
 
   return (
@@ -594,19 +595,23 @@ function StatsTab() {
         </div>
       )}
       <div>
-        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">FlightAware Lookups</div>
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Route Lookups</div>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · Fresh</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · FlightAware</div>
             <div className="text-2xl font-mono font-semibold text-white">{todayFresh.toLocaleString()}</div>
           </div>
           <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cached Routes</div>
-            <div className="text-2xl font-mono font-semibold text-slate-400">{cacheSize.toLocaleString()}</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Today · AirLabs</div>
+            <div className="text-2xl font-mono font-semibold text-white">{todayAirlabs.toLocaleString()}</div>
           </div>
-          <div className="col-span-2 rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · Fresh</div>
+          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">30-day · FlightAware</div>
             <div className="text-xl font-mono font-semibold text-white">{totalFresh.toLocaleString()}</div>
+          </div>
+          <div className="rounded-lg bg-slate-900/60 border border-white/5 px-3 py-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cached Routes</div>
+            <div className="text-xl font-mono font-semibold text-slate-400">{cacheSize.toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -617,7 +622,8 @@ function StatsTab() {
             <thead>
               <tr className="text-slate-500 uppercase tracking-wider text-[10px]">
                 <th className="text-left font-medium pb-1.5">Date</th>
-                <th className="text-right font-medium pb-1.5">Fresh</th>
+                <th className="text-right font-medium pb-1.5">FlightAware</th>
+                <th className="text-right font-medium pb-1.5">AirLabs</th>
                 <th className="text-right font-medium pb-1.5">Cached</th>
               </tr>
             </thead>
@@ -626,6 +632,7 @@ function StatsTab() {
                 <tr key={d.date} className={d.date === today ? 'text-white' : 'text-slate-400'}>
                   <td className="py-1 font-mono">{d.date}</td>
                   <td className="py-1 text-right font-mono">{d.fresh.toLocaleString()}</td>
+                  <td className="py-1 text-right font-mono">{(d.airlabs ?? 0).toLocaleString()}</td>
                   <td className="py-1 text-right font-mono">{d.cached.toLocaleString()}</td>
                 </tr>
               ))}
@@ -1089,7 +1096,8 @@ function Dashboard({ lat, lon, dev, topgun, warbird }: { lat: number; lon: numbe
     if (routeFetchAttemptedRef.current.has(f.icao24)) return;
     routeFetchAttemptedRef.current.add(f.icao24);
     let cancelled = false;
-    fetch(`/api/route?icao24=${encodeURIComponent(f.icao24)}&callsign=${encodeURIComponent(f.callsign)}${dev ? '&dev=1' : ''}`)
+    const position = `&lat=${f.latitude}&lon=${f.longitude}${f.trueTrack !== null ? `&track=${f.trueTrack}` : ''}${f.onGround ? '&onGround=1' : ''}`;
+    fetch(`/api/route?icao24=${encodeURIComponent(f.icao24)}&callsign=${encodeURIComponent(f.callsign)}${position}${dev ? '&dev=1' : ''}`)
       .then(r => r.ok ? r.json() : null)
       .then((data: { route: RouteInfo | null } | null) => {
         if (cancelled || !data) return;

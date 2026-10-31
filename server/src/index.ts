@@ -73,7 +73,7 @@ app.get('/api/trace/:icao24', async (req, res) => {
 });
 
 // On-demand route lookup for a user-selected flight. Cache-first; only spends
-// FlightAware quota when the route isn't already cached (and is allowed by caps).
+// API quota when the route isn't cached or doesn't fit (and is allowed by caps).
 app.get('/api/route', async (req, res) => {
   const icao24 = ((req.query.icao24 as string) ?? '').trim().toLowerCase();
   const callsign = ((req.query.callsign as string) ?? '').trim();
@@ -82,7 +82,14 @@ app.get('/api/route', async (req, res) => {
     return;
   }
   try {
-    const route = await getCachedRoute(callsign, icao24, { interactive: true, dev: req.query.dev === '1' });
+    // Optional position lets the server reject a cached route that no longer fits the flight
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    const track = parseFloat(req.query.track as string);
+    const position = Number.isFinite(lat) && Number.isFinite(lon)
+      ? { latitude: lat, longitude: lon, trueTrack: Number.isFinite(track) ? track : null, onGround: req.query.onGround === '1' }
+      : undefined;
+    const route = await getCachedRoute(callsign, icao24, { interactive: true, dev: req.query.dev === '1', position });
     res.json({ route });
   } catch {
     res.json({ route: null });

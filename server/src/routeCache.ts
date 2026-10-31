@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
-import type { RouteInfo } from './opensky';
+import { bearingTo, haversineDistance, type FlightState, type RouteInfo } from './opensky';
 
 const AIRPORT_CITIES: Record<string, string> = {
   KATL: 'Atlanta', KLAX: 'Los Angeles', KORD: "Chicago O'Hare", KDFW: 'Dallas/Ft Worth',
@@ -41,25 +41,58 @@ const AIRPORT_CITIES: Record<string, string> = {
   MMMX: 'Mexico City', SBGR: 'São Paulo', FAOR: 'Johannesburg',
 };
 
-let airportDb: Map<string, string> | null = null;
+interface Airport { city: string; lat: number; lon: number }
 
-function buildAirportDb(): Map<string, string> {
+let airportDb: Map<string, Airport> | null = null;
+
+function buildAirportDb(): Map<string, Airport> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const raw = require('airports-json') as { airports: Array<{ ident?: string; municipality?: string; name?: string }> };
-  const map = new Map<string, string>();
+  const raw = require('airports-json') as { airports: Array<{ ident?: string; municipality?: string; name?: string; latitude_deg?: string; longitude_deg?: string }> };
+  const map = new Map<string, Airport>();
   for (const a of raw.airports) {
     if (a.ident && /^[A-Z]{4}$/.test(a.ident)) {
-      map.set(a.ident, a.municipality ?? a.name ?? a.ident);
+      map.set(a.ident, { city: a.municipality ?? a.name ?? a.ident, lat: Number(a.latitude_deg), lon: Number(a.longitude_deg) });
     }
   }
   return map;
 }
 
+function airport(icao: string): Airport | undefined {
+  if (!airportDb) airportDb = buildAirportDb();
+  return airportDb.get(icao.toUpperCase());
+}
+
 function airportCity(icao: string): string {
   const code = icao.toUpperCase();
   if (AIRPORT_CITIES[code]) return AIRPORT_CITIES[code];
-  if (!airportDb) airportDb = buildAirportDb();
-  return airportDb.get(code) ?? icao;
+  return airport(code)?.city ?? icao;
+}
+
+// Airlines reuse flight numbers for different routes after schedule changes (and
+// Southwest flies one number through several stops), so a cached route can go
+// stale. Check it against where the aircraft actually is: a route doesn't fit when
+// the aircraft is well off the line between the two airports, or — away from both
+// ends, where departures turn and arrivals get vectored — heading away from the
+// destination. Routes we can't check (no position, unknown airport) are assumed fine.
+export type FlightPosition = Pick<FlightState, 'latitude' | 'longitude' | 'trueTrack' | 'onGround'>;
+
+const DETOUR_RATIO = 1.35;
+const DETOUR_SLACK_MI = 30;
+const TERMINAL_AREA_MI = 50;
+const HEADING_AWAY_DEG = 110;
+
+export function routeFits(r: RouteResult, pos: FlightPosition | undefined): boolean {
+  if (!pos || pos.onGround || !r.departure || !r.arrival) return true;
+  const o = airport(r.departure);
+  const d = airport(r.arrival);
+  if (!o || !d) return true;
+  const direct = haversineDistance(o.lat, o.lon, d.lat, d.lon);
+  const fromOrigin = haversineDistance(o.lat, o.lon, pos.latitude, pos.longitude);
+  const toDest = haversineDistance(pos.latitude, pos.longitude, d.lat, d.lon);
+  if (fromOrigin + toDest > direct * DETOUR_RATIO + DETOUR_SLACK_MI) return false;
+  if (pos.trueTrack === null || fromOrigin < TERMINAL_AREA_MI || toDest < TERMINAL_AREA_MI) return true;
+  const off = Math.abs(((bearingTo(pos.latitude, pos.longitude, d.lat, d.lon) - pos.trueTrack) % 360 + 540) % 360 - 180);
+  return off <= HEADING_AWAY_DEG;
 }
 
 // Route cache — keyed by "lowercase icao24 hex:callsign". The callsign encodes
@@ -110,6 +143,10 @@ db.exec(`
 `);
 const stmtMiss = db.prepare('INSERT INTO fa_misses (ts, key, reason) VALUES (?, ?, ?)');
 
+db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)');
+const stmtMetaGet = db.prepare<[string], { value: string }>('SELECT value FROM meta WHERE key = ?');
+const stmtMetaSet = db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
+
 function logMiss(key: string, reason: string) {
   stmtMiss.run(Date.now(), key, reason);
 }
@@ -143,7 +180,7 @@ type FAFlight = {
 
 const faBackoffUntil = new Map<string, number>();
 
-interface DailyCount { date: string; fresh: number; cached: number }
+interface DailyCount { date: string; fresh: number; cached: number; airlabs: number }
 
 const QUOTA_FILE = path.resolve(__dirname, '../../cache/fa-quota.json');
 let faHistory: DailyCount[] = [];
@@ -163,13 +200,14 @@ function loadQuota() {
     const raw = fs.readFileSync(QUOTA_FILE, 'utf8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed.history)) {
-      faHistory = parsed.history.map((h: { date: string; fresh?: number; cached?: number; count?: number }) => ({
+      faHistory = parsed.history.map((h: { date: string; fresh?: number; cached?: number; airlabs?: number; count?: number }) => ({
         date: h.date,
         fresh: h.fresh ?? h.count ?? 0,
         cached: h.cached ?? 0,
+        airlabs: h.airlabs ?? 0,
       }));
     } else if (parsed.date && parsed.count !== undefined) {
-      faHistory = [{ date: parsed.date, fresh: parsed.count, cached: 0 }];
+      faHistory = [{ date: parsed.date, fresh: parsed.count, cached: 0, airlabs: 0 }];
     }
   } catch {
     // first run — leave default
@@ -196,7 +234,7 @@ function todayEntry(): DailyCount {
   const today = todayKey();
   let entry = faHistory.find(h => h.date === today);
   if (!entry) {
-    entry = { date: today, fresh: 0, cached: 0 };
+    entry = { date: today, fresh: 0, cached: 0, airlabs: 0 };
     faHistory.push(entry);
     faHistory = faHistory.filter(h => h.date >= quotaCutoff());
   }
@@ -217,6 +255,11 @@ function quotaConsume() {
   saveQuota();
 }
 
+function airlabsConsume() {
+  todayEntry().airlabs++;
+  scheduleSave();
+}
+
 function cacheHitConsume() {
   todayEntry().cached++;
   scheduleSave();
@@ -226,9 +269,10 @@ loadQuota();
 
 // AirLabs rate-limit state — driven entirely by error responses from the API.
 // minute_limit_exceeded / hour_limit_exceeded → backoff until the window resets.
-// month_limit_exceeded → skip AirLabs until the calendar month rolls over.
+// month_limit_exceeded → skip AirLabs until the billing cycle rolls over (persisted,
+// so restarts don't re-probe it).
 let airlabsBackoffUntil = 0;        // epoch ms; 0 = not backed off
-let airlabsMonthExhausted = '';     // 'YYYY-MM' of the month when limit was hit; '' = not exhausted
+let airlabsMonthExhausted = stmtMetaGet.get('airlabs_exhausted_cycle')?.value ?? ''; // billing cycle key when the limit was hit; '' = not exhausted
 
 // Returns the start date of the current AirLabs billing cycle (resets on the 4th of each month).
 function billingCycleKey(): string {
@@ -344,6 +388,7 @@ async function lookupAirlabsRoute(callsign: string): Promise<RouteResult | null>
   if (!apiKey || !airlabsIsAvailable() || looksLikeRegistration(callsign)) return null;
 
   try {
+    airlabsConsume();
     const res = await fetch(
       `https://airlabs.co/api/v9/flight?flight_icao=${encodeURIComponent(callsign)}&api_key=${apiKey}`
     );
@@ -373,6 +418,7 @@ async function lookupAirlabsRoute(callsign: string): Promise<RouteResult | null>
       }
       if (code === 'month_limit_exceeded') {
         airlabsMonthExhausted = billingCycleKey();
+        stmtMetaSet.run('airlabs_exhausted_cycle', airlabsMonthExhausted);
         console.warn(`[route] AirLabs: monthly limit hit — falling back to FlightAware until ${billingCycleKey()} ends`);
         return null;
       }
@@ -414,17 +460,37 @@ function routeResultToInfo(r: RouteResult): RouteInfo | null {
   };
 }
 
+function hasRoute(r: RouteResult | null): r is RouteResult {
+  return !!r?.departure && !!r.arrival;
+}
+
 function routeCacheKey(callsign: string): string {
   return callsign.trim().toUpperCase();
 }
 
-// Returns a cached route if present, else null. Never makes a network call —
-// used for non-closest flights where we don't want to spend any API quota.
-export function getRouteFromCacheOnly(_icao24: string, callsign: string): RouteInfo | null {
+// Returns a cached route if present and it fits where the aircraft is, else null.
+// Never makes a network call — used for flights where we don't want to spend any API quota.
+export function getRouteFromCacheOnly(_icao24: string, callsign: string, position?: FlightPosition): RouteInfo | null {
   const key = routeCacheKey(callsign);
   const cached = dbGet(key);
-  if (!cached) return null;
+  if (!cached || !routeFits(cached.route, position)) return null;
   return routeResultToInfo(cached.route);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const EMPTY_TTL_MS = 7 * DAY_MS;          // re-ask about "no route" answers after a week
+const MISFIT_RETRY_MS = 60 * 60 * 1000;   // re-ask about a route that doesn't fit at most hourly
+const FAILED_RETRY_MS = 30 * 60 * 1000;   // after a lookup that got nothing, wait before asking again
+
+// Lookups that came back with nothing to cache (not found, skipped, errors),
+// so the same callsign isn't re-asked on every poll.
+const failedLookupAt = new Map<string, number>();
+
+function noteFailedLookup(key: string, now: number) {
+  failedLookupAt.set(key, now);
+  if (failedLookupAt.size > 1000) {
+    for (const [k, t] of failedLookupAt) if (now - t > FAILED_RETRY_MS) failedLookupAt.delete(k);
+  }
 }
 
 const DEV_DUMMY_ROUTES: RouteInfo[] = [
@@ -443,9 +509,17 @@ function devDummyRoute(callsign: string): RouteInfo {
   return DEV_DUMMY_ROUTES[idx];
 }
 
-export async function getCachedRoute(callsign: string, _icao24: string, opts: { interactive?: boolean; dev?: boolean; force?: boolean } = {}): Promise<RouteInfo | null> {
+export async function getCachedRoute(
+  callsign: string,
+  _icao24: string,
+  opts: { interactive?: boolean; dev?: boolean; force?: boolean; position?: FlightPosition } = {},
+): Promise<RouteInfo | null> {
   if (opts.dev) return devDummyRoute(callsign);
+  if (!callsign) return null;
   const key = routeCacheKey(callsign);
+  const now = Date.now();
+  const recentlyFailed = now - (failedLookupAt.get(key) ?? -Infinity) < FAILED_RETRY_MS;
+
   if (opts.force) {
     stmtDelete.run(key);
     console.log(`[route] cache busted: ${callsign}`);
@@ -454,31 +528,37 @@ export async function getCachedRoute(callsign: string, _icao24: string, opts: { 
     if (cached) {
       cacheHitConsume();
       const r = cached.route;
+      const age = now - cached.fetchedAt;
       // Cache hits aren't logged: they happen for ~10 flights every poll and made
       // up most of the log volume on the Pi.
-      if (!r.departure || !r.arrival) return null;
-      return routeResultToInfo(r);
-    }
-  }
-
-  // Try AirLabs first (free, callsign-based, schedule data)
-  if (callsign) {
-    const alRoute = await lookupAirlabsRoute(callsign);
-    if (alRoute !== null) {
-      // AirLabs was contacted — cache the result to prevent future calls
-      dbSet(key, alRoute, Date.now(), 'airlabs');
-      if (alRoute.departure && alRoute.arrival) {
-        return routeResultToInfo(alRoute);
+      if (!r.departure || !r.arrival) {
+        if (age < EMPTY_TTL_MS) return null;
+      } else if (!routeFits(r, opts.position)) {
+        // Wrong for this flight — hide it, and look it up again unless we just did.
+        if (age < MISFIT_RETRY_MS) return null;
+        console.log(`[route] ${key}: cached ${r.departure} → ${r.arrival} doesn't fit the aircraft's position, re-checking`);
+      } else {
+        return routeResultToInfo(r);
       }
-      // AirLabs returned a definitive empty — fall through to FA
-      console.log(`[route] AirLabs ${callsign}: no route, trying FlightAware`);
     }
+    if (recentlyFailed) return null;
   }
 
-  // Fall back to FlightAware — always works when AirLabs quota is exhausted or flight not found
-  const faRoute = callsign ? await fetchFlightAwareRoute(callsign, opts) : null;
-  if (faRoute !== null) {
-    dbSet(key, faRoute, Date.now(), 'flightaware');
+  // Try AirLabs first (free, callsign-based, schedule data), then FlightAware
+  // when AirLabs is out of quota or doesn't know the flight.
+  let fresh = await lookupAirlabsRoute(callsign);
+  let source: 'airlabs' | 'flightaware' = 'airlabs';
+  if (!hasRoute(fresh)) {
+    if (fresh) console.log(`[route] AirLabs ${callsign}: no route, trying FlightAware`);
+    const fa = await fetchFlightAwareRoute(callsign, opts);
+    if (fa || !fresh) { fresh = fa; source = 'flightaware'; }
   }
-  return faRoute !== null ? routeResultToInfo(faRoute) : null;
+
+  if (!fresh) {
+    noteFailedLookup(key, now);
+    return null;
+  }
+  failedLookupAt.delete(key);
+  dbSet(key, fresh, now, source);
+  return routeFits(fresh, opts.position) ? routeResultToInfo(fresh) : null;
 }
