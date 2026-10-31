@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.9.2',
+    date: '2026-10-31',
+    changes: [
+      'City names now show for airports that were appearing as codes, e.g. Lima instead of SPJC.',
+    ],
+  },
+  {
     version: '0.9.1',
     date: '2026-10-31',
     changes: [

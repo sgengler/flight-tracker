@@ -47,13 +47,17 @@ let airportDb: Map<string, Airport> | null = null;
 
 function buildAirportDb(): Map<string, Airport> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const raw = require('airports-json') as { airports: Array<{ ident?: string; municipality?: string; name?: string; latitude_deg?: string; longitude_deg?: string }> };
+  const raw = require('airports-json') as { airports: Array<{ ident?: string; gps_code?: string; icao_code?: string; municipality?: string; name?: string; latitude_deg?: string; longitude_deg?: string }> };
   const map = new Map<string, Airport>();
+  const aliases: Array<[string, Airport]> = [];
   for (const a of raw.airports) {
-    if (a.ident && /^[A-Z]{4}$/.test(a.ident)) {
-      map.set(a.ident, { city: a.municipality ?? a.name ?? a.ident, lat: Number(a.latitude_deg), lon: Number(a.longitude_deg) });
-    }
+    const airport = { city: a.municipality ?? a.name ?? a.ident ?? '', lat: Number(a.latitude_deg), lon: Number(a.longitude_deg) };
+    if (a.ident && /^[A-Z]{4}$/.test(a.ident)) map.set(a.ident, airport);
+    // Some airports are listed under an old ident with today's ICAO code alongside
+    // (Lima is ident SPIM, code SPJC), so index those codes too.
+    for (const code of [a.icao_code, a.gps_code]) if (code && /^[A-Z]{4}$/.test(code)) aliases.push([code, airport]);
   }
+  for (const [code, airport] of aliases) if (!map.has(code)) map.set(code, airport);
   return map;
 }
 
@@ -455,9 +459,10 @@ function routeResultToInfo(r: RouteResult): RouteInfo | null {
   const d = airport(r.arrival);
   return {
     origin: r.departure,
-    originCity: r.departureCity ?? airportCity(r.departure),
+    // Older cache rows saved the bare code as the city when the lookup missed it
+    originCity: r.departureCity && r.departureCity !== r.departure ? r.departureCity : airportCity(r.departure),
     destination: r.arrival,
-    destinationCity: r.arrivalCity ?? airportCity(r.arrival),
+    destinationCity: r.arrivalCity && r.arrivalCity !== r.arrival ? r.arrivalCity : airportCity(r.arrival),
     airline: r.airline,
     originLat: o?.lat ?? null,
     originLon: o?.lon ?? null,
